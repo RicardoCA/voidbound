@@ -1,0 +1,642 @@
+import Phaser from "phaser";
+import { useGame } from "../../stores/game";
+import { biomes, type Mode } from "../types";
+import { Terrain, tileItems } from "../procedural/terrain";
+import { random, hash } from "../procedural/random";
+import { planetPosition } from "../../universe/generator";
+import { controls, takePulse, releaseControls } from "../input";
+import { audio } from "../systems/audio";
+interface Rock {
+  id: string;
+  x: number;
+  y: number;
+  r: number;
+  ore: "iron" | "copper" | "crystal" | "rawFuel" | "titanium" | "silicon";
+  hits: number;
+}
+export class WorldScene extends Phaser.Scene {
+  private store!: ReturnType<typeof useGame>;
+  private gfx!: Phaser.GameObjects.Graphics;
+  private keys!: Record<string, Phaser.Input.Keyboard.Key>;
+  private terrain?: Terrain;
+  private lastMode: Mode | "none" = "none";
+  private lastSystem = "";
+  private lastPlanet = "";
+  private rocks: Rock[] = [];
+  private camX = 0;
+  private camY = 0;
+  private vy = 0;
+  private grounded = false;
+  private mineTime = 0;
+  private elapsed = 0;
+  private facing = 1;
+  private stars: { x: number; y: number; r: number; phase: number }[] = [];
+  private particles: {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    color: number;
+  }[] = [];
+  private beam:
+    { x: number; y: number; tx: number; ty: number; life: number } | undefined;
+  private interactHeld = false;
+  private jumpHeld = false;
+  constructor() {
+    super("world");
+  }
+  create() {
+    this.store = useGame();
+    this.gfx = this.add.graphics();
+    this.keys = this.input.keyboard!.addKeys(
+      "W,A,S,D,SPACE,E,M,I,C,ESC",
+    ) as Record<string, Phaser.Input.Keyboard.Key>;
+    this.input.keyboard!.addCapture(["SPACE", "UP", "DOWN"]);
+    const r = random(142);
+    this.stars = Array.from({ length: 180 }, () => ({
+      x: r() * 480,
+      y: r() * 270,
+      r: r() > 0.9 ? 2 : 1,
+      phase: r() * 6,
+    }));
+    this.game.events.on("blur", releaseControls);
+    this.events.once("shutdown", () =>
+      this.game.events.off("blur", releaseControls),
+    );
+    this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
+      if (!this.store.started) return;
+      if (e.repeat) return;
+      if (e.code === "KeyM")
+        this.store.panel = this.store.panel === "map" ? "" : "map";
+      if (e.code === "KeyI")
+        this.store.panel = this.store.panel === "inventory" ? "" : "inventory";
+      if (e.code === "KeyC")
+        this.store.panel = this.store.panel === "craft" ? "" : "craft";
+      if (e.code === "Escape") {
+        if (this.store.panel) this.store.panel = "";
+        else this.store.paused = !this.store.paused;
+      }
+    });
+  }
+  private down(key: string) {
+    return this.keys[key]?.isDown ?? false;
+  }
+  update(_time: number, delta: number) {
+    const dt = Math.min(delta / 1000, 0.04);
+    this.elapsed += dt;
+    const g = this.store;
+    if (!g) return;
+    const s = g.state;
+    this.mineTime -= dt;
+    if (this.beam) {
+      this.beam.life -= dt;
+      if (this.beam.life <= 0) this.beam = undefined;
+    }
+    if (this.lastSystem !== g.system.id) {
+      this.lastSystem = g.system.id;
+      const r = random(hash(g.system.id + ":asteroids"));
+      this.rocks = Array.from({ length: 70 }, (_, i) => ({
+        id: `${g.system.id}:a${i}`,
+        x: 80 + r() * 6400,
+        y: -800 + r() * 2000,
+        r: 7 + r() * 13,
+        ore: (
+          [
+            "iron",
+            "copper",
+            "crystal",
+            "rawFuel",
+            "titanium",
+            "silicon",
+          ] as const
+        )[i % 6]!,
+        hits: 0,
+      }));
+      this.lastMode = "none";
+    }
+    if (
+      this.lastPlanet !== g.planet.id ||
+      this.terrain?.changes !== s.changes[g.planet.id]
+    ) {
+      this.lastPlanet = g.planet.id;
+      s.changes[g.planet.id] ??= {};
+      this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
+    }
+    if (this.lastMode !== s.mode) {
+      if (s.mode === "surface") {
+        this.vy = 0;
+        if (s.player.y === 0) {
+          s.player.x = s.landingX * 16 + 40;
+          s.player.y =
+            this.terrain!.height(Math.floor(s.player.x / 16)) * 16 - 13;
+        }
+        this.camX = s.player.x;
+        this.camY = s.player.y;
+      }
+      this.lastMode = s.mode;
+    }
+    if (g.started && !g.paused && !g.panel && !g.busy) {
+      g.tick(dt);
+      if (s.mode === "space") this.spacePhysics(dt);
+      if (s.mode === "surface") this.surfacePhysics(dt);
+      const interact =
+        takePulse("interact") ||
+        Phaser.Input.Keyboard.JustDown(this.keys.E!) ||
+        controls.interact;
+      if (interact && !this.interactHeld) {
+        if (s.mode === "space") {
+          let nearest = 0,
+            distance = Infinity;
+          g.system.planets.forEach((_, i) => {
+            const p = planetPosition(i),
+              d = Math.hypot(s.ship.x - p.x, s.ship.y - p.y);
+            if (d < distance) {
+              distance = d;
+              nearest = i;
+            }
+          });
+          if (distance < 210) g.orbit(nearest);
+          else g.notify("Aproxime-se de um planeta para entrar em órbita.");
+        } else if (s.mode === "surface") {
+          if (
+            Math.abs(s.player.x - s.landingX * 16) < 90 &&
+            Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
+          )
+            g.enter();
+          else g.notify("Volte até a Sparrow MK-I para embarcar.");
+        }
+      }
+      this.interactHeld = interact;
+    } else {
+      this.interactHeld = this.down("E") || controls.interact;
+    }
+    if (!g.started) {
+      this.camX = 350;
+      this.camY = 330;
+    }
+    this.draw(dt);
+  }
+  private spacePhysics(dt: number) {
+    const g = this.store,
+      s = g.state.ship;
+    const rotate =
+      (this.down("D") || controls.right ? 1 : 0) -
+      (this.down("A") || controls.left ? 1 : 0);
+    s.angle += rotate * 2.5 * dt;
+    const thrust = this.down("W") || controls.up,
+      brake = this.down("S") || controls.down;
+    if (thrust && s.fuel > 0) {
+      const acceleration = g.state.upgrades.includes("engine") ? 105 : 65;
+      s.vx += Math.cos(s.angle) * acceleration * dt;
+      s.vy += Math.sin(s.angle) * acceleration * dt;
+      s.fuel = Math.max(0, s.fuel - dt * 0.4);
+      if (Math.random() < 0.7)
+        this.particles.push({
+          x: s.x - Math.cos(s.angle) * 22,
+          y: s.y - Math.sin(s.angle) * 22,
+          vx: -Math.cos(s.angle) * 60,
+          vy: -Math.sin(s.angle) * 60,
+          life: 0.3,
+          color: 0x70e7ea,
+        });
+    }
+    if (brake) {
+      s.vx *= Math.exp(-dt * 2);
+      s.vy *= Math.exp(-dt * 2);
+    }
+    const speed = Math.hypot(s.vx, s.vy),
+      max = g.state.upgrades.includes("engine") ? 210 : 140;
+    if (speed > max) {
+      s.vx = (s.vx / speed) * max;
+      s.vy = (s.vy / speed) * max;
+    }
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    g.speed = Math.round(Math.hypot(s.vx, s.vy));
+    this.camX = Phaser.Math.Linear(this.camX, s.x, 0.09);
+    this.camY = Phaser.Math.Linear(this.camY, s.y, 0.09);
+    if (s.fuel < 3 && !thrust) {
+      s.fuel = Math.min(3, s.fuel + dt * 0.15);
+    }
+    for (const rock of this.rocks) {
+      if (g.state.depleted.includes(rock.id)) continue;
+      const distance = Math.hypot(rock.x - s.x, rock.y - s.y);
+      if (distance < rock.r + 15 && speed > 30) {
+        s.hull -=
+          speed * dt * (g.state.upgrades.includes("shield") ? 0.025 : 0.07);
+        s.vx *= -0.65;
+        s.vy *= -0.65;
+        s.x -= Math.cos(s.angle) * 8;
+        s.y -= Math.sin(s.angle) * 8;
+        if (s.hull <= 0) {
+          s.hull = 30;
+          s.vx = 0;
+          s.vy = 0;
+          s.fuel = Math.max(s.fuel, 15);
+          g.notify("Sistema de emergência estabilizou a nave. Repare o casco.");
+        }
+      }
+    }
+    if (
+      (takePulse("mine") || this.down("SPACE") || controls.mine) &&
+      this.mineTime <= 0 &&
+      s.energy >= 2
+    ) {
+      const range = g.state.upgrades.includes("laser") ? 200 : 130;
+      const rock = this.rocks
+        .filter(
+          (r) =>
+            !g.state.depleted.includes(r.id) &&
+            Math.hypot(r.x - s.x, r.y - s.y) < range,
+        )
+        .sort(
+          (a, b) =>
+            Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
+        )[0];
+      if (rock) {
+        this.mineTime = g.state.upgrades.includes("laser") ? 0.15 : 0.35;
+        s.energy -= 2;
+        this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
+        this.burst(rock.x, rock.y, 0xd8b48b);
+        audio.play(170);
+        rock.hits++;
+        if (rock.hits >= 3) {
+          if (g.collect(rock.ore, 3)) {
+            g.state.depleted.push(rock.id);
+            g.flag("asteroid");
+            g.progress();
+            void g.save();
+          } else rock.hits = 2;
+        }
+      }
+    }
+  }
+  private surfacePhysics(dt: number) {
+    const g = this.store,
+      p = g.state.player,
+      t = this.terrain!;
+    let dx =
+      (this.down("D") || controls.right ? 1 : 0) -
+      (this.down("A") || controls.left ? 1 : 0);
+    dx *= 90 * dt;
+    if (dx) this.facing = Math.sign(dx);
+    const nx = p.x + dx;
+    const solid = (x: number, y: number) =>
+      t.get(Math.floor(x / 16), Math.floor(y / 16)) !== 0;
+    if (
+      !solid(nx + Math.sign(dx) * 5, p.y - 10) &&
+      !solid(nx + Math.sign(dx) * 5, p.y + 10)
+    )
+      p.x = nx;
+    const jumping = takePulse("jump") || this.down("SPACE") || controls.jump;
+    if (jumping && !this.jumpHeld && this.grounded) {
+      this.vy = -190;
+      this.grounded = false;
+      audio.play(300);
+    }
+    this.jumpHeld = jumping;
+    this.vy += 340 * g.planet.gravity * dt;
+    const nextY = p.y + this.vy * dt;
+    this.grounded = false;
+    if (
+      this.vy >= 0 &&
+      (solid(p.x - 4, nextY + 12) || solid(p.x + 4, nextY + 12))
+    ) {
+      if (this.vy > 320) p.health -= Math.max(0, (this.vy - 320) * 0.08);
+      p.y = Math.floor((nextY + 12) / 16) * 16 - 12;
+      this.vy = 0;
+      this.grounded = true;
+    } else if (
+      this.vy < 0 &&
+      (solid(p.x - 4, nextY - 12) || solid(p.x + 4, nextY - 12))
+    ) {
+      p.y = (Math.floor((nextY - 12) / 16) + 1) * 16 + 12;
+      this.vy = 0;
+    } else p.y = nextY;
+    if (p.y > 1005) {
+      p.health -= 25;
+      p.x = g.state.landingX * 16 + 40;
+      p.y = t.height(Math.floor(p.x / 16)) * 16 - 14;
+      this.vy = 0;
+    }
+    this.camX = Phaser.Math.Linear(this.camX, p.x, 0.12);
+    this.camY = Phaser.Math.Linear(this.camY, p.y - 32, 0.1);
+    const pointer = this.input.activePointer;
+    const mobileMine = takePulse("mine") || controls.mine;
+    if ((mobileMine || pointer.isDown) && this.mineTime <= 0 && p.energy >= 1) {
+      let tx = Math.floor((pointer.x - 240 + this.camX) / 16),
+        ty = Math.floor((pointer.y - 135 + this.camY) / 16);
+      if (mobileMine) {
+        tx = Math.floor((p.x + this.facing * 24) / 16);
+        ty = Math.floor((p.y + 14) / 16);
+        if (!t.get(tx, ty)) ty++;
+      }
+      const tile = t.get(tx, ty);
+      if (
+        tile &&
+        ty < 63 &&
+        Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y) < 77
+      ) {
+        const resource = tileItems[tile] ?? "iron";
+        if (g.collect(resource, 1)) {
+          t.remove(tx, ty);
+          p.energy -= g.state.upgrades.includes("drill") ? 0.5 : 1;
+          this.mineTime = g.state.upgrades.includes("drill") ? 0.1 : 0.22;
+          this.beam = {
+            x: p.x,
+            y: p.y - 3,
+            tx: tx * 16 + 8,
+            ty: ty * 16 + 8,
+            life: 0.12,
+          };
+          this.burst(tx * 16 + 8, ty * 16 + 8, 0x9dd5d5);
+        }
+      }
+    }
+  }
+  private burst(x: number, y: number, color: number) {
+    for (let i = 0; i < 7; i++)
+      this.particles.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 65,
+        vy: (Math.random() - 0.5) * 65,
+        life: 0.3 + Math.random() * 0.3,
+        color,
+      });
+    if (this.particles.length > 160) this.particles.splice(0, 40);
+  }
+  private draw(dt: number) {
+    const g = this.store,
+      s = g.state,
+      f = this.gfx;
+    f.clear();
+    const surface = s.mode === "surface";
+    const sky = surface ? biomes[g.planet.kind]!.sky : 0x080f20;
+    f.fillStyle(sky);
+    f.fillRect(0, 0, 480, 270);
+    // Original procedural nebulae and layered starlight.
+    for (let layer = 0; layer < 3; layer++) {
+      f.fillStyle(
+        [0x15213a, 0x18283c, 0x1b2540][layer]!,
+        surface ? 0.13 : 0.23,
+      );
+      f.fillEllipse(
+        100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
+        70 + layer * 35,
+        300,
+        100,
+      );
+    }
+    for (const star of this.stars) {
+      const x = (((star.x - this.camX * 0.025) % 480) + 480) % 480,
+        y = (((star.y - this.camY * 0.025) % 270) + 270) % 270;
+      f.fillStyle(
+        0xc7daeb,
+        0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25,
+      );
+      f.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+    }
+    if (surface) this.drawSurface();
+    else this.drawSpace();
+    if (this.beam) {
+      const b = this.beam;
+      f.lineStyle(3, 0x80ecdf, 0.2);
+      f.lineBetween(
+        b.x - this.camX + 240,
+        b.y - this.camY + 135,
+        b.tx - this.camX + 240,
+        b.ty - this.camY + 135,
+      );
+      f.lineStyle(1, 0xc5fff1);
+      f.lineBetween(
+        b.x - this.camX + 240,
+        b.y - this.camY + 135,
+        b.tx - this.camX + 240,
+        b.ty - this.camY + 135,
+      );
+    }
+    this.particles = this.particles.filter((p) => p.life > 0);
+    for (const p of this.particles) {
+      p.life -= dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      f.fillStyle(p.color, Math.min(1, p.life * 3));
+      f.fillRect(
+        Math.floor(p.x - this.camX + 240),
+        Math.floor(p.y - this.camY + 135),
+        2,
+        2,
+      );
+    }
+    if (g.busy) {
+      f.fillStyle(0x80cced, 0.25);
+      for (let i = 0; i < 50; i++) {
+        const angle = i * 0.37,
+          x = 240 + ((Math.cos(angle) * this.elapsed) % 240),
+          y = 135 + ((Math.sin(angle) * this.elapsed) % 135);
+        f.fillRect(x, y, 35, 1);
+      }
+    }
+  }
+  private drawSpace() {
+    const f = this.gfx,
+      g = this.store,
+      s = g.state.ship;
+    g.system.planets.forEach((p, i) => {
+      const pos = planetPosition(i),
+        x = Math.round(pos.x - this.camX + 240),
+        y = Math.round(pos.y - this.camY + 135);
+      if (x < -120 || x > 600 || y < -120 || y > 390) return;
+      const radius = 57 + (i % 3) * 8;
+      f.fillStyle(p.color, 0.035);
+      f.fillCircle(x, y, radius + 14);
+      f.fillStyle(p.color, 0.12);
+      f.fillCircle(x, y, radius + 4);
+      f.fillStyle(p.color);
+      f.fillCircle(x, y, radius);
+      const r = random(p.seed);
+      for (let row = -radius; row < radius; row += 4) {
+        const half = Math.sqrt(radius * radius - row * row);
+        f.fillStyle([0x18243e, 0xbcd1bb, 0x43435c][Math.floor(r() * 3)]!, 0.22);
+        f.fillRect(
+          Math.floor(x - half + 3),
+          y + row,
+          Math.max(1, Math.floor(half * 2 - 6)),
+          2 + r() * 4,
+        );
+      }
+      f.fillStyle(0x061125, 0.5);
+      f.fillEllipse(x + radius * 0.35, y + 4, radius * 1.2, radius * 1.7);
+      f.lineStyle(1, 0xb8e1da, 0.17);
+      f.strokeCircle(x, y, radius + 7);
+    });
+    for (const rock of this.rocks) {
+      if (g.state.depleted.includes(rock.id)) continue;
+      const x = Math.floor(rock.x - this.camX + 240),
+        y = Math.floor(rock.y - this.camY + 135);
+      if (x < -30 || x > 510 || y < -30 || y > 300) continue;
+      f.fillStyle(0x635e68);
+      f.fillPoints(
+        [
+          { x: x - rock.r, y: y - 3 },
+          { x: x - rock.r * 0.5, y: y - rock.r },
+          { x: x + rock.r * 0.6, y: y - rock.r * 0.7 },
+          { x: x + rock.r, y: y + rock.r * 0.4 },
+          { x: x + rock.r * 0.3, y: y + rock.r },
+          { x: x - rock.r * 0.7, y: y + rock.r * 0.7 },
+        ],
+        true,
+      );
+      f.fillStyle(0x8b8189);
+      f.fillRect(x - 5, y - 5, 6, 4);
+      f.fillStyle(
+        rock.ore === "crystal"
+          ? 0xb794e8
+          : rock.ore === "copper"
+            ? 0xd79d7d
+            : 0x91b8bf,
+      );
+      f.fillRect(x + 3, y + 1, 3, 3);
+      f.fillRect(x - 4, y + 4, 2, 2);
+    }
+    if (g.started)
+      this.drawShip(
+        s.x - this.camX + 240,
+        s.y - this.camY + 135,
+        s.angle,
+        this.down("W") || controls.up,
+      );
+  }
+  private drawShip(x: number, y: number, angle: number, thrust = false) {
+    const f = this.gfx;
+    const point = (px: number, py: number) => ({
+      x: Math.round(x + px * Math.cos(angle) - py * Math.sin(angle)),
+      y: Math.round(y + px * Math.sin(angle) + py * Math.cos(angle)),
+    });
+    f.fillStyle(0x15283d);
+    f.fillPoints(
+      [
+        point(-22, -8),
+        point(-12, -13),
+        point(3, -7),
+        point(25, 0),
+        point(3, 7),
+        point(-12, 13),
+        point(-22, 8),
+      ],
+      true,
+    );
+    f.fillStyle(0x9baeb3);
+    f.fillPoints(
+      [point(-18, -5), point(2, -5), point(23, 0), point(2, 5), point(-18, 5)],
+      true,
+    );
+    f.fillStyle(0x536b7b);
+    f.fillPoints(
+      [point(-14, -12), point(-2, -6), point(-7, -4), point(-19, -7)],
+      true,
+    );
+    f.fillPoints(
+      [point(-14, 12), point(-2, 6), point(-7, 4), point(-19, 7)],
+      true,
+    );
+    f.fillStyle(0x86e0dd);
+    f.fillPoints([point(1, -3), point(12, 0), point(1, 3), point(-3, 0)], true);
+    f.lineStyle(2, 0xe5b571);
+    const a = point(-15, -10),
+      b = point(-8, -7),
+      c = point(-15, 10),
+      d = point(-8, 7);
+    f.lineBetween(a.x, a.y, b.x, b.y);
+    f.lineBetween(c.x, c.y, d.x, d.y);
+    f.fillStyle(0xa0f6e9);
+    const engine = point(-21, 0);
+    f.fillRect(engine.x - 2, engine.y - 3, 3, 6);
+    if (thrust) {
+      f.fillStyle(0x7de3ee, 0.8);
+      f.fillPoints(
+        [point(-22, -3), point(-34 - Math.random() * 10, 0), point(-22, 3)],
+        true,
+      );
+    }
+  }
+  private drawSurface() {
+    const f = this.gfx,
+      g = this.store,
+      t = this.terrain!,
+      biome = biomes[g.planet.kind]!,
+      p = g.state.player;
+    const startX = Math.floor((this.camX - 250) / 16),
+      startY = Math.max(0, Math.floor((this.camY - 145) / 16));
+    f.fillStyle(g.planet.color, 0.15);
+    for (let i = -1; i < 9; i++) {
+      const x = i * 85 - ((this.camX * 0.15) % 85);
+      f.fillTriangle(x, 220, x + 70, 65 + Math.sin(i * 4) * 30, x + 145, 220);
+    }
+    const colors: Record<number, number> = {
+      2: 0x9fb8bf,
+      3: 0xd99268,
+      4: 0xb9a8d4,
+      5: 0x596c7c,
+      6: 0x74c5d5,
+      7: 0xb38ee4,
+      8: 0x98daec,
+      9: 0x8dbd8d,
+      10: 0xb2a273,
+      11: 0xd8bb70,
+    };
+    for (let x = startX; x < startX + 33; x++)
+      for (let y = startY; y < Math.min(64, startY + 21); y++) {
+        const tile = t.get(x, y);
+        if (!tile) continue;
+        const sx = Math.floor(x * 16 - this.camX + 240),
+          sy = Math.floor(y * 16 - this.camY + 135);
+        f.fillStyle(biome.ground);
+        f.fillRect(sx, sy, 16, 16);
+        f.fillStyle(0x101a2c, 0.22);
+        f.fillRect(sx, sy + 13, 16, 3);
+        if (!t.get(x, y - 1)) {
+          f.fillStyle(g.planet.color);
+          f.fillRect(sx, sy, 16, 3);
+        }
+        if (tile > 1) {
+          f.fillStyle(colors[tile]!);
+          f.fillRect(sx + 3, sy + 5, 4, 3);
+          f.fillRect(sx + 10, sy + 9, 3, 4);
+          f.fillStyle(0xffffff, 0.2);
+          f.fillRect(sx + 4, sy + 5, 2, 1);
+        } else {
+          f.fillStyle(0xffffff, 0.06);
+          f.fillRect(sx + 4, sy + 7, 3, 2);
+        }
+      }
+    const shipX = g.state.landingX * 16,
+      shipY = t.height(g.state.landingX) * 16 - 12;
+    this.drawShip(shipX - this.camX + 240, shipY - this.camY + 135, 0);
+    f.fillStyle(0x7b8f9a);
+    f.fillRect(shipX - this.camX + 225, shipY - this.camY + 145, 4, 4);
+    f.fillRect(shipX - this.camX + 248, shipY - this.camY + 145, 4, 4);
+    const x = Math.round(p.x - this.camX + 240),
+      y = Math.round(p.y - this.camY + 135),
+      walk = this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0;
+    f.fillStyle(0x3b5164);
+    f.fillRect(x - 6, y - 4, 4, 11);
+    f.fillStyle(0xc0c9c8);
+    f.fillRect(x - 4, y - 4, 9, 12);
+    f.fillRect(x - 3, y - 12, 9, 9);
+    f.fillStyle(0x5de3da);
+    f.fillRect(x - 1 + (this.facing < 0 ? -2 : 0), y - 10, 6, 4);
+    f.fillStyle(0x67858e);
+    f.fillRect(x - 3, y + 7, 3, 5 + walk);
+    f.fillRect(x + 2, y + 7, 3, 5 - walk);
+    f.fillStyle(0xe4ad71);
+    f.fillRect(x - 4, y + 1, 9, 2);
+    f.fillStyle(0xbfcbd2);
+    f.fillRect(x + (this.facing > 0 ? 5 : -9), y - 1, 5, 3);
+    // Slow, deterministic day/night tint.
+    f.fillStyle(0x050c25, Math.max(0, Math.sin(g.state.time / 150)) * 0.3);
+    f.fillRect(0, 0, 480, 270);
+  }
+}

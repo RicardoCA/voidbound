@@ -1,0 +1,66 @@
+import { hash, random, LRU } from "../game/procedural/random";
+import type { StarSystem } from "../game/types";
+const cache = new LRU<string, StarSystem>(40);
+export function systemAt(seed: string, x: number, y: number): StarSystem {
+  const id = `${seed}:${x}:${y}`,
+    cached = cache.get(id);
+  if (cached) return cached;
+  const r = random(hash(id)),
+    names = [
+      "Veyra",
+      "Ortheon",
+      "Talos",
+      "Kepleris",
+      "Aster",
+      "Nimara",
+      "Elyon",
+      "Solis",
+      "Nox",
+      "Caelis",
+    ];
+  const name = `${names[Math.floor(r() * names.length)]}-${Math.floor(r() * 900 + 100)}`;
+  const star = [
+    "Anã vermelha",
+    "Estrela amarela",
+    "Estrela azul",
+    "Gigante vermelha",
+    "Anã branca",
+  ][Math.floor(r() * 5)]!;
+  const planets = Array.from({ length: 1 + Math.floor(r() * 8) }, (_, i) => {
+    const ps = hash(`${id}:planet:${i}`),
+      p = random(ps),
+      kind =
+        x === 0 && y === 0 && i === 0
+          ? 0
+          : Math.floor((p() * 6 + (star === "Estrela azul" ? 1 : 0)) % 6);
+    return {
+      id: `${id}:p${i}`,
+      seed: ps,
+      name: `${name} ${["I", "II", "III", "IV", "V", "VI", "VII", "VIII"][i]}`,
+      kind,
+      gravity: 0.5 + p() * 1.1,
+      temperature: [12, 66, -70, 24, 150, 18][kind]!,
+      breathable: kind === 3 || kind === 5,
+      color: [0x9b817c, 0xd6b47c, 0x99c7d8, 0x7dab9b, 0xdb8064, 0x6db8c3][
+        kind
+      ]!,
+      radius: 1000 + Math.floor(p() * 9000),
+    };
+  });
+  return cache.set(id, { id, x, y, name, star, planets });
+}
+export function nearby(seed: string, x: number, y: number) {
+  const result: StarSystem[] = [];
+  for (let dx = -3; dx <= 3; dx++)
+    for (let dy = -3; dy <= 3; dy++) {
+      if (
+        (dx === 0 && dy === 0) ||
+        hash(`${seed}:${x + dx}:${y + dy}:exists`) % 5 !== 0
+      )
+        result.push(systemAt(seed, x + dx, y + dy));
+    }
+  return result;
+}
+export function planetPosition(index: number) {
+  return { x: 530 + index * 860, y: 330 + Math.sin(index * 2) * 500 };
+}

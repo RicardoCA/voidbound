@@ -1,0 +1,577 @@
+<script setup lang="ts">
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import GameCanvas from "../components/GameCanvas.vue";
+import InventoryPanel from "../components/InventoryPanel.vue";
+import CraftingPanel from "../components/CraftingPanel.vue";
+import GalaxyMap from "../components/GalaxyMap.vue";
+import { useGame } from "../stores/game";
+import { planetPosition } from "../universe/generator";
+import {
+  controls,
+  pressControl,
+  releaseControls,
+  type Control,
+} from "../game/input";
+import { audio } from "../game/systems/audio";
+const g = useGame(),
+  seed = ref("VOIDBOUND"),
+  sound = ref(true),
+  confirmNew = ref(false);
+const surface = computed(() => g.state.mode === "surface"),
+  inShip = computed(() => g.state.mode === "interior");
+const closest = computed(() => {
+  let d = Infinity,
+    index = 0;
+  g.system.planets.forEach((_, i) => {
+    const p = planetPosition(i),
+      dist = Math.hypot(g.state.ship.x - p.x, g.state.ship.y - p.y);
+    if (dist < d) {
+      d = dist;
+      index = i;
+    }
+  });
+  return { planet: g.system.planets[index]!, distance: d, index };
+});
+const nav = [
+  { id: "inventory", icon: "▦", label: "Carga", key: "I" },
+  { id: "craft", icon: "⌘", label: "Fabricação", key: "C" },
+  { id: "map", icon: "✧", label: "Mapa galáctico", key: "M" },
+];
+const saveTooltipVisible = ref(false);
+let saveTooltipTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => g.saveRevision,
+  () => {
+    clearTimeout(saveTooltipTimer);
+    saveTooltipVisible.value = true;
+    saveTooltipTimer = setTimeout(() => {
+      saveTooltipVisible.value = false;
+    }, 2000);
+  },
+);
+let timer: ReturnType<typeof setInterval>;
+onMounted(() => {
+  void g.checkSave();
+  timer = setInterval(() => void g.save(), 30000);
+  window.addEventListener("blur", blur);
+  document.addEventListener("visibilitychange", visibility);
+});
+onBeforeUnmount(() => {
+  clearInterval(timer);
+  clearTimeout(saveTooltipTimer);
+  window.removeEventListener("blur", blur);
+  document.removeEventListener("visibilitychange", visibility);
+});
+function blur() {
+  releaseControls();
+  if (g.started) g.paused = true;
+  void g.save();
+}
+function visibility() {
+  if (document.hidden) blur();
+}
+function open(id: string) {
+  g.panel = g.panel === id ? "" : id;
+  releaseControls();
+}
+function control(id: Control, value: boolean, event: PointerEvent) {
+  event.preventDefault();
+  if (value)
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  if (value) pressControl(id);
+  else controls[id] = false;
+}
+function newGame() {
+  if (g.hasSave && !confirmNew.value) {
+    confirmNew.value = true;
+    return;
+  }
+  g.newGame(seed.value);
+  confirmNew.value = false;
+}
+function toggleSound() {
+  sound.value = !sound.value;
+  audio.enabled = sound.value;
+}
+function orbitCancel() {
+  g.state.mode = "space";
+  void g.save();
+}
+function minutes() {
+  return `${Math.floor(g.state.time / 3600)
+    .toString()
+    .padStart(2, "0")}:${Math.floor((g.state.time / 60) % 60)
+    .toString()
+    .padStart(2, "0")}`;
+}
+</script>
+<template>
+  <main class="app-shell">
+    <header class="topbar">
+      <a
+        class="brand"
+        href="#"
+        @click.prevent="g.started ? (g.paused = !g.paused) : undefined"
+        ><span class="brand-mark">◈</span> VOIDBOUND<span class="brand-sub"
+          >FRONTEIRAS DO INFINITO</span
+        ></a
+      >
+      <div class="top-right">
+        <span class="signal"><i /> SISTEMAS ONLINE</span
+        ><span class="build">ALPHA 0.1 / V1 EM DESENVOLVIMENTO</span
+        ><button
+          class="icon-button"
+          :aria-label="sound ? 'Desativar som' : 'Ativar som'"
+          @click="toggleSound"
+        >
+          {{ sound ? "♫" : "♩" }}</button
+        ><button
+          v-if="g.started"
+          class="icon-button"
+          aria-label="Pausar"
+          @click="g.paused = !g.paused"
+        >
+          Ⅱ
+        </button>
+      </div>
+    </header>
+    <section class="flight-deck">
+      <GameCanvas />
+      <div class="vignette" />
+      <template v-if="!g.started">
+        <div class="start-menu">
+          <div class="eyebrow">
+            <span class="little-line" /> UM UNIVERSO. INFINITAS FRONTEIRAS.
+          </div>
+          <h1>O desconhecido<br />é só o <em>começo.</em></h1>
+          <p>
+            Além do último sinal, existe um universo esperando.<br />Explore.
+            Construa. Encontre seu caminho entre as estrelas.
+          </p>
+          <div class="menu-actions">
+            <button class="primary large" @click="newGame">
+              {{ confirmNew ? "CONFIRMAR NOVA PARTIDA" : "INICIAR EXPEDIÇÃO" }}
+              <span>↗</span></button
+            ><button v-if="g.hasSave" class="secondary large" @click="g.resume">
+              CONTINUAR EXPEDIÇÃO <span>→</span></button
+            ><button
+              v-if="confirmNew"
+              class="text-button"
+              @click="confirmNew = false"
+            >
+              Cancelar substituição do salvamento
+            </button>
+          </div>
+          <label class="seed-input"
+            >SEED DO UNIVERSO
+            <input v-model="seed" maxlength="48" aria-label="Seed do universo"
+          /></label>
+          <div class="menu-bottom">
+            <span>01 / EXPLORAÇÃO PROCEDURAL</span
+            ><span>02 / SOBREVIVÊNCIA</span
+            ><span>03 / SEU PRÓPRIO CAMINHO</span>
+          </div>
+          <p v-if="confirmNew" class="warning">
+            A nova partida substituirá o salvamento existente.
+          </p>
+        </div>
+        <div class="planet-label">
+          <span>SETOR 00.00</span><b>{{ g.system.planets[0]?.name }}</b
+          ><small>Um sinal à espera de resposta.</small>
+        </div>
+      </template>
+      <template v-else>
+        <div class="location">
+          <div class="eyebrow">
+            <span class="little-line" />
+            {{
+              surface
+                ? "EXPLORAÇÃO PLANETÁRIA"
+                : inShip
+                  ? "SISTEMAS INTERNOS"
+                  : "ESPAÇO PROFUNDO"
+            }}
+          </div>
+          <h2>
+            {{ surface || inShip ? g.planet.name : g.system.name }}
+            <span>↗</span>
+          </h2>
+          <p>
+            {{
+              surface || inShip
+                ? `${g.biome.name} · ${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
+                : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
+            }}
+          </p>
+        </div>
+        <aside class="mission-card">
+          <div class="eyebrow">
+            <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
+            <span class="muted"
+              >0{{ Math.min(6, g.state.mission + 1) }} / 06</span
+            >
+          </div>
+          <h3>{{ g.mission.title }}</h3>
+          <p>{{ g.mission.text }}</p>
+          <div class="mission-track">
+            <i
+              v-for="n in 6"
+              :key="n"
+              :class="{
+                done: n <= g.state.mission,
+                active: n === g.state.mission + 1,
+              }"
+            />
+          </div>
+        </aside>
+        <div v-if="g.state.mode === 'space'" class="target-label">
+          <span class="target-bracket">⌖</span>
+          <div>
+            <span>PLANETA MAIS PRÓXIMO</span><b>{{ closest.planet.name }}</b
+            ><small
+              >{{ Math.round(closest.distance) }} km
+              <span v-if="closest.distance < 210"
+                >· [E] ENTRAR EM ÓRBITA</span
+              ></small
+            >
+          </div>
+        </div>
+        <div v-if="surface" class="surface-tip">
+          MULTITOOL <span>◆</span> Clique em um bloco próximo para minerar
+          <kbd>E</kbd> Embarcar perto da nave
+        </div>
+        <div v-if="!g.panel && !g.paused" class="mobile-controls">
+          <div class="dpad">
+            <button
+              aria-label="Acelerar"
+              @pointerdown="control('up', true, $event)"
+              @pointerup="control('up', false, $event)"
+              @pointercancel="releaseControls"
+            >
+              ▲
+            </button>
+            <div>
+              <button
+                aria-label="Esquerda"
+                @pointerdown="control('left', true, $event)"
+                @pointerup="control('left', false, $event)"
+                @pointercancel="releaseControls"
+              >
+                ◀</button
+              ><button
+                aria-label="Frear"
+                @pointerdown="control('down', true, $event)"
+                @pointerup="control('down', false, $event)"
+                @pointercancel="releaseControls"
+              >
+                ▼</button
+              ><button
+                aria-label="Direita"
+                @pointerdown="control('right', true, $event)"
+                @pointerup="control('right', false, $event)"
+                @pointercancel="releaseControls"
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+          <div class="action-pad">
+            <button
+              v-if="surface"
+              @pointerdown="control('jump', true, $event)"
+              @pointerup="control('jump', false, $event)"
+              @pointercancel="releaseControls"
+            >
+              PULAR</button
+            ><button
+              @pointerdown="control('mine', true, $event)"
+              @pointerup="control('mine', false, $event)"
+              @pointercancel="releaseControls"
+            >
+              MINERAR</button
+            ><button
+              @pointerdown="control('interact', true, $event)"
+              @pointerup="control('interact', false, $event)"
+              @pointercancel="releaseControls"
+            >
+              E
+            </button>
+          </div>
+        </div>
+        <div class="bottom-hud">
+          <section class="ship-status">
+            <div class="ship-icon">➤</div>
+            <div class="status-data">
+              <div class="status-heading">
+                {{ surface ? "TRAJE EXPLORADOR" : "SPARROW MK-I" }}
+                <span>{{ surface ? "EVA" : "NAVE LEVE" }}</span>
+              </div>
+              <div class="meters">
+                <div>
+                  <span>{{ surface ? "VIDA" : "CASCO" }}</span>
+                  <div class="meter">
+                    <i
+                      :style="{
+                        width: `${surface ? g.state.player.health : g.state.ship.hull}%`,
+                      }"
+                    />
+                  </div>
+                  <b
+                    >{{
+                      Math.ceil(
+                        surface ? g.state.player.health : g.state.ship.hull,
+                      )
+                    }}<small>%</small></b
+                  >
+                </div>
+                <div class="gold">
+                  <span>{{ surface ? "OXIGÊNIO" : "COMBUSTÍVEL" }}</span>
+                  <div class="meter">
+                    <i
+                      :style="{
+                        width: `${surface ? g.state.player.oxygen : (g.state.ship.fuel / g.maxFuel) * 100}%`,
+                      }"
+                    />
+                  </div>
+                  <b
+                    >{{
+                      Math.ceil(
+                        surface ? g.state.player.oxygen : g.state.ship.fuel,
+                      )
+                    }}<small>{{ surface ? "%" : " U" }}</small></b
+                  >
+                </div>
+                <div class="blue">
+                  <span>ENERGIA</span>
+                  <div class="meter">
+                    <i
+                      :style="{
+                        width: `${surface ? g.state.player.energy : g.state.ship.energy}%`,
+                      }"
+                    />
+                  </div>
+                  <b
+                    >{{
+                      Math.ceil(
+                        surface ? g.state.player.energy : g.state.ship.energy,
+                      )
+                    }}<small>%</small></b
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+          <div class="speed-display">
+            <span>{{ surface ? "GRAVIDADE" : "VELOCIDADE" }}</span
+            ><b
+              >{{ surface ? g.planet.gravity.toFixed(2) : g.speed }}
+              <small>{{ surface ? "g" : "km/s" }}</small></b
+            >
+            <div class="speed-ticks">▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏</div>
+          </div>
+          <nav>
+            <button
+              v-for="n in nav"
+              :key="n.id"
+              :class="{ selected: g.panel === n.id }"
+              @click="open(n.id)"
+            >
+              <span class="nav-icon">{{ n.icon }}</span
+              ><span>{{ n.label }}</span
+              ><kbd>{{ n.key }}</kbd>
+            </button>
+          </nav>
+          <div class="radar">
+            <svg viewBox="0 0 90 90" aria-label="Radar do sistema">
+              <circle cx="45" cy="45" r="40" />
+              <circle cx="45" cy="45" r="24" />
+              <path d="M45 5V85M5 45H85" />
+              <circle
+                v-for="(_, i) in g.system.planets"
+                :key="i"
+                :cx="
+                  45 +
+                  Math.max(
+                    -37,
+                    Math.min(37, (planetPosition(i).x - g.state.ship.x) / 22),
+                  )
+                "
+                :cy="
+                  45 +
+                  Math.max(
+                    -37,
+                    Math.min(37, (planetPosition(i).y - g.state.ship.y) / 22),
+                  )
+                "
+                r="2"
+                class="radar-planet"
+              />
+              <path d="M45 40L48 49L45 47L42 49Z" class="radar-ship" /></svg
+            ><span>RADAR LOCAL</span>
+          </div>
+        </div>
+      </template>
+      <div
+        v-if="
+          g.started &&
+          (g.panel || g.paused || g.state.mode === 'orbit' || inShip)
+        "
+        class="overlay"
+        :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
+      >
+        <section v-if="g.paused" class="dialog narrow">
+          <div class="eyebrow">TRANSMISSÃO EM ESPERA</div>
+          <h2>Uma pausa entre estrelas.</h2>
+          <p>A simulação está pausada.</p>
+          <button class="primary" @click="g.paused = false">
+            RETOMAR EXPEDIÇÃO →</button
+          ><button class="secondary" @click="g.save">SALVAR PARTIDA</button
+          ><button
+            class="secondary"
+            @click="
+              g.save();
+              g.started = false;
+              g.paused = false;
+            "
+          >
+            VOLTAR AO MENU
+          </button>
+          <div class="help">
+            Nave: W acelerar · S frear · A/D rotacionar · Espaço minerar · E
+            órbita<br />Superfície: A/D andar · Espaço pular · Clique minerar ·
+            E embarcar<br />I carga · C fabricação · M mapa · Esc pausa
+          </div>
+        </section>
+        <InventoryPanel v-else-if="g.panel === 'inventory'" />
+        <CraftingPanel v-else-if="g.panel === 'craft'" />
+        <GalaxyMap v-else-if="g.panel === 'map'" />
+        <section
+          v-else-if="g.state.mode === 'orbit'"
+          class="dialog orbit-dialog"
+        >
+          <div class="eyebrow">ÓRBITA ESTÁVEL / ESCANEAMENTO CONCLUÍDO</div>
+          <h2>{{ g.planet.name }}</h2>
+          <p class="planet-type">
+            {{ g.biome.name }} · Raio
+            {{ g.planet.radius.toLocaleString("pt-BR") }} km
+          </p>
+          <div class="planet-facts">
+            <div>
+              <span>GRAVIDADE</span><b>{{ g.planet.gravity.toFixed(2) }} g</b>
+            </div>
+            <div>
+              <span>ATMOSFERA</span
+              ><b>{{
+                g.planet.breathable ? "Respirável" : "Não respirável"
+              }}</b>
+            </div>
+            <div>
+              <span>TEMPERATURA</span><b>{{ g.planet.temperature }} °C</b>
+            </div>
+          </div>
+          <p>
+            RECURSOS <b>{{ g.biome.resources }}</b>
+          </p>
+          <p class="warning">△ {{ g.biome.hazard }}</p>
+          <h3>Selecione a zona de pouso</h3>
+          <div class="landing-zones">
+            <button
+              v-for="(name, i) in [
+                'Planície de Aurora',
+                'Dorsal do Horizonte',
+                'Bacia Silenciosa',
+              ]"
+              :key="name"
+              class="zone"
+              @click="g.land(i)"
+            >
+              <span>0{{ i + 1 }} / ZONA SEGURA</span><b>{{ name }}</b
+              ><small>INICIAR DESCIDA ↓</small>
+            </button>
+          </div>
+          <button class="text-button" @click="orbitCancel">
+            ← Retornar ao voo livre
+          </button>
+        </section>
+        <section v-else-if="inShip" class="dialog cockpit">
+          <div class="eyebrow">
+            <span class="gold-dot" /> SPARROW MK-I / CABINE PRESSURIZADA
+          </div>
+          <h2>Lar, entre as estrelas.</h2>
+          <p>
+            {{
+              g.state.ship.hull < 70
+                ? "Casco danificado. Explore a superfície e fabrique um kit de reparo."
+                : "Sistemas prontos. A próxima fronteira está à sua espera."
+            }}
+          </p>
+          <div class="cabin-visual">
+            <div class="cabin-window">✧ <span>✦</span> · <b>◒</b></div>
+            <div class="console-screen">▰ ▰ ▰<br />▱ ▰ ▱</div>
+            <div class="console-light" />
+          </div>
+          <div class="cabin-actions">
+            <button class="primary" @click="g.exit">
+              EXPLORAR SUPERFÍCIE ↗</button
+            ><button class="secondary" @click="open('craft')">
+              ⌘ FABRICAÇÃO & REFINARIA</button
+            ><button class="secondary" @click="open('inventory')">
+              ▦ CARGA & MELHORIAS</button
+            ><button class="secondary" @click="g.recover">
+              ☼ RECUPERAÇÃO SOLAR (+60 s)</button
+            ><button
+              class="primary launch"
+              :disabled="g.state.ship.hull < 70 || g.state.ship.fuel < 5"
+              @click="g.takeoff"
+            >
+              DECOLAR · 5 COMBUSTÍVEL ↑
+            </button>
+          </div>
+          <small
+            >Oxigênio da nave: {{ Math.ceil(g.state.ship.oxygen) }}% · Traje:
+            {{ Math.ceil(g.state.player.oxygen) }}% · Reabastecimento automático
+            enquanto estiver a bordo.</small
+          >
+        </section>
+      </div>
+      <div v-if="g.busy" class="jump-overlay">
+        <div>✧</div>
+        <h2>Dobrando o horizonte</h2>
+        <p>Sincronizando propulsor de salto…</p>
+      </div>
+    </section>
+    <footer class="footer">
+      <Transition name="save-tooltip">
+        <div
+          v-if="g.started && saveTooltipVisible"
+          class="save-tooltip"
+          role="status"
+          aria-live="polite"
+        >
+          <span aria-hidden="true">✓</span> Jogo salvo
+        </div>
+      </Transition>
+      <div class="transmission">
+        <span class="status-dot" />
+        <span>{{
+          g.started ? g.notice : "EXPLORADOR, SUA JORNADA COMEÇA AQUI."
+        }}</span>
+      </div>
+      <div class="footer-right">
+        <span v-if="g.started">TEMPO DE VOO {{ minutes() }}</span
+        ><button v-if="g.started" @click="g.save">◈ {{ g.saveStatus }}</button
+        ><span v-else>UNIVERSO DETERMINÍSTICO · SALVAMENTO LOCAL</span>
+      </div>
+    </footer>
+    <div v-if="g.started" class="keyboard-help">
+      <span v-if="surface"
+        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
+        <kbd>CLIQUE</kbd> MINERAR</span
+      ><span v-else
+        ><kbd>W</kbd> PROPULSÃO <kbd>A</kbd><kbd>D</kbd> ROTACIONAR
+        <kbd>S</kbd> FREAR <kbd>ESPAÇO</kbd> MINERAR</span
+      ><span><kbd>E</kbd> INTERAGIR <kbd>ESC</kbd> PAUSAR</span
+      ><span class="version">DESBRAVE O QUE VEM DEPOIS.</span>
+    </div>
+  </main>
+</template>
