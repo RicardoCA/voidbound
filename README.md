@@ -82,3 +82,11 @@ npm run test:browser
 ```
 
 O teste usa uma nova sessão de navegador, pilota com teclado, pousa pelos menus, minera blocos reais com o mouse, fabrica, repara, decola e recarrega a partida. Não concede materiais por código. Screenshots são gravadas em `/tmp/voidbound-qa` (configure `VOIDBOUND_ARTIFACTS` para outro diretório). `VOIDBOUND_URL` substitui o endereço padrão `http://127.0.0.1:5173`.
+
+## GitHub Pages
+
+O workflow `.github/workflows/pages.yml` instala as dependências, executa lint/testes, compila o Vite e publica **apenas `dist/`** após cada push em `main`. Também pode ser iniciado manualmente na aba Actions.
+
+Em **Settings → Pages → Build and deployment**, mantenha **Source: GitHub Actions**. O domínio personalizado é gerenciado nessa mesma tela (atualmente `voidbound.duckdns.org`). O workflow obtém o caminho-base da configuração do Pages: funciona tanto no domínio personalizado quanto no endereço com `/voidbound/`, caso o domínio seja removido.
+
+Selecionar GitHub Actions na configuração não cria o deploy sozinho: é necessário que o workflow seja executado e termine com sucesso. Acompanhe os jobs `build` e `deploy` na aba Actions. Não publique diretamente o código-fonte Vue/TypeScript como se fosse um site HTML estático.
