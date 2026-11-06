@@ -52,7 +52,7 @@ A carga é compartilhada entre traje e nave nesta alpha: 24 slots, ou 40 com com
 | Interação  | E: órbita próxima                        | E: entrar na nave próxima        |
 | Interfaces | I carga, C fabricação, M mapa, Esc pausa | Idem                             |
 
-Em telas com toque, botões direcionais controlam os eixos, com ações de mineração, interação e pulo. Prefira orientação horizontal. Na superfície, a mineração por botão escolhe o bloco próximo à frente dos pés; tocar diretamente em um bloco também funciona.
+Em telas com toque, o joystick controla movimento lateral na superfície e rotação/aceleração no espaço. Há botões separados para laser/mineração, freio, interação e pulo, com suporte a múltiplos dedos. O HUD móvel é compacto e o diário abre sob demanda. A área renderizada acompanha o formato da tela sem cortar o centro do jogo, inclusive ao girar o aparelho. Na superfície, a mineração por botão escolhe o bloco próximo à frente dos pés; tocar diretamente em um bloco também funciona.
 
 ## Salvamento e recuperação
 
@@ -90,3 +90,7 @@ O workflow `.github/workflows/pages.yml` instala as dependências, executa lint/
 Em **Settings → Pages → Build and deployment**, mantenha **Source: GitHub Actions**. O domínio personalizado é gerenciado nessa mesma tela (atualmente `voidbound.duckdns.org`). O workflow obtém o caminho-base da configuração do Pages: funciona tanto no domínio personalizado quanto no endereço com `/voidbound/`, caso o domínio seja removido.
 
 Selecionar GitHub Actions na configuração não cria o deploy sozinho: é necessário que o workflow seja executado e termine com sucesso. Acompanhe os jobs `build` e `deploy` na aba Actions. Não publique diretamente o código-fonte Vue/TypeScript como se fosse um site HTML estático.
+
+### Verificação móvel
+
+Com o Vite em execução, rode `npm run test:mobile`. O teste usa toque e múltiplos contatos para pilotar, entrar em órbita, pousar, caminhar, minerar, pular e acessar os painéis. Verifica também a preservação do estado ao girar a tela, controles de pelo menos 44 px, ausência de rolagem da página e o centro do jogo livre de sobreposições em 844×280, 667×280, 844×390, 390×664 e 320×568. Screenshots são gravadas em `/tmp/voidbound-mobile-qa`. A validação em aparelhos físicos continua recomendada.

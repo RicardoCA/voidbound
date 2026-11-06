@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import GameCanvas from "../components/GameCanvas.vue";
+import MobileHud from "../components/MobileHud.vue";
+import TouchControls from "../components/TouchControls.vue";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
 import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
-import {
-  controls,
-  pressControl,
-  releaseControls,
-  type Control,
-} from "../game/input";
+import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
 const g = useGame(),
   seed = ref("VOIDBOUND"),
@@ -74,13 +71,6 @@ function open(id: string) {
   g.panel = g.panel === id ? "" : id;
   releaseControls();
 }
-function control(id: Control, value: boolean, event: PointerEvent) {
-  event.preventDefault();
-  if (value)
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  if (value) pressControl(id);
-  else controls[id] = false;
-}
 function newGame() {
   if (g.hasSave && !confirmNew.value) {
     confirmNew.value = true;
@@ -106,7 +96,7 @@ function minutes() {
 }
 </script>
 <template>
-  <main class="app-shell">
+  <main class="app-shell" :class="{ 'is-playing': g.started }">
     <header class="topbar">
       <a
         class="brand"
@@ -136,7 +126,8 @@ function minutes() {
       </div>
     </header>
     <section class="flight-deck">
-      <GameCanvas />
+      <GameCanvas :playing="g.started" />
+      <MobileHud v-if="g.started" />
       <div class="vignette" />
       <template v-if="!g.started">
         <div class="start-menu">
@@ -240,64 +231,14 @@ function minutes() {
           MULTITOOL <span>◆</span> Clique em um bloco próximo para minerar
           <kbd>E</kbd> Embarcar perto da nave
         </div>
-        <div v-if="!g.panel && !g.paused" class="mobile-controls">
-          <div class="dpad">
-            <button
-              aria-label="Acelerar"
-              @pointerdown="control('up', true, $event)"
-              @pointerup="control('up', false, $event)"
-              @pointercancel="releaseControls"
-            >
-              ▲
-            </button>
-            <div>
-              <button
-                aria-label="Esquerda"
-                @pointerdown="control('left', true, $event)"
-                @pointerup="control('left', false, $event)"
-                @pointercancel="releaseControls"
-              >
-                ◀</button
-              ><button
-                aria-label="Frear"
-                @pointerdown="control('down', true, $event)"
-                @pointerup="control('down', false, $event)"
-                @pointercancel="releaseControls"
-              >
-                ▼</button
-              ><button
-                aria-label="Direita"
-                @pointerdown="control('right', true, $event)"
-                @pointerup="control('right', false, $event)"
-                @pointercancel="releaseControls"
-              >
-                ▶
-              </button>
-            </div>
-          </div>
-          <div class="action-pad">
-            <button
-              v-if="surface"
-              @pointerdown="control('jump', true, $event)"
-              @pointerup="control('jump', false, $event)"
-              @pointercancel="releaseControls"
-            >
-              PULAR</button
-            ><button
-              @pointerdown="control('mine', true, $event)"
-              @pointerup="control('mine', false, $event)"
-              @pointercancel="releaseControls"
-            >
-              MINERAR</button
-            ><button
-              @pointerdown="control('interact', true, $event)"
-              @pointerup="control('interact', false, $event)"
-              @pointercancel="releaseControls"
-            >
-              E
-            </button>
-          </div>
-        </div>
+        <TouchControls
+          v-if="
+            !g.panel &&
+            !g.paused &&
+            !g.busy &&
+            (g.state.mode === 'space' || surface)
+          "
+        />
         <div class="bottom-hud">
           <section class="ship-status">
             <div class="ship-icon">➤</div>
@@ -442,6 +383,30 @@ function minutes() {
             E embarcar<br />I carga · C fabricação · M mapa · Esc pausa
           </div>
         </section>
+        <section
+          v-else-if="g.panel === 'mission'"
+          class="dialog mission-dialog"
+        >
+          <div class="dialog-heading">
+            <div>
+              <div class="eyebrow">
+                DIÁRIO DE EXPEDIÇÃO · {{ Math.min(6, g.state.mission + 1) }} / 6
+              </div>
+              <h2>{{ g.mission.title }}</h2>
+            </div>
+            <button
+              class="close"
+              aria-label="Fechar diário"
+              @click="open('mission')"
+            >
+              ×
+            </button>
+          </div>
+          <p>{{ g.mission.text }}</p>
+          <button class="primary" @click="open('mission')">
+            VOLTAR À EXPLORAÇÃO
+          </button>
+        </section>
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
         <GalaxyMap v-else-if="g.panel === 'map'" />
@@ -540,17 +505,17 @@ function minutes() {
         <p>Sincronizando propulsor de salto…</p>
       </div>
     </section>
+    <Transition name="save-tooltip">
+      <div
+        v-if="g.started && saveTooltipVisible"
+        class="save-tooltip"
+        role="status"
+        aria-live="polite"
+      >
+        <span aria-hidden="true">✓</span> Jogo salvo
+      </div>
+    </Transition>
     <footer class="footer">
-      <Transition name="save-tooltip">
-        <div
-          v-if="g.started && saveTooltipVisible"
-          class="save-tooltip"
-          role="status"
-          aria-live="polite"
-        >
-          <span aria-hidden="true">✓</span> Jogo salvo
-        </div>
-      </Transition>
       <div class="transmission">
         <span class="status-dot" />
         <span>{{

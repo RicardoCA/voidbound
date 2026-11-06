@@ -1,0 +1,518 @@
+/* Mobile gameplay has its own HUD; desktop panels remain unchanged. */
+.mobile-hud,
+.mobile-context,
+.touch-controls {
+  display: none;
+}
+.save-tooltip {
+  position: fixed;
+  bottom: 66px;
+  right: 32px;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .app-shell.is-playing {
+    --mobile-hud-height: 100px;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: #080f20;
+  }
+  .is-playing > .topbar,
+  .is-playing > .footer,
+  .is-playing > .keyboard-help {
+    display: none;
+  }
+  .is-playing .flight-deck {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    border: 0;
+    overflow: hidden;
+  }
+  .is-playing .game-canvas {
+    top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px));
+    bottom: 0;
+    touch-action: none;
+  }
+  .is-playing .game-canvas canvas {
+    touch-action: none;
+  }
+  .is-playing .vignette {
+    background: linear-gradient(0deg, #080e1b55, transparent 25%);
+  }
+  .is-playing .location,
+  .is-playing .mission-card,
+  .is-playing .target-label,
+  .is-playing .surface-tip,
+  .is-playing .bottom-hud {
+    display: none;
+  }
+  .mobile-hud {
+    display: grid;
+    grid-template-areas: "location tools" "meters meters";
+    grid-template-columns: minmax(0, 1fr) auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 6;
+    height: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px));
+    padding: calc(6px + env(safe-area-inset-top, 0px))
+      max(10px, env(safe-area-inset-right, 0px)) 10px
+      max(10px, env(safe-area-inset-left, 0px));
+    gap: 4px 8px;
+    align-items: center;
+    background: #0b1523f5;
+    border-bottom: 1px solid #29404c;
+  }
+  .mobile-location {
+    grid-area: location;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+  }
+  .mobile-location > span {
+    font-size: 8px;
+    letter-spacing: 1.1px;
+    color: var(--mint);
+  }
+  .mobile-location strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .mobile-location small {
+    font-size: 10px;
+    color: #94acb8;
+  }
+  .mobile-tools {
+    grid-area: tools;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .mobile-tools button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #a8c8cf;
+    font: 23px monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    touch-action: manipulation;
+  }
+  .mobile-tools .mission-toggle {
+    font-size: 21px;
+    gap: 1px;
+  }
+  .mission-toggle small {
+    font: 8px sans-serif;
+    color: var(--gold);
+  }
+  .mobile-meters {
+    grid-area: meters;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: center;
+  }
+  .mobile-meter {
+    color: var(--mint);
+    min-width: 0;
+  }
+  .mobile-meter.meter-1 {
+    color: var(--gold);
+  }
+  .mobile-meter.meter-2 {
+    color: #8dc7e1;
+  }
+  .mobile-meter.critical {
+    color: #ff9d8d;
+  }
+  .mobile-meter > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 6px;
+  }
+  .mobile-meter b {
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .mobile-meter div > span {
+    font-size: 9px;
+    letter-spacing: 0.6px;
+    color: #a2b7c2;
+  }
+  .mobile-meter > i {
+    display: block;
+    width: 100%;
+    height: 3px;
+    background: #263b46;
+  }
+  .mobile-meter i > span {
+    display: block;
+    height: 100%;
+    background: currentColor;
+  }
+  .mobile-context {
+    display: block;
+    position: absolute;
+    z-index: 4;
+    top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 28px);
+    border: 1px solid #2a435088;
+    border-radius: 4px;
+    background: #0b1728bb;
+    color: #afc9d2;
+    padding: 7px 10px;
+    font-size: 10px;
+    line-height: 1.5;
+    text-align: center;
+    pointer-events: none;
+  }
+  .mobile-context b {
+    color: var(--mint);
+    font-weight: 500;
+  }
+  .mobile-context.notification {
+    color: #e0c093;
+    background: #19232def;
+  }
+  .touch-controls {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .touch-controls > * {
+    position: absolute;
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .touch-movement {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+  }
+  .touch-stick {
+    position: relative;
+    width: 112px;
+    height: 112px;
+    border: 1px solid #a4dadc55;
+    border-radius: 50%;
+    background: radial-gradient(circle, #28465555, #10233888);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
+  }
+  .touch-stick.active {
+    border-color: #b5e7e8aa;
+    background: #16364499;
+  }
+  .touch-stick svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: #aed9dc66;
+    stroke-width: 2;
+    pointer-events: none;
+  }
+  .touch-stick-knob {
+    position: absolute;
+    left: 34px;
+    top: 34px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid #aacfd18c;
+    border-radius: 50%;
+    background: #4c7a8999;
+    box-shadow: 0 3px 15px #0003;
+    pointer-events: none;
+  }
+  .touch-hint {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #aac7d1;
+    text-shadow: 0 1px 4px #000;
+  }
+  .touch-actions {
+    right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    grid-template-columns: 56px 72px;
+    grid-template-areas: "aux mine" "interact interact";
+    gap: 9px;
+    align-items: center;
+  }
+  .touch-actions button {
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    min-height: 48px;
+    padding: 0 5px;
+    background: #102839bf;
+    color: #bfdee2;
+    border: 1px solid #89b7c780;
+    border-radius: 10px;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+    box-shadow: 0 3px 12px #0002;
+  }
+  .touch-actions button:active {
+    background: #3c737be6;
+    transform: none;
+  }
+  .touch-actions .touch-brake,
+  .touch-actions .touch-jump {
+    grid-area: aux;
+  }
+  .touch-actions .touch-mine {
+    grid-area: mine;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-color: #96d8c99c;
+    color: #baeee0;
+  }
+  .touch-mine > span {
+    font-size: 22px;
+    font-family: monospace;
+  }
+  .touch-actions .touch-interact {
+    grid-area: interact;
+    min-height: 44px;
+    border-color: #b7a17b88;
+    color: #e2cdab;
+  }
+  .is-playing .overlay {
+    z-index: 15;
+    padding: max(12px, env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px))
+      max(12px, env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
+  }
+  .is-playing .dialog {
+    max-height: 100%;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .is-playing .dialog button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  .is-playing .dialog .close {
+    min-width: 44px;
+    width: 44px;
+    flex-shrink: 0;
+  }
+  .is-playing .dialog .recipe-list {
+    max-height: none;
+    overflow: visible;
+  }
+  .is-playing .map-toolbar button {
+    min-width: 44px;
+    margin-left: 0;
+    padding: 4px 8px;
+  }
+  .is-playing .map-toolbar > div {
+    display: flex;
+    gap: 2px;
+  }
+  .is-playing .tabs button {
+    font-size: 11px;
+  }
+  .is-playing .dialog .cabin-actions button {
+    font-size: 10px;
+    line-height: 1.5;
+    padding: 10px;
+  }
+  .is-playing .save-tooltip {
+    right: max(12px, env(safe-area-inset-right, 0px));
+    top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px) + 8px);
+    bottom: auto;
+    z-index: 30;
+    padding: 9px 12px;
+    font-size: 11px;
+  }
+  .is-playing .save-tooltip::after {
+    display: none;
+  }
+  .is-playing .jump-overlay {
+    z-index: 20;
+  }
+  .is-playing .mission-dialog p {
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  .app-shell:not(.is-playing) {
+    padding: 0 10px;
+  }
+  .app-shell:not(.is-playing) .topbar {
+    height: 52px;
+  }
+  .app-shell:not(.is-playing) .flight-deck {
+    min-height: calc(100svh - 100px);
+    height: auto;
+    max-height: none;
+  }
+  .app-shell:not(.is-playing) .start-menu {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    padding: 30px 20px;
+  }
+  .app-shell:not(.is-playing) .start-menu h1 {
+    font-size: clamp(36px, 8vw, 60px);
+    margin: 22px 0;
+  }
+  .app-shell:not(.is-playing) .start-menu > p {
+    font-size: 12px;
+  }
+  .app-shell:not(.is-playing) .menu-actions {
+    width: min(300px, 100%);
+  }
+  .app-shell:not(.is-playing) .menu-actions button {
+    min-height: 48px;
+  }
+  .app-shell:not(.is-playing) .menu-bottom {
+    display: none;
+  }
+  .app-shell:not(.is-playing) .planet-label {
+    display: none;
+  }
+  .app-shell:not(.is-playing) .seed-input input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+@media (pointer: coarse) and (min-width: 640px),
+  (min-width: 640px) and (max-width: 760px) {
+  .app-shell.is-playing {
+    --mobile-hud-height: 60px;
+  }
+  .mobile-hud {
+    grid-template-areas: "location meters tools";
+    grid-template-columns: minmax(100px, 1fr) minmax(180px, 280px) auto;
+    gap: 16px;
+    padding-bottom: 6px;
+  }
+  .mobile-location strong {
+    font-size: 13px;
+  }
+  .mobile-location > span {
+    display: none;
+  }
+  .mobile-meters {
+    gap: 12px;
+  }
+  .mobile-context {
+    font-size: 10px;
+  }
+}
+@media (pointer: coarse) and (max-height: 400px) {
+  .app-shell.is-playing {
+    --mobile-hud-height: 52px;
+  }
+  .mobile-hud {
+    gap: 10px;
+  }
+  .mobile-context {
+    top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px) + 6px);
+    padding: 4px 9px;
+  }
+  .touch-controls > * {
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  }
+  .touch-stick {
+    width: 96px;
+    height: 96px;
+  }
+  .touch-stick-knob {
+    left: 29px;
+    top: 29px;
+    width: 36px;
+    height: 36px;
+  }
+  .touch-hint {
+    display: none;
+  }
+  .touch-actions {
+    gap: 6px;
+    grid-template-columns: 52px 64px;
+  }
+  .touch-actions .touch-mine {
+    height: 64px;
+  }
+  .touch-actions button {
+    font-size: 9px;
+  }
+  .is-playing .dialog {
+    padding: 16px;
+  }
+  .is-playing .dialog h2 {
+    font-size: 22px;
+    margin: 8px 0 14px;
+  }
+  .is-playing .planet-facts {
+    margin: 14px 0;
+    padding: 12px 0;
+  }
+  .is-playing .landing-zones {
+    margin-bottom: 12px;
+  }
+  .is-playing .galaxy-map {
+    height: 190px;
+  }
+  .is-playing .cabin-visual {
+    display: none;
+  }
+}
+@media (max-width: 360px) {
+  .mobile-hud {
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 4px;
+  }
+  .mobile-location strong {
+    font-size: 11px;
+  }
+  .touch-movement {
+    left: 10px;
+  }
+  .touch-actions {
+    right: 10px;
+  }
+  .is-playing .map-toolbar {
+    align-items: start;
+    gap: 8px;
+    flex-direction: column;
+  }
+}

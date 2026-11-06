@@ -55,8 +55,8 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard!.addCapture(["SPACE", "UP", "DOWN"]);
     const r = random(142);
     this.stars = Array.from({ length: 180 }, () => ({
-      x: r() * 480,
-      y: r() * 270,
+      x: r(),
+      y: r(),
       r: r() > 0.9 ? 2 : 1,
       phase: r() * 6,
     }));
@@ -78,6 +78,18 @@ export class WorldScene extends Phaser.Scene {
         else this.store.paused = !this.store.paused;
       }
     });
+  }
+  private get viewWidth() {
+    return this.scale.width;
+  }
+  private get viewHeight() {
+    return this.scale.height;
+  }
+  private get centerX() {
+    return this.viewWidth / 2;
+  }
+  private get centerY() {
+    return this.viewHeight / 2;
   }
   private down(key: string) {
     return this.keys[key]?.isDown ?? false;
@@ -325,8 +337,8 @@ export class WorldScene extends Phaser.Scene {
     const pointer = this.input.activePointer;
     const mobileMine = takePulse("mine") || controls.mine;
     if ((mobileMine || pointer.isDown) && this.mineTime <= 0 && p.energy >= 1) {
-      let tx = Math.floor((pointer.x - 240 + this.camX) / 16),
-        ty = Math.floor((pointer.y - 135 + this.camY) / 16);
+      let tx = Math.floor((pointer.x - this.centerX + this.camX) / 16),
+        ty = Math.floor((pointer.y - this.centerY + this.camY) / 16);
       if (mobileMine) {
         tx = Math.floor((p.x + this.facing * 24) / 16);
         ty = Math.floor((p.y + 14) / 16);
@@ -375,7 +387,7 @@ export class WorldScene extends Phaser.Scene {
     const surface = s.mode === "surface";
     const sky = surface ? biomes[g.planet.kind]!.sky : 0x080f20;
     f.fillStyle(sky);
-    f.fillRect(0, 0, 480, 270);
+    f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     // Original procedural nebulae and layered starlight.
     for (let layer = 0; layer < 3; layer++) {
       f.fillStyle(
@@ -390,8 +402,14 @@ export class WorldScene extends Phaser.Scene {
       );
     }
     for (const star of this.stars) {
-      const x = (((star.x - this.camX * 0.025) % 480) + 480) % 480,
-        y = (((star.y - this.camY * 0.025) % 270) + 270) % 270;
+      const x =
+          (((star.x * this.viewWidth - this.camX * 0.025) % this.viewWidth) +
+            this.viewWidth) %
+          this.viewWidth,
+        y =
+          (((star.y * this.viewHeight - this.camY * 0.025) % this.viewHeight) +
+            this.viewHeight) %
+          this.viewHeight;
       f.fillStyle(
         0xc7daeb,
         0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25,
@@ -404,17 +422,17 @@ export class WorldScene extends Phaser.Scene {
       const b = this.beam;
       f.lineStyle(3, 0x80ecdf, 0.2);
       f.lineBetween(
-        b.x - this.camX + 240,
-        b.y - this.camY + 135,
-        b.tx - this.camX + 240,
-        b.ty - this.camY + 135,
+        b.x - this.camX + this.centerX,
+        b.y - this.camY + this.centerY,
+        b.tx - this.camX + this.centerX,
+        b.ty - this.camY + this.centerY,
       );
       f.lineStyle(1, 0xc5fff1);
       f.lineBetween(
-        b.x - this.camX + 240,
-        b.y - this.camY + 135,
-        b.tx - this.camX + 240,
-        b.ty - this.camY + 135,
+        b.x - this.camX + this.centerX,
+        b.y - this.camY + this.centerY,
+        b.tx - this.camX + this.centerX,
+        b.ty - this.camY + this.centerY,
       );
     }
     this.particles = this.particles.filter((p) => p.life > 0);
@@ -424,8 +442,8 @@ export class WorldScene extends Phaser.Scene {
       p.y += p.vy * dt;
       f.fillStyle(p.color, Math.min(1, p.life * 3));
       f.fillRect(
-        Math.floor(p.x - this.camX + 240),
-        Math.floor(p.y - this.camY + 135),
+        Math.floor(p.x - this.camX + this.centerX),
+        Math.floor(p.y - this.camY + this.centerY),
         2,
         2,
       );
@@ -434,8 +452,8 @@ export class WorldScene extends Phaser.Scene {
       f.fillStyle(0x80cced, 0.25);
       for (let i = 0; i < 50; i++) {
         const angle = i * 0.37,
-          x = 240 + ((Math.cos(angle) * this.elapsed) % 240),
-          y = 135 + ((Math.sin(angle) * this.elapsed) % 135);
+          x = this.centerX + ((Math.cos(angle) * this.elapsed) % this.centerX),
+          y = this.centerY + ((Math.sin(angle) * this.elapsed) % this.centerY);
         f.fillRect(x, y, 35, 1);
       }
     }
@@ -446,9 +464,15 @@ export class WorldScene extends Phaser.Scene {
       s = g.state.ship;
     g.system.planets.forEach((p, i) => {
       const pos = planetPosition(i),
-        x = Math.round(pos.x - this.camX + 240),
-        y = Math.round(pos.y - this.camY + 135);
-      if (x < -120 || x > 600 || y < -120 || y > 390) return;
+        x = Math.round(pos.x - this.camX + this.centerX),
+        y = Math.round(pos.y - this.camY + this.centerY);
+      if (
+        x < -120 ||
+        x > this.viewWidth + 120 ||
+        y < -120 ||
+        y > this.viewHeight + 120
+      )
+        return;
       const radius = 57 + (i % 3) * 8;
       f.fillStyle(p.color, 0.035);
       f.fillCircle(x, y, radius + 14);
@@ -474,9 +498,15 @@ export class WorldScene extends Phaser.Scene {
     });
     for (const rock of this.rocks) {
       if (g.state.depleted.includes(rock.id)) continue;
-      const x = Math.floor(rock.x - this.camX + 240),
-        y = Math.floor(rock.y - this.camY + 135);
-      if (x < -30 || x > 510 || y < -30 || y > 300) continue;
+      const x = Math.floor(rock.x - this.camX + this.centerX),
+        y = Math.floor(rock.y - this.camY + this.centerY);
+      if (
+        x < -30 ||
+        x > this.viewWidth + 30 ||
+        y < -30 ||
+        y > this.viewHeight + 30
+      )
+        continue;
       f.fillStyle(0x635e68);
       f.fillPoints(
         [
@@ -503,8 +533,8 @@ export class WorldScene extends Phaser.Scene {
     }
     if (g.started)
       this.drawShip(
-        s.x - this.camX + 240,
-        s.y - this.camY + 135,
+        s.x - this.camX + this.centerX,
+        s.y - this.camY + this.centerY,
         s.angle,
         this.down("W") || controls.up,
       );
@@ -568,12 +598,20 @@ export class WorldScene extends Phaser.Scene {
       t = this.terrain!,
       biome = biomes[g.planet.kind]!,
       p = g.state.player;
-    const startX = Math.floor((this.camX - 250) / 16),
-      startY = Math.max(0, Math.floor((this.camY - 145) / 16));
+    const startX = Math.floor((this.camX - this.centerX - 16) / 16),
+      startY = Math.max(0, Math.floor((this.camY - this.centerY - 16) / 16));
     f.fillStyle(g.planet.color, 0.15);
-    for (let i = -1; i < 9; i++) {
+    for (let i = -1; i < Math.ceil(this.viewWidth / 85) + 2; i++) {
       const x = i * 85 - ((this.camX * 0.15) % 85);
-      f.fillTriangle(x, 220, x + 70, 65 + Math.sin(i * 4) * 30, x + 145, 220);
+      const horizon = this.centerY + 85;
+      f.fillTriangle(
+        x,
+        horizon,
+        x + 70,
+        horizon - 155 + Math.sin(i * 4) * 30,
+        x + 145,
+        horizon,
+      );
     }
     const colors: Record<number, number> = {
       2: 0x9fb8bf,
@@ -587,12 +625,16 @@ export class WorldScene extends Phaser.Scene {
       10: 0xb2a273,
       11: 0xd8bb70,
     };
-    for (let x = startX; x < startX + 33; x++)
-      for (let y = startY; y < Math.min(64, startY + 21); y++) {
+    for (let x = startX; x < startX + Math.ceil(this.viewWidth / 16) + 2; x++)
+      for (
+        let y = startY;
+        y < Math.min(64, startY + Math.ceil(this.viewHeight / 16) + 2);
+        y++
+      ) {
         const tile = t.get(x, y);
         if (!tile) continue;
-        const sx = Math.floor(x * 16 - this.camX + 240),
-          sy = Math.floor(y * 16 - this.camY + 135);
+        const sx = Math.floor(x * 16 - this.camX + this.centerX),
+          sy = Math.floor(y * 16 - this.camY + this.centerY);
         f.fillStyle(biome.ground);
         f.fillRect(sx, sy, 16, 16);
         f.fillStyle(0x101a2c, 0.22);
@@ -614,12 +656,26 @@ export class WorldScene extends Phaser.Scene {
       }
     const shipX = g.state.landingX * 16,
       shipY = t.height(g.state.landingX) * 16 - 12;
-    this.drawShip(shipX - this.camX + 240, shipY - this.camY + 135, 0);
+    this.drawShip(
+      shipX - this.camX + this.centerX,
+      shipY - this.camY + this.centerY,
+      0,
+    );
     f.fillStyle(0x7b8f9a);
-    f.fillRect(shipX - this.camX + 225, shipY - this.camY + 145, 4, 4);
-    f.fillRect(shipX - this.camX + 248, shipY - this.camY + 145, 4, 4);
-    const x = Math.round(p.x - this.camX + 240),
-      y = Math.round(p.y - this.camY + 135),
+    f.fillRect(
+      shipX - this.camX + this.centerX - 15,
+      shipY - this.camY + this.centerY + 10,
+      4,
+      4,
+    );
+    f.fillRect(
+      shipX - this.camX + this.centerX + 8,
+      shipY - this.camY + this.centerY + 10,
+      4,
+      4,
+    );
+    const x = Math.round(p.x - this.camX + this.centerX),
+      y = Math.round(p.y - this.camY + this.centerY),
       walk = this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0;
     f.fillStyle(0x3b5164);
     f.fillRect(x - 6, y - 4, 4, 11);
@@ -637,6 +693,6 @@ export class WorldScene extends Phaser.Scene {
     f.fillRect(x + (this.facing > 0 ? 5 : -9), y - 1, 5, 3);
     // Slow, deterministic day/night tint.
     f.fillStyle(0x050c25, Math.max(0, Math.sin(g.state.time / 150)) * 0.3);
-    f.fillRect(0, 0, 480, 270);
+    f.fillRect(0, 0, this.viewWidth, this.viewHeight);
   }
 }

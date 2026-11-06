@@ -28,7 +28,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 
 ### Verificação executada nesta entrega
 
-- [x] Build de produção, incluindo verificação TypeScript; 16 testes automatizados passaram.
+- [x] Build de produção, incluindo verificação TypeScript; 22 testes automatizados passaram.
 - [x] ESLint.
 - [x] Testes de determinismo após expulsão do cache, seis biomas, limites de memória e terreno negativo.
 - [x] Testes de inventário e crafting com rollback por falta de materiais/capacidade.
@@ -49,7 +49,8 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 - [ ] Extrair atualização física e renderização da cena em sistemas menores conforme o conteúdo crescer.
 - [ ] Melhorar animações de caminhada, descida e decolagem; estrelas com mais variedade e luz local.
 - [ ] Escalonamento inteiro no desktop; atualmente Phaser FIT e nearest-neighbor mantêm bordas sem suavização, mas a escala pode ser fracionária.
-- [ ] Joystick analógico de toque; os controles atuais são direcionais digitais. Validar toque em aparelhos reais e orientação horizontal.
+- [x] Joystick de toque com dead zone, botões independentes, multitouch e cancelamento de ponteiros. A direção do joystick ainda é convertida para os eixos digitais do jogo.
+- [ ] Validar os novos controles e desempenho em aparelhos físicos, incluindo Safari no iOS.
 - [ ] Ajustes de volume, bindings de controles, acessibilidade e penalidade de morte configurável.
 - [ ] Migrações reais quando houver uma segunda versão do schema; exportação/importação e múltiplos slots de save.
 - [ ] Validar mais extensamente gamepad/input, retorno aos três pontos de pouso e restauração em caves profundas.
@@ -79,3 +80,12 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - Adicionado `.github/workflows/pages.yml` com instalação via lockfile, lint, testes, build e deploy do artefato `dist/`.
 - Caminho-base do Vite calculado pelo `configure-pages`, respeitando o domínio personalizado ou o subdiretório do repositório.
 - A configuração anterior apontava para GitHub Actions, mas não havia workflows nem execuções; o domínio retornava HTTP 404.
+
+## Correção de jogabilidade móvel
+
+- HUD móvel próprio com barras compactas e ferramentas acessíveis; diário de missão fechado por padrão, acessível pelo botão de diário.
+- Gameplay ocupa o viewport dinâmico, respeita safe areas e não depende de tela cheia do navegador. Cabeçalho, rodapé e HUD de desktop não ocupam a área móvel durante a partida.
+- Canvas expande a área de mundo visível para a proporção disponível; câmera, fundo, partículas, seleção de blocos e culling do terreno usam as dimensões reais.
+- Joystick com captura de ponteiros e botões de pelo menos 44 px para frear, minerar, pular e interagir. Soltar um botão não cancela o outro dedo.
+- Painéis rolam internamente; orientação pode mudar sem recriar a partida. Tooltip de salvamento preservado e reposicionado para não cobrir os controles.
+- Teste móvel dedicado usa contatos de toque reais na emulação Chromium, exercita o ciclo até mineração/pulo e verifica tamanhos de 844×280 a 320×568. Isso não substitui teste em Safari físico.

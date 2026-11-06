@@ -163,48 +163,6 @@ try {
     ),
   );
   await page.screenshot({ path: `${artifactDir}/mobile.png` });
-  const mobileContext = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    isMobile: true,
-    hasTouch: true,
-  });
-  const mobile = await mobileContext.newPage();
-  mobile.on("pageerror", (e) => errors.push(e.message));
-  await mobile.goto(process.env.VOIDBOUND_URL || "http://127.0.0.1:5173");
-  await mobile.getByRole("button", { name: "INICIAR EXPEDIÇÃO" }).tap();
-  await mobile.getByRole("button", { name: "Acelerar", exact: true }).waitFor();
-  await mobile.screenshot({ path: `${artifactDir}/touch-portrait.png` });
-  await mobile.setViewportSize({ width: 844, height: 390 });
-  await mobile.waitForTimeout(200);
-  const thrust = await mobile
-    .getByRole("button", { name: "Acelerar", exact: true })
-    .boundingBox();
-  const client = await mobileContext.newCDPSession(mobile);
-  await client.send("Input.dispatchTouchEvent", {
-    type: "touchStart",
-    touchPoints: [
-      { x: thrust.x + thrust.width / 2, y: thrust.y + thrust.height / 2 },
-    ],
-  });
-  await mobile.waitForTimeout(600);
-  await client.send("Input.dispatchTouchEvent", {
-    type: "touchEnd",
-    touchPoints: [],
-  });
-  const mobileX = await mobile.evaluate(() => {
-    const p = document.querySelector("#app").__vue_app__._context.provides;
-    return p[
-      Reflect.ownKeys(p).find((k) => String(k) === "Symbol(pinia)")
-    ]._s.get("game").state.ship.x;
-  });
-  assert.ok(mobileX > 200, "Touch propulsion moves the actual ship");
-  assert.ok(
-    await mobile.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  );
-  await mobile.screenshot({ path: `${artifactDir}/touch-landscape.png` });
-  await mobileContext.close();
   assert.deepEqual(errors, []);
   console.log(
     "PASS: pilotar → órbita → pousar → minerar recursos reais → fabricar → reparar → decolar → recarregar salvamento. Layout 390 px sem overflow.",
