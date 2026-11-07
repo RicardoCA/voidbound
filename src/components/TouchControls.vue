@@ -95,9 +95,7 @@ onBeforeUnmount(reset);
           :style="{ transform: `translate(${x}px, ${y}px)` }"
         />
       </div>
-      <span class="touch-hint">{{
-        surface ? "MOVER" : "GIRAR / ACELERAR"
-      }}</span>
+      <span v-if="!surface" class="touch-hint">GIRAR / ACELERAR</span>
     </div>
     <div class="touch-actions">
       <button

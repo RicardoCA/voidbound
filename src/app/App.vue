@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import CookingPanel from "../components/CookingPanel.vue";
+import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
 import GameCanvas from "../components/GameCanvas.vue";
@@ -41,6 +42,7 @@ watch(
 );
 const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(() => g.state.mode === "interior");
+const localTime = computed(() => planetClock(g.state.time));
 const closest = computed(() => {
   let d = Infinity,
     index = 0;
@@ -157,7 +159,12 @@ function minutes() {
       <GameCanvas :playing="g.started" />
       <MobileHud v-if="g.started" />
       <BuildToolbar v-if="g.started" />
-      <div class="vignette" />
+      <div
+        class="vignette"
+        :style="
+          surface ? { opacity: 1 - daylight(g.state.time) * 0.75 } : undefined
+        "
+      />
       <template v-if="!g.started">
         <div class="start-menu">
           <div class="eyebrow">
@@ -234,6 +241,9 @@ function minutes() {
           </p>
           <p class="station-credits">
             {{ g.state.credits.toLocaleString("pt-BR") }} CR
+          </p>
+          <p v-if="surface || inShip">
+            Hora local · <time :datetime="localTime">{{ localTime }}</time>
           </p>
           <p
             v-if="g.state.mode === 'space' && g.system.station"

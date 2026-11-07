@@ -7,7 +7,18 @@ export const OXYGEN_CAP = 100,
   GENERATOR_RATE = 6,
   REFILL_RATE = 8,
   POWER_RANGE = 12;
-export const daylight = (time: number) => Math.max(0, Math.cos(time / 150));
+const SOLAR_TIME_SCALE = 150;
+export const solarPhase = (time: number) => time / SOLAR_TIME_SCALE;
+export const daylight = (time: number) =>
+  Math.max(0, Math.cos(solarPhase(time)));
+export function planetClock(time: number) {
+  const minutesPerDay = 24 * 60;
+  const minutes = Math.floor(
+    ((solarPhase(time) / (2 * Math.PI) + 0.5) % 1) * minutesPerDay,
+  );
+  const hours = Math.floor(minutes / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
 function solarPrimitive(angle: number) {
   const cycle = 2 * Math.PI,
     cycles = Math.floor(angle / cycle),
@@ -23,7 +34,8 @@ export function sunlightBetween(from: number, to: number) {
     0,
     Math.min(
       to - from,
-      150 * (solarPrimitive(to / 150) - solarPrimitive(from / 150)),
+      SOLAR_TIME_SCALE *
+        (solarPrimitive(solarPhase(to)) - solarPrimitive(solarPhase(from))),
     ),
   );
 }

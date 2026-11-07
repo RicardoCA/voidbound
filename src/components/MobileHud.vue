@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
-import { habitatMessage } from "../construction/habitat";
+import { habitatMessage, planetClock } from "../construction/habitat";
 import { useConstruction } from "../stores/construction";
 import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
 const g = useGame(),
   b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
+const localTime = computed(() => planetClock(g.state.time));
 const location = computed(() =>
   surface.value || g.state.mode === "interior" ? g.planet.name : g.system.name,
 );
@@ -70,11 +71,21 @@ function pause() {
     <div class="mobile-location">
       <span>{{ g.state.credits.toLocaleString("pt-BR") }} CR</span
       ><strong>{{ location }}</strong
-      ><small>{{
-        surface
-          ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
-          : `${g.model.name} · ${g.speed} km/s`
-      }}</small>
+      ><small
+        ><template v-if="surface || g.state.mode === 'interior'"
+          ><time
+            :datetime="localTime"
+            :aria-label="'Hora local: ' + localTime"
+            title="Hora local do planeta"
+            >{{ localTime }}</time
+          >
+          · </template
+        >{{
+          surface
+            ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
+            : `${g.model.name} · ${g.speed} km/s`
+        }}</small
+      >
     </div>
     <div class="mobile-meters" :class="{ 'surface-meters': surface }">
       <div

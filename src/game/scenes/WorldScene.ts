@@ -20,7 +20,7 @@ import {
 } from "../rendering/settlements";
 import { stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
-import { daylight } from "../../construction/habitat";
+import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode } from "../types";
 import { Terrain, tileItems } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
@@ -647,14 +647,36 @@ export class WorldScene extends Phaser.Scene {
       f = this.gfx;
     f.clear();
     const surface = s.mode === "surface";
-    const sky = surface ? biomes[g.planet.kind]!.sky : 0x080f20;
+    const light = surface ? daylight(s.time) : 0;
+    const biome = biomes[g.planet.kind]!;
+    const sky = surface
+      ? Phaser.Display.Color.GetColor(
+          Math.round(
+            Phaser.Math.Linear(
+              (biome.sky >> 16) & 255,
+              (biome.daySky >> 16) & 255,
+              light,
+            ),
+          ),
+          Math.round(
+            Phaser.Math.Linear(
+              (biome.sky >> 8) & 255,
+              (biome.daySky >> 8) & 255,
+              light,
+            ),
+          ),
+          Math.round(
+            Phaser.Math.Linear(biome.sky & 255, biome.daySky & 255, light),
+          ),
+        )
+      : 0x080f20;
     f.fillStyle(sky);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     // Original procedural nebulae and layered starlight.
     for (let layer = 0; layer < 3; layer++) {
       f.fillStyle(
         [0x15213a, 0x18283c, 0x1b2540][layer]!,
-        surface ? 0.13 : 0.23,
+        surface ? 0.13 * (1 - light) : 0.23,
       );
       f.fillEllipse(
         100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
@@ -674,12 +696,29 @@ export class WorldScene extends Phaser.Scene {
           this.viewHeight;
       f.fillStyle(
         0xc7daeb,
-        0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25,
+        (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) * (1 - light),
       );
       f.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
     }
-    if (surface) this.drawSurface();
-    else this.drawSpace();
+    if (surface) {
+      if (light > 0) {
+        const phase = solarPhase(s.time);
+        const sunX = Math.round(
+          this.viewWidth * (0.5 + Math.sin(phase) * 0.26),
+        );
+        const sunY = Math.round(this.viewHeight * (0.34 - light * 0.2));
+        const radius = Math.round(
+          Math.min(this.viewWidth, this.viewHeight) * 0.065,
+        );
+        f.fillStyle(0xffd98d, light * 0.16);
+        f.fillCircle(sunX, sunY, radius * 1.9);
+        f.fillStyle(0xffe5a8, light * 0.24);
+        f.fillCircle(sunX, sunY, radius * 1.4);
+        f.fillStyle(0xffedb6, Math.min(1, light * 4));
+        f.fillCircle(sunX, sunY, radius);
+      }
+      this.drawSurface(light);
+    } else this.drawSpace();
     if (this.beam) {
       const b = this.beam;
       f.lineStyle(3, 0x80ecdf, 0.2);
@@ -856,7 +895,7 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawSurface() {
+  private drawSurface(light: number) {
     const f = this.gfx,
       g = this.store,
       t = this.terrain!,
@@ -1004,7 +1043,9 @@ export class WorldScene extends Phaser.Scene {
     f.fillStyle(0xbfcbd2);
     f.fillRect(x + (this.facing > 0 ? 5 : -9), y - 1, 5, 3);
     // Slow, deterministic day/night tint.
-    f.fillStyle(0x050c25, (1 - daylight(g.state.time)) * 0.35);
+    f.fillStyle(0x050c25, (1 - light) * 0.35);
+    f.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    f.fillStyle(0xffda9a, light * 0.1);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     if (this.building.enabled && !g.panel) {
       const cursor = this.building.cursor ?? {
