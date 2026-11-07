@@ -165,6 +165,18 @@ try {
     .click();
   assert.equal((await state()).inventory.woodStairs, beforeStairs - 1);
   await page.getByRole("button", { name: "Fechar armário" }).click();
+  await page.keyboard.press("m", { delay: 80 });
+  await page.getByRole("tab", { name: /Bases e depósitos/ }).click();
+  assert.equal(await page.locator(".base-card").count(), 1);
+  assert.ok(
+    (await page.locator(".base-card").innerText()).includes("1 unidade"),
+  );
+  assert.ok(
+    (await page.locator(".base-card > .base-items").innerText()).includes(
+      "Escada de madeira",
+    ),
+  );
+  await page.getByRole("button", { name: "Fechar mapa" }).click();
   await page.screenshot({ path: `${artifacts}/restored.png` });
   assert.deepEqual(errors, []);
   console.log(

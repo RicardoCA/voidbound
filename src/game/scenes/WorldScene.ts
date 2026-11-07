@@ -13,7 +13,7 @@ import { biomes, type Mode } from "../types";
 import { Terrain, tileItems } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
 import { planetPosition } from "../../universe/generator";
-import { controls, takePulse, releaseControls } from "../input";
+import { controls, takePulse, releaseControls, isEditing } from "../input";
 import { audio } from "../systems/audio";
 interface Rock {
   id: string;
@@ -84,8 +84,30 @@ export class WorldScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,SPACE,E,M,I,C,ESC",
+      false,
     ) as Record<string, Phaser.Input.Keyboard.Key>;
-    this.input.keyboard!.addCapture(["SPACE", "UP", "DOWN"]);
+    const suppressScroll = (event: KeyboardEvent) => {
+      if (
+        this.store.started &&
+        !this.store.panel &&
+        !this.store.paused &&
+        !isEditing(event.target) &&
+        ["Space", "ArrowUp", "ArrowDown"].includes(event.code)
+      )
+        event.preventDefault();
+    };
+    const focusInput = (event: FocusEvent) => {
+      if (isEditing(event.target)) {
+        this.input.keyboard!.resetKeys();
+        releaseControls();
+      }
+    };
+    window.addEventListener("keydown", suppressScroll, true);
+    window.addEventListener("focusin", focusInput);
+    this.events.once("shutdown", () => {
+      window.removeEventListener("keydown", suppressScroll, true);
+      window.removeEventListener("focusin", focusInput);
+    });
     const r = random(142);
     this.stars = Array.from({ length: 180 }, () => ({
       x: r(),
@@ -98,7 +120,7 @@ export class WorldScene extends Phaser.Scene {
       this.game.events.off("blur", releaseControls),
     );
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
-      if (!this.store.started) return;
+      if (!this.store.started || isEditing(e.target)) return;
       if (e.repeat) return;
       if (e.code === "KeyB") {
         if (this.building.enabled) this.building.disable();
@@ -106,7 +128,9 @@ export class WorldScene extends Phaser.Scene {
       }
       if (e.code === "KeyR" && this.building.enabled) this.building.rotate();
       if (e.code === "KeyM")
-        this.store.panel = this.store.panel === "map" ? "" : "map";
+        this.store.panel = ["map", "bases"].includes(this.store.panel)
+          ? ""
+          : "map";
       if (e.code === "KeyI")
         this.store.panel = this.store.panel === "inventory" ? "" : "inventory";
       if (e.code === "KeyC")

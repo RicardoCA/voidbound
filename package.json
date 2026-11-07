@@ -12,7 +12,8 @@
     "format": "prettier --write src scripts *.json *.ts *.js *.html *.md",
     "preview": "vite preview --host 127.0.0.1",
     "test:mobile": "node scripts/mobile-smoke.mjs",
-    "test:construction": "node scripts/construction-smoke.mjs"
+    "test:construction": "node scripts/construction-smoke.mjs",
+    "test:catalog": "node scripts/catalog-smoke.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.0",

@@ -123,3 +123,19 @@ Construções, direção das escadas, paredes, árvores cortadas e cada inventá
 `npm test` cobre geração de árvores, custo de fabricação, colisão, escadas nas duas direções, suporte, alcance, proteção de armários, transferências, retorno entre sistemas, reabertura do banco e upgrade real do IndexedDB de 1 para 2.
 
 Com o Vite em execução, `npm run test:construction` corta uma árvore e minera ferro por controles reais, fabrica e coloca pisos/paredes/escada/armário, guarda peças, sobe a escada, recarrega a página e recupera itens. Não concede materiais por código. Screenshots ficam em `/tmp/voidbound-construction-qa`. O teste `npm run test:mobile` também fabrica e coloca um bloco por toque.
+
+## Encontrar suas bases e itens armazenados
+
+Abra o mapa com **M** ou **✧** no celular e selecione a aba **Bases e depósitos**. Ela lista automaticamente os planetas onde existem construções, distinguindo armários vazios e depósitos com itens. Também há acesso pela cabine e pelo painel de um armário.
+
+Cada entrada mostra nome do planeta e sistema, coordenadas do setor, total guardado, recursos e quantidades. Expanda **Ver armários, coordenadas e conteúdo** para consultar cada armário, sua coordenada de bloco e a zona de pouso mais próxima. Use a busca por planeta/sistema/recurso ou o filtro **Só com itens**.
+
+**Localizar** centraliza o mapa no sistema e destaca seu marcador; não move a nave nem consome combustível. Sistemas com itens recebem **▤**, e bases sem itens recebem **⌂**. Após selecionar um sistema, suas bases aparecem abaixo do mapa. Se estiver longe demais para um salto, avance por sistemas intermediários.
+
+Na órbita, o planeta informa sua base e estoque, e as zonas de pouso indicam se são as mais próximas dos armários. As distâncias horizontais e coordenadas do catálogo ajudam a caminhar até o local exato: a zona mais próxima ainda pode ficar distante de uma base construída longe dos pontos iniciais.
+
+O catálogo é uma consulta ao save versão 2 existente: não precisa de cadastro manual, nova partida ou migração adicional. Depósitos/retiradas, desmontagem e carregamento da partida atualizam os indicadores. A carga da nave não entra nesses totais. Consultar à distância não permite transferir itens; isso continua exigindo proximidade do armário na superfície.
+
+### Testar o catálogo
+
+Com o Vite em execução, `npm run test:catalog` usa um cenário de UI salvo com bases locais, remotas e vazias para verificar filtros, busca, coordenadas, marcadores, localização sem teleporte e informações de órbita em telas móveis. Screenshots ficam em `/tmp/voidbound-catalog-qa`. O teste `npm run test:construction` também confere o catálogo de itens guardados durante o percurso com materiais coletados no jogo.

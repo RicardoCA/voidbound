@@ -10,11 +10,15 @@ import { useConstruction } from "../stores/construction";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
+import PlanetBaseSummary from "../components/PlanetBaseSummary.vue";
+import { useBases } from "../stores/bases";
+import { landingZones } from "../universe/landings";
 import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
-const b = useConstruction();
+const b = useConstruction(),
+  bases = useBases();
 const g = useGame(),
   seed = ref("VOIDBOUND"),
   sound = ref(true),
@@ -167,7 +171,12 @@ function minutes() {
           </div>
           <label class="seed-input"
             >SEED DO UNIVERSO
-            <input v-model="seed" maxlength="48" aria-label="Seed do universo"
+            <input
+              v-model="seed"
+              @keydown.stop
+              @keyup.stop
+              maxlength="48"
+              aria-label="Seed do universo"
           /></label>
           <div class="menu-bottom">
             <span>01 / EXPLORAÇÃO PROCEDURAL</span
@@ -423,7 +432,10 @@ function minutes() {
         <StoragePanel v-else-if="g.panel === 'storage'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
-        <GalaxyMap v-else-if="g.panel === 'map'" />
+        <GalaxyMap
+          v-else-if="g.panel === 'map' || g.panel === 'bases'"
+          :initial-tab="g.panel === 'bases' ? 'bases' : 'navigation'"
+        />
         <section
           v-else-if="g.state.mode === 'orbit'"
           class="dialog orbit-dialog"
@@ -452,19 +464,30 @@ function minutes() {
             RECURSOS <b>{{ g.biome.resources }}</b>
           </p>
           <p class="warning">△ {{ g.biome.hazard }}</p>
+          <PlanetBaseSummary :planet-id="g.planet.id" />
           <h3>Selecione a zona de pouso</h3>
           <div class="landing-zones">
             <button
-              v-for="(name, i) in [
-                'Planície de Aurora',
-                'Dorsal do Horizonte',
-                'Bacia Silenciosa',
-              ]"
-              :key="name"
+              v-for="zone in landingZones"
+              :key="zone.id"
               class="zone"
-              @click="g.land(i)"
+              @click="g.land(zone.id)"
             >
-              <span>0{{ i + 1 }} / ZONA SEGURA</span><b>{{ name }}</b
+              <span>0{{ zone.id + 1 }} / ZONA SEGURA</span><b>{{ zone.name }}</b
+              ><small
+                v-if="
+                  bases.currentPlanet?.cabinets.some(
+                    (c) => c.landing.id === zone.id,
+                  )
+                "
+                class="zone-storage"
+                >▤
+                {{
+                  bases.currentPlanet.cabinets
+                    .filter((c) => c.landing.id === zone.id)
+                    .reduce((n, c) => n + c.units, 0)
+                }}
+                unidades · zona mais próxima dos armários</small
               ><small>INICIAR DESCIDA ↓</small>
             </button>
           </div>
@@ -498,6 +521,8 @@ function minutes() {
               ▦ CARGA & MELHORIAS</button
             ><button class="secondary" @click="g.recover">
               ☼ RECUPERAÇÃO SOLAR (+60 s)</button
+            ><button class="secondary" @click="open('bases')">
+              ⌂ BASES E DEPÓSITOS</button
             ><button
               class="primary launch"
               :disabled="g.state.ship.hull < 70 || g.state.ship.fuel < 5"

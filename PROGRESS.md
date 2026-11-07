@@ -28,7 +28,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 
 ### Verificação executada nesta entrega
 
-- [x] Build de produção, incluindo verificação TypeScript; 40 testes automatizados passaram.
+- [x] Build de produção, incluindo verificação TypeScript; 49 testes automatizados passaram.
 - [x] ESLint.
 - [x] Testes de determinismo após expulsão do cache, seis biomas, limites de memória e terreno negativo.
 - [x] Testes de inventário e crafting com rollback por falta de materiais/capacidade.
@@ -102,3 +102,12 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - Saves versão 1 migram automaticamente para a versão 2 no mesmo banco. Seed, terreno alterado, inventários e progressão anteriores são preservados. Todos os eventos novos usam o salvamento atual e o tooltip de confirmação.
 - Teste de navegador constrói com materiais coletados, guarda itens, sobe escadas e recupera o mundo após reload. Emulação móvel também fabrica e coloca bloco por toque. Testes de lógica cobrem retorno após saltos, isolamento entre planetas e migração real do banco.
 - Continuação: validar casas extensas e Safari físico; portas, outros móveis e pressurização de casas ainda não fazem parte desta entrega.
+
+## Localização de bases e armazenamento
+
+- Catálogo **Bases e depósitos** no mapa galáctico, com acesso também pela cabine e pelos armários.
+- Consulta derivada exclusivamente das construções/armários do save: planeta, sistema, setor, recursos/quantidades, armários vazios e ocupados, coordenadas e pouso mais próximo. Nenhuma alteração no schema de save.
+- Busca por nome/recurso e filtro de planetas com itens. Marcadores diferentes para sistemas com estoque e bases sem estoque; Localizar centraliza e seleciona o sistema sem mover a nave ou consumir combustível.
+- Órbita mostra o resumo da base do planeta e indica zonas de pouso mais próximas dos armários.
+- Consulta remota não expõe transferência de recursos; a regra de proximidade física permanece.
+- Testes de índice, seeds com ':', coordenadas negativas, atualização reativa, leitura após reload, isolamento da carga da nave e cenários móveis de navegação. O percurso de construção com materiais coletados também verifica seus itens no catálogo.

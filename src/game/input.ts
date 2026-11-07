@@ -22,3 +22,11 @@ export function releaseControls() {
   for (const key of Object.keys(controls) as Control[]) controls[key] = false;
   pulses.clear();
 }
+
+export function isEditing(target: EventTarget | null) {
+  return (
+    typeof HTMLElement !== "undefined" &&
+    target instanceof HTMLElement &&
+    (target.isContentEditable || !!target.closest("input, textarea, select"))
+  );
+}

@@ -20,7 +20,9 @@ export function emptySettlement(): Settlement {
   return { pieces: {}, walls: {}, cabinets: {}, cutTrees: [] };
 }
 export function settlementFor(state: Save, planetId: string) {
-  return (state.settlements[planetId] ??= emptySettlement());
+  if (!state.settlements[planetId])
+    state.settlements[planetId] = emptySettlement();
+  return state.settlements[planetId]!;
 }
 export function isBuildItem(item: Item): item is BuildItem {
   return buildItems.includes(item as BuildItem);
