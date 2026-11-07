@@ -27,6 +27,9 @@ const meters = computed(() => [
     value: surface.value ? g.state.player.energy : g.state.ship.energy,
     max: 100,
   },
+  ...(surface.value
+    ? [{ label: "FOME", value: g.state.player.hunger ?? 100, max: 100 }]
+    : []),
 ]);
 const target = computed(() => {
   const ship = g.state.ship;
@@ -73,7 +76,7 @@ function pause() {
           : `${g.model.name} · ${g.speed} km/s`
       }}</small>
     </div>
-    <div class="mobile-meters">
+    <div class="mobile-meters" :class="{ 'surface-meters': surface }">
       <div
         v-for="(meter, i) in meters"
         :key="meter.label"
@@ -137,7 +140,10 @@ function pause() {
     :class="{ notification: transient }"
     aria-live="polite"
   >
-    <template v-if="transient">{{ transient }}</template>
+    <template v-if="g.sicknessRemaining"
+      >Intoxicação · {{ g.sicknessRemaining }} s</template
+    >
+    <template v-else-if="transient">{{ transient }}</template>
     <template
       v-else-if="
         g.state.mode === 'space' &&
@@ -159,7 +165,8 @@ function pause() {
       {{ Math.ceil(g.state.player.oxygen) }}%</template
     >
     <template v-else-if="surface"
-      >Árvores: madeira · Interagir: porta / nave / armário</template
+      >Toque em frutas ou animais · Interagir: nave / fogueira /
+      armário</template
     >
   </div>
 </template>

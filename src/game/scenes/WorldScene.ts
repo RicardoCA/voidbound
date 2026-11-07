@@ -1,3 +1,13 @@
+import { settlementFor } from "../../construction/building";
+import {
+  clearPath,
+  fruitsNear,
+  Wildlife,
+  FRUIT_REGROWTH,
+  FAUNA_RETURN,
+  type Fruit,
+} from "../../survival/wildlife";
+import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { shipPalette } from "../../fleet/models";
 import Phaser from "phaser";
 import { useGame } from "../../stores/game";
@@ -36,7 +46,10 @@ export class WorldScene extends Phaser.Scene {
   private store!: ReturnType<typeof useGame>;
   private building!: ReturnType<typeof useConstruction>;
   private treeHits = new Map<string, number>();
-  private surfaceTap: { x: number; y: number } | undefined;
+  private wildlife = new Wildlife();
+  private fruit: Fruit[] = [];
+  private surfaceTap:
+    { x: number; y: number; wx: number; wy: number } | undefined;
   private gfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
@@ -77,9 +90,13 @@ export class WorldScene extends Phaser.Scene {
         !this.store.panel &&
         !this.store.paused
       ) {
+        const wx = pointer.x - this.centerX + this.camX;
+        const wy = pointer.y - this.centerY + this.camY;
         this.surfaceTap = {
-          x: Math.floor((pointer.x - this.centerX + this.camX) / 16),
-          y: Math.floor((pointer.y - this.centerY + this.camY) / 16),
+          x: Math.floor(wx / 16),
+          y: Math.floor(wy / 16),
+          wx,
+          wy,
         };
         this.building.setCursor(this.surfaceTap.x, this.surfaceTap.y);
       }
@@ -216,6 +233,8 @@ export class WorldScene extends Phaser.Scene {
     ) {
       this.lastPlanet = g.planet.id;
       this.treeHits.clear();
+      this.wildlife.animals.clear();
+      this.fruit = [];
       s.changes[g.planet.id] ??= {};
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
     }
@@ -223,6 +242,7 @@ export class WorldScene extends Phaser.Scene {
       this.jumpBuffer.clear();
       this.jumpHeld = false;
       if (s.mode === "surface") {
+        this.wildlife.animals.clear();
         this.vy = 0;
         if (s.player.y === 0) {
           s.player.x = s.landingX * 16 + 40;
@@ -275,8 +295,16 @@ export class WorldScene extends Phaser.Scene {
           else if (cabinet.key) {
             const [x, y] = cabinet.key.split(",").map(Number);
             this.building.interactAt(x!, y!);
-          } else
-            g.notify("Aproxime-se da nave ou de um armário para interagir.");
+          } else {
+            const fruit = this.fruit.find((target) =>
+              this.canReachFood(target.x, target.y),
+            );
+            if (fruit) this.gatherFruit(fruit);
+            else
+              g.notify(
+                "Aproxime-se da nave, de uma construção ou de frutas para interagir.",
+              );
+          }
         }
       }
       this.interactHeld = interact;
@@ -388,6 +416,26 @@ export class WorldScene extends Phaser.Scene {
       }
     }
   }
+  private canReachFood(x: number, y: number, reach = 78) {
+    const p = this.store.state.player;
+    return (
+      Math.hypot(x - p.x, y - p.y) <= reach &&
+      clearPath(this.terrain!, this.building.settlement, p.x, p.y, x, y)
+    );
+  }
+  private gatherFruit(fruit: Fruit) {
+    const g = this.store;
+    if (!this.canReachFood(fruit.x, fruit.y)) {
+      g.notify("Aproxime-se das frutas para colher.");
+      return;
+    }
+    if (!g.collect(fruit.item, 2)) return;
+    const data = settlementFor(g.state, g.planet.id);
+    (data.foraged ??= {})[fruit.id] = g.state.time + FRUIT_REGROWTH;
+    this.fruit = this.fruit.filter((target) => target.id !== fruit.id);
+    g.notify("Duas frutas coletadas. Abra a carga para comer.");
+    void g.save();
+  }
   private surfacePhysics(dt: number) {
     const g = this.store,
       p = g.state.player,
@@ -427,6 +475,21 @@ export class WorldScene extends Phaser.Scene {
     }
     this.camX = Phaser.Math.Linear(this.camX, p.x, 0.12);
     this.camY = Phaser.Math.Linear(this.camY, p.y - 32, 0.1);
+    this.wildlife.update(
+      g.planet,
+      t,
+      this.building.settlement,
+      p,
+      g.state.time,
+      dt,
+    );
+    this.fruit = fruitsNear(
+      g.planet,
+      t,
+      this.building.settlement,
+      p.x,
+      g.state.time,
+    );
     const pointer = this.input.activePointer;
     const mobileMine = takePulse("mine") || controls.mine;
     const tap = this.surfaceTap;
@@ -446,6 +509,16 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     if (tap && this.building.interactAt(tap.x, tap.y)) return;
+    if (tap) {
+      const fruit = this.fruit.find(
+        (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
+      );
+      if (fruit) {
+        this.gatherFruit(fruit);
+        this.mineTime = 0.25;
+        return;
+      }
+    }
     if (
       (mobileMine || pointer.isDown || tap) &&
       this.mineTime <= 0 &&
@@ -458,8 +531,40 @@ export class WorldScene extends Phaser.Scene {
         Math.floor(p.x / 16) + 8,
         this.building.settlement.cutTrees,
       );
-      const wx = pointer.x - this.centerX + this.camX,
-        wy = pointer.y - this.centerY + this.camY;
+      const wx = tap?.wx ?? pointer.x - this.centerX + this.camX,
+        wy = tap?.wy ?? pointer.y - this.centerY + this.camY;
+      const animal = [...this.wildlife.animals.values()]
+        .filter(
+          (target) =>
+            this.canReachFood(target.x, target.y, mobileMine ? 50 : 78) &&
+            (mobileMine
+              ? (target.x - p.x) * this.facing >= 0 || target.hostile
+              : Math.hypot(target.x - wx, target.y - wy) < 16),
+        )
+        .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+      if (animal) {
+        this.mineTime = 0.32;
+        p.energy -= 1;
+        this.beam = {
+          x: p.x,
+          y: p.y - 3,
+          tx: animal.x,
+          ty: animal.y,
+          life: 0.15,
+        };
+        this.burst(animal.x, animal.y, animal.crest);
+        audio.play(160);
+        if (animal.health > 1) {
+          animal.health--;
+        } else if (g.collect("rawMeat", animal.hostile ? 3 : 2)) {
+          const data = settlementFor(g.state, g.planet.id);
+          (data.hunted ??= {})[animal.id] = g.state.time + FAUNA_RETURN;
+          this.wildlife.animals.delete(animal.id);
+          g.notify(`${animal.name}: carne crua coletada.`);
+          void g.save();
+        }
+        return;
+      }
       const tree = trees
         .filter(
           (tree) =>
@@ -847,6 +952,20 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       "pieces",
     );
+    for (const fruit of this.fruit)
+      drawFruit(
+        f,
+        fruit,
+        Math.round(fruit.x - this.camX + this.centerX),
+        Math.round(fruit.y - this.camY + this.centerY),
+      );
+    for (const animal of this.wildlife.animals.values())
+      drawAnimal(
+        f,
+        animal,
+        Math.round(animal.x - this.camX + this.centerX),
+        Math.round(animal.y - this.camY + this.centerY),
+      );
     const shipX = g.state.landingX * 16,
       shipY = t.height(g.state.landingX) * 16 - 12;
     this.drawShip(

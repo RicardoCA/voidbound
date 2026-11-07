@@ -31,6 +31,7 @@ export const recipes: Recipe[] = [
     station: "hand",
   },
   { id: "cabinet", cost: { wood: 6, iron: 2 }, unlock: 0, station: "hand" },
+  { id: "campfire", cost: { wood: 4, iron: 2 }, unlock: 0, station: "hand" },
   { id: "woodDoor", cost: { wood: 4, iron: 1 }, unlock: 0, station: "hand" },
   {
     id: "solarPanel",

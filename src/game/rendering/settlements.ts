@@ -174,6 +174,16 @@ export function drawPiece(
     g.fillRect(x + 1, y + 3, 3, 2);
     return;
   }
+  if (kind === "campfire") {
+    g.fillStyle(0x78563f, alpha);
+    g.fillRect(x + 1, y + 12, 14, 4);
+    g.fillStyle(0xe77243, alpha);
+    g.fillRect(x + 4, y + 7, 9, 6);
+    g.fillRect(x + 7, y + 3, 4, 5);
+    g.fillStyle(0xffcc79, alpha);
+    g.fillRect(x + 7, y + 8, 4, 5);
+    return;
+  }
   if (kind === "battery") {
     g.fillStyle(0x50677b, alpha);
     g.fillRect(x + 2, y + 3, 12, 13);

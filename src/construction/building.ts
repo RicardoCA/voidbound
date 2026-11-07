@@ -16,6 +16,7 @@ export const buildItems: BuildItem[] = [
   "cabinet",
   "woodDoor",
   "solarPanel",
+  "campfire",
   "battery",
   "oxygenGenerator",
 ];
@@ -124,6 +125,7 @@ export function placementError(
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
     [
+      "campfire",
       "cabinet",
       "woodDoor",
       "solarPanel",

@@ -246,7 +246,7 @@ try {
   await page.setViewportSize({ width: 390, height: 664 });
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Abrir construção" }).tap();
-  assert.equal(await page.locator(".build-card").count(), 8);
+  assert.equal(await page.locator(".build-card").count(), 9);
   assert.ok(
     await page.evaluate(
       () =>

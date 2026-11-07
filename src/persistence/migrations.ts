@@ -1,8 +1,13 @@
 import type { Save } from "../game/types";
 import { INITIAL_CREDITS } from "../economy/market";
 
+type StoredPlayer = Omit<Save["player"], "hunger"> & { hunger?: number };
+type SaveWithoutRequiredHunger = Omit<Save, "player"> & {
+  player: StoredPlayer;
+};
+
 export type SaveV3 = Omit<
-  Save,
+  SaveWithoutRequiredHunger,
   | "version"
   | "credits"
   | "marketStocks"
@@ -16,7 +21,8 @@ export type LegacySave = Omit<SaveV3, "version" | "settlements"> & {
 };
 type FleetFields = Pick<Save, "activeShip" | "parkedShips" | "nextShipId">;
 // Local builds added credits to v4 before introducing the fleet fields.
-type SaveV4 = Omit<Save, keyof FleetFields> & Partial<FleetFields>;
+type SaveV4 = Omit<SaveWithoutRequiredHunger, keyof FleetFields> &
+  Partial<FleetFields>;
 export type StoredGame = SaveV4 | SaveV3 | SaveV2 | LegacySave;
 
 export function migrateSave(data: StoredGame): Save {
@@ -24,6 +30,7 @@ export function migrateSave(data: StoredGame): Save {
     case 4:
       return {
         ...data,
+        player: { ...data.player, hunger: data.player.hunger ?? 100 },
         activeShip: data.activeShip ?? { id: "ship-1", model: "sparrow" },
         parkedShips: data.parkedShips ?? [],
         nextShipId: data.nextShipId ?? 2,
@@ -33,6 +40,7 @@ export function migrateSave(data: StoredGame): Save {
     case 3:
       return {
         ...data,
+        player: { ...data.player, hunger: data.player.hunger ?? 100 },
         version: 4,
         settlements: data.version === 1 ? {} : data.settlements,
         credits: INITIAL_CREDITS,

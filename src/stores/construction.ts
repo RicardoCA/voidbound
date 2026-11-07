@@ -1,5 +1,7 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
+import { craft } from "../crafting/recipes";
+import { COOKING_TIME_MS, cookedMeatRecipe } from "../survival/food";
 import { useGame } from "./game";
 import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
@@ -35,6 +37,9 @@ export const useConstruction = defineStore("construction", () => {
     selected = ref<BuildItem>("woodBlock"),
     facing = ref<1 | -1>(1),
     cursor = ref<{ x: number; y: number } | null>(null),
+    activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
+      null,
+    ),
     activeCabinet = ref<{ planetId: string; key: string } | null>(null);
   const blank = emptySettlement();
   const settlement = computed(() => g.state.settlements[g.planet.id] ?? blank);
@@ -203,6 +208,21 @@ export const useConstruction = defineStore("construction", () => {
   function interactAt(x: number, y: number) {
     const found = pieceAt(settlement.value, x, y);
     if (!found) return false;
+    if (found.piece.kind === "campfire") {
+      if (
+        g.state.mode === "surface" &&
+        inReach(g.state.player, found.x, found.y, 76)
+      ) {
+        activeCampfire.value = {
+          planetId: g.planet.id,
+          x: found.x,
+          y: found.y,
+        };
+        releaseControls();
+        g.panel = "cook";
+      } else g.notify("Aproxime-se da fogueira para cozinhar.");
+      return true;
+    }
     if (found.piece.kind === "woodDoor") {
       toggleDoor(found.key);
       return true;
@@ -232,14 +252,75 @@ export const useConstruction = defineStore("construction", () => {
     }
     return false;
   }
+  const cookingElapsed = ref<number | null>(null);
+  let cookingTimer: ReturnType<typeof setInterval> | undefined;
+  function stopCooking() {
+    clearInterval(cookingTimer);
+    cookingElapsed.value = null;
+  }
+  watch([() => g.panel, () => g.paused, () => g.state], stopCooking, {
+    flush: "sync",
+  });
+  onScopeDispose(stopCooking);
+
+  function canCook() {
+    const fire = activeCampfire.value;
+    return (
+      fire &&
+      g.state.mode === "surface" &&
+      !g.paused &&
+      g.panel === "cook" &&
+      fire.planetId === g.planet.id &&
+      inReach(g.state.player, fire.x, fire.y, 76) &&
+      pieceAt(settlement.value, fire.x, fire.y)?.piece.kind === "campfire"
+    );
+  }
+  function cookMeat() {
+    if (cookingElapsed.value !== null) return;
+    if (!canCook()) {
+      g.notify("Aproxime-se de uma fogueira instalada.");
+      return;
+    }
+    if (!g.state.inventory.rawMeat) {
+      g.notify("Você precisa de carne crua.");
+      return;
+    }
+    const startedAt = performance.now();
+    cookingElapsed.value = 0;
+    cookingTimer = setInterval(() => {
+      if (!canCook()) {
+        stopCooking();
+        return;
+      }
+      cookingElapsed.value = Math.min(
+        COOKING_TIME_MS,
+        performance.now() - startedAt,
+      );
+      if (cookingElapsed.value < COOKING_TIME_MS) return;
+      stopCooking();
+      if (
+        !craft(g.state.inventory, cookedMeatRecipe, g.capacity, g.state.mission)
+      ) {
+        g.notify("Carne crua insuficiente ou carga sem espaço.");
+        return;
+      }
+      g.notify("Carne assada pronta. Abra a carga para comer.");
+      audio.play(520);
+      void g.save();
+    }, 100);
+  }
   function nearestInteraction() {
     let key: string | undefined,
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
       if (
-        !["cabinet", "woodDoor", "battery", "oxygenGenerator"].includes(
-          piece.kind,
-        )
+        ![
+          "cabinet",
+          "woodDoor",
+          "campfire",
+          "battery",
+          "oxygenGenerator",
+        ].includes(piece.kind)
       )
         continue;
       const [x, y] = id.split(",").map(Number),
@@ -328,6 +409,8 @@ export const useConstruction = defineStore("construction", () => {
     nearestInteraction,
     toggleDoor,
     interactAt,
+    cookMeat,
+    cookingElapsed,
     moveItem,
     setCursor,
     cabinetAt,

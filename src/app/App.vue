@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import CookingPanel from "../components/CookingPanel.vue";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
 import GameCanvas from "../components/GameCanvas.vue";
@@ -279,8 +280,8 @@ function minutes() {
           </div>
         </div>
         <div v-if="surface && !b.enabled" class="surface-tip">
-          MULTITOOL <span>◆</span> Clique em um bloco próximo para minerar
-          <kbd>E</kbd> Nave / armário <kbd>B</kbd> Construir
+          MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
+          <kbd>E</kbd> Nave / fogueira / armário <kbd>B</kbd> Construir
         </div>
         <TouchControls
           v-if="
@@ -297,6 +298,9 @@ function minutes() {
               <div class="status-heading">
                 {{ surface ? "TRAJE EXPLORADOR" : g.model.name }}
                 <span>{{ surface ? "EVA" : g.model.role }}</span>
+                <b v-if="g.sicknessRemaining" class="warning"
+                  >Intoxicação · {{ g.sicknessRemaining }} s</b
+                >
               </div>
               <div class="meters">
                 <div>
@@ -347,6 +351,16 @@ function minutes() {
                       Math.ceil(
                         surface ? g.state.player.energy : g.state.ship.energy,
                       )
+                    }}<small>%</small></b
+                  >
+                </div>
+                <div v-if="surface" class="gold">
+                  <span>FOME</span>
+                  <div class="meter">
+                    <i :style="{ width: `${g.state.player.hunger ?? 100}%` }" />
+                  </div>
+                  <b
+                    >{{ Math.ceil(g.state.player.hunger ?? 100)
                     }}<small>%</small></b
                   >
                 </div>
@@ -485,6 +499,7 @@ function minutes() {
             {{ Math.round(g.stationDistance) }} km
           </p>
         </section>
+        <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />

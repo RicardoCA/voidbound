@@ -165,3 +165,10 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - O piloto compra o lote na origem, entrega ao destino e retorna ao hangar. A entrega repõe o estoque no destino e paga uma vez. A nave fica indisponível para troca, venda e transferência durante a rota. A nave ativa continua livre para explorar.
 - A repetição é opcional. Ela para após a viagem corrente quando solicitada, ou ao faltar saldo, estoque ou capacidade. O tempo avança durante o jogo. A contratação, a viagem em curso e os pagamentos usam o save existente.
 - Implementação em `src/fleet/pilots.ts`, `src/components/PilotPanel.vue`, integração com o hangar e o relógio do jogo. Validação de contratação, frete, pagamento, bloqueio de nave, repetição e persistência em `src/tests/pilots.test.ts`. Fluxo com retomada de viagem verificado em Chromium desktop e mobile emulado.
+
+## Alimentação e fauna planetária
+
+- Os seis biomas têm frutas próprias e fauna pacífica e agressiva. Frutas são coletadas por clique/toque. A multitool atinge animais próximos e a caça rende carne crua. Predadores perseguem e ferem o astronauta quando o caminho está livre.
+- A fogueira é fabricada na oficina de campo com 4 madeiras e 2 ferros. Depois de instalada, interaja por E ou toque para transformar carne crua em carne assada.
+- A fome parte de 100%, cai durante a simulação e causa dano quando chega a zero. Fruta, carne crua e carne assada restauram 18, 8 e 35 pontos respectivamente, pela tela de carga. Saves anteriores começam com a barra cheia.
+- Fome, fogueiras, comida e tempos de retorno da fauna e das frutas são salvos. Frutas voltam após 3 minutos de jogo e animais após 5. O teste de navegador cobre coleta, caça, fabricação, instalação, preparo e alimentação no desktop e celular emulado.

@@ -18,6 +18,8 @@ const descriptions = {
     "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
   solarPanel:
     "Coloque sobre piso ou teto, com céu livre acima. Carrega a bateria mais próxima até 12 blocos; sem bateria, alimenta o gerador diretamente.",
+  campfire:
+    "Instale sobre chão firme. Use E ou toque na fogueira para assar carne crua.",
   battery:
     "Armazena até 1.200 de energia solar e alimenta o gerador mais próximo até 12 blocos, inclusive à noite. E ou toque mostra a carga.",
   oxygenGenerator:

@@ -9,6 +9,14 @@ export type Item =
   | "ice"
   | "fiber"
   | "wood"
+  | "basaltBerry"
+  | "amberFig"
+  | "frostPlum"
+  | "jadePear"
+  | "emberFruit"
+  | "tideMelon"
+  | "rawMeat"
+  | "cookedMeat"
   | "rawFuel"
   | "plate"
   | "circuit"
@@ -29,6 +37,7 @@ export type Item =
   | "cabinet"
   | "woodDoor"
   | "solarPanel"
+  | "campfire"
   | "battery"
   | "oxygenGenerator";
 export type Inventory = Partial<Record<Item, number>>;
@@ -65,6 +74,7 @@ export type BuildItem =
   | "cabinet"
   | "woodDoor"
   | "solarPanel"
+  | "campfire"
   | "battery"
   | "oxygenGenerator";
 export interface PlacedPiece {
@@ -79,6 +89,8 @@ export interface Settlement {
   walls: Record<string, true>;
   cabinets: Record<string, Inventory>;
   cutTrees: string[];
+  foraged?: Record<string, number>;
+  hunted?: Record<string, number>;
   utilityTime?: number;
 }
 export type ShipModelId =
@@ -141,6 +153,8 @@ export interface Save {
   planetIndex: number;
   ship: ShipState;
   player: {
+    hunger: number;
+    sickness?: number;
     x: number;
     y: number;
     health: number;
@@ -161,6 +175,69 @@ export const items: Record<
   Item,
   { name: string; color: string; icon: string; rarity: string; stack: number }
 > = {
+  basaltBerry: {
+    name: "Baga de basalto",
+    color: "#cf93e7",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  amberFig: {
+    name: "Figo âmbar",
+    color: "#e9ba63",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  frostPlum: {
+    name: "Ameixa glacial",
+    color: "#99ddef",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  jadePear: {
+    name: "Pera de jade",
+    color: "#c9e475",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  emberFruit: {
+    name: "Fruta brasa",
+    color: "#fa9868",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  tideMelon: {
+    name: "Melão de maré",
+    color: "#70dbb9",
+    icon: "●",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  rawMeat: {
+    name: "Carne crua",
+    color: "#ec9189",
+    icon: "◆",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  cookedMeat: {
+    name: "Carne assada",
+    color: "#eab17e",
+    icon: "◆",
+    rarity: "Alimento",
+    stack: 99,
+  },
+  campfire: {
+    name: "Fogueira",
+    color: "#ffaf6c",
+    icon: "▲",
+    rarity: "Construção",
+    stack: 99,
+  },
   iron: {
     name: "Ferro",
     color: "#a5bbcd",

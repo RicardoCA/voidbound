@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { items, type Item } from "../game/types";
+import { RAW_MEAT_RISK, foodValue } from "../survival/food";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { isBuildItem } from "../construction/building";
@@ -55,8 +56,15 @@ function canUse(id: Item) {
     </div>
     <div class="inventory-heading">
       <span>{{ g.usedSlots }} / {{ g.capacity }} SLOTS</span
-      ><span>EMPILHAMENTO: 99 / RECURSO</span>
+      ><span>FOME {{ Math.ceil(g.state.player.hunger ?? 100) }}%</span>
     </div>
+    <p v-if="g.state.inventory.rawMeat" class="warning">
+      Carne crua tem {{ Math.round(RAW_MEAT_RISK * 100) }}% de chance de
+      intoxicação. Asse na fogueira.
+    </p>
+    <p v-if="g.sicknessRemaining" class="warning">
+      Intoxicação · {{ g.sicknessRemaining }} s
+    </p>
     <div class="inventory-grid">
       <button
         v-for="[id, n] in inventory"
@@ -69,11 +77,13 @@ function canUse(id: Item) {
         ><b>{{ n }}</b
         ><span>{{ items[id].name }}</span
         ><small>{{
-          isBuildItem(id)
-            ? "EQUIPAR CONSTRUÇÃO"
-            : canUse(id)
-              ? "USAR / INSTALAR"
-              : items[id].rarity
+          foodValue(id)
+            ? `COMER · +${foodValue(id)} SACIEDADE`
+            : isBuildItem(id)
+              ? "EQUIPAR CONSTRUÇÃO"
+              : canUse(id)
+                ? "USAR / INSTALAR"
+                : items[id].rarity
         }}</small>
       </button>
       <div

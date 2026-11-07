@@ -129,6 +129,13 @@
     gap: 8px;
     align-items: center;
   }
+  .mobile-meters.surface-meters {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    gap: 6px;
+  }
+  .surface-meters .mobile-meter > div {
+    gap: 3px;
+  }
   .mobile-radar-toggle {
     min-width: 44px;
     min-height: 44px;

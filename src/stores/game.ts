@@ -13,6 +13,11 @@ import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
 import { shipModels } from "../fleet/models";
 import { shipCapacity, shipFuelCapacity } from "../fleet/hangar";
+import {
+  FOOD_SICKNESS_DURATION,
+  RAW_MEAT_RISK,
+  foodValue,
+} from "../survival/food";
 import { INITIAL_CREDITS } from "../economy/market";
 export const missions = [
   {
@@ -69,7 +74,7 @@ function initial(seed: string): Save {
       energy: 100,
       oxygen: 100,
     },
-    player: { x: 0, y: 0, health: 100, oxygen: 100, energy: 100 },
+    player: { x: 0, y: 0, health: 100, oxygen: 100, energy: 100, hunger: 100 },
     inventory: {},
     upgrades: [],
     changes: {},
@@ -118,6 +123,9 @@ export const useGame = defineStore("game", () => {
     }),
     planet = computed(() => system.value.planets[state.value.planetIndex]!),
     biome = computed(() => biomes[planet.value.kind]!),
+    sicknessRemaining = computed(() =>
+      Math.ceil(state.value.player.sickness ?? 0),
+    ),
     model = computed(() => shipModels[state.value.activeShip.model]),
     capacity = computed(() =>
       shipCapacity(state.value.activeShip.model, state.value.upgrades),
@@ -324,6 +332,26 @@ export const useGame = defineStore("game", () => {
         "drill",
       ];
     if (trading.value) return;
+    const nutrition = foodValue(id);
+    if (nutrition) {
+      const hunger = s.player.hunger ?? 100;
+      if (hunger >= 100) {
+        notify("Você já está alimentado.");
+        return;
+      }
+      if (!consume(s.inventory, { [id]: 1 })) return;
+      s.player.hunger = Math.min(100, hunger + nutrition);
+      if (id === "rawMeat" && Math.random() < RAW_MEAT_RISK) {
+        s.player.sickness = FOOD_SICKNESS_DURATION;
+        notify("Intoxicação alimentar. Você vai perder vida por 30 segundos.");
+      } else {
+        notify(
+          `Alimento consumido. Saciedade: ${Math.ceil(s.player.hunger)}%.`,
+        );
+      }
+      void save();
+      return;
+    }
     if (upgrades.includes(id) && s.mode !== "interior" && s.mode !== "docked") {
       notify("Instale melhorias dentro da nave.");
       return;
@@ -478,6 +506,13 @@ export const useGame = defineStore("game", () => {
       return;
     const s = state.value;
     s.time += dt;
+    s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
+    if (s.player.hunger === 0) s.player.health -= dt * 3;
+    const sickTime = Math.min(dt, s.player.sickness ?? 0);
+    if (sickTime > 0) {
+      s.player.sickness = s.player.sickness! - sickTime;
+      s.player.health -= sickTime;
+    }
     if (advancePilotTrips(s)) void save();
     habitat.value = habitatSystem.step(
       s,
@@ -495,22 +530,25 @@ export const useGame = defineStore("game", () => {
         !s.upgrades.includes("shield")
       )
         s.player.health -= dt * 0.5;
-      if (s.player.health <= 0) {
-        s.player.health = 100;
-        s.player.oxygen = 60;
-        s.ship.hull = Math.max(15, s.ship.hull - 10);
-        s.mode = "interior";
-        notify("Resgate de emergência. Penalidade: 10 pontos de casco.");
-        void save();
-      }
     } else if (s.mode === "interior") {
       const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
       s.ship.oxygen -= amount;
       s.player.oxygen += amount;
       s.player.energy = Math.min(100, s.player.energy + dt * 12);
-      s.player.health = Math.min(100, s.player.health + dt * 3);
+      if (s.player.hunger > 0 && sickTime === 0)
+        s.player.health = Math.min(100, s.player.health + dt * 3);
       s.ship.energy = Math.min(100, s.ship.energy + dt * 8);
     } else s.ship.energy = Math.min(100, s.ship.energy + dt * 5);
+    if (s.player.health <= 0) {
+      s.player.health = 100;
+      s.player.oxygen = Math.max(60, s.player.oxygen);
+      s.player.hunger = Math.max(25, s.player.hunger);
+      delete s.player.sickness;
+      s.ship.hull = Math.max(15, s.ship.hull - 10);
+      if (s.mode === "surface") s.mode = "interior";
+      notify("Resgate de emergência. Penalidade: 10 pontos de casco.");
+      void save();
+    }
   }
   return {
     state,
@@ -538,6 +576,7 @@ export const useGame = defineStore("game", () => {
     capacity,
     model,
     hullPercent,
+    sicknessRemaining,
     usedSlots,
     mission,
     showMission,

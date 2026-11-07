@@ -281,7 +281,14 @@ it("retoma um save v4 da economia anterior à frota sem perder o estado da super
   ) as typeof g.state;
   void [activeShip, parkedShips, nextShipId];
   earlySave.mode = "surface";
-  earlySave.player = { x: 88, y: 452, health: 100, oxygen: 60, energy: 100 };
+  earlySave.player = {
+    x: 88,
+    y: 452,
+    health: 100,
+    oxygen: 60,
+    energy: 100,
+    hunger: 100,
+  };
   earlySave.credits = 0;
   earlySave.inventory = { copper: 8 };
   earlySave.marketStocks[g.system.station!.id] = { copper: 112 };
