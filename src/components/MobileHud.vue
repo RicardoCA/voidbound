@@ -29,7 +29,7 @@ const meters = computed(() => [
     value: surface.value ? g.state.player.energy : g.state.ship.energy,
     max: 100,
   },
-  ...(surface.value
+  ...(surface.value && g.hungerEnabled
     ? [{ label: "FOME", value: g.state.player.hunger ?? 100, max: 100 }]
     : []),
 ]);
@@ -88,7 +88,10 @@ function pause() {
         }}</small
       >
     </div>
-    <div class="mobile-meters" :class="{ 'surface-meters': surface }">
+    <div
+      class="mobile-meters"
+      :class="{ 'surface-meters': surface && g.hungerEnabled }"
+    >
       <div
         v-for="(meter, i) in meters"
         :key="meter.label"
@@ -159,6 +162,10 @@ function pause() {
       >Chuva ácida · Procure abrigo</template
     >
     <template v-else-if="transient">{{ transient }}</template>
+    <template v-else-if="g.state.mode === 'space' && g.flightContact?.wreck">
+      {{ g.flightContact.bearing }} Destroço · {{ g.flightContact.distance }} km
+      <b v-if="g.flightContact.distance <= 95"> · Toque em Saquear</b>
+    </template>
     <template
       v-else-if="
         g.state.mode === 'space' &&
@@ -169,6 +176,14 @@ function pause() {
       {{ g.stationBearing }} {{ g.system.station.name }} ·
       {{ Math.round(g.stationDistance) }} km
       <b v-if="g.stationDistance <= 115"> · Toque em Acoplar até 35 km/s</b>
+      <template v-else-if="g.flightContact">
+        <br />{{ g.flightContact.bearing }} {{ g.flightContact.name }} ·
+        {{ g.flightContact.distance }} km
+      </template>
+    </template>
+    <template v-else-if="g.state.mode === 'space' && g.flightContact">
+      {{ g.flightContact.bearing }} {{ g.flightContact.name }} ·
+      {{ g.flightContact.distance }} km · Casco {{ g.flightContact.hull }}
     </template>
     <template v-else-if="g.state.mode === 'space'"
       >⌖ {{ target.name }} · {{ Math.round(target.distance) }} km
@@ -186,5 +201,8 @@ function pause() {
       >Toque em frutas ou animais · Interagir: nave / fogueira /
       armário</template
     >
+    <template v-if="g.state.mode === 'space' && g.wanted.level">
+      <br /><b>⚠ Procurado {{ g.wanted.level }}/5</b>
+    </template>
   </div>
 </template>

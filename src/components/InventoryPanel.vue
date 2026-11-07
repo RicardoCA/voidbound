@@ -56,7 +56,9 @@ function canUse(id: Item) {
     </div>
     <div class="inventory-heading">
       <span>{{ g.usedSlots }} / {{ g.capacity }} SLOTS</span
-      ><span>FOME {{ Math.ceil(g.state.player.hunger ?? 100) }}%</span>
+      ><span v-if="g.hungerEnabled"
+        >FOME {{ Math.ceil(g.state.player.hunger ?? 100) }}%</span
+      >
     </div>
     <p v-if="g.state.inventory.rawMeat" class="warning">
       Carne crua tem {{ Math.round(RAW_MEAT_RISK * 100) }}% de chance de

@@ -68,7 +68,7 @@ const nav = computed(() => [
 const saveTooltipVisible = ref(false);
 let saveTooltipTimer: ReturnType<typeof setTimeout> | undefined;
 async function saveManually() {
-  if (!(await g.save())) return;
+  if (!(await g.save(true))) return;
   clearTimeout(saveTooltipTimer);
   saveTooltipVisible.value = true;
   saveTooltipTimer = setTimeout(() => {
@@ -242,6 +242,12 @@ function minutes() {
           </p>
           <p class="station-credits">
             {{ g.state.credits.toLocaleString("pt-BR") }} CR
+            <span
+              v-if="g.wanted.level && g.state.mode === 'space'"
+              class="warning"
+            >
+              · Procurado {{ g.wanted.level }}/5</span
+            >
           </p>
           <p v-if="surface || inShip">
             Hora local · <time :datetime="localTime">{{ localTime }}</time>
@@ -296,6 +302,21 @@ function minutes() {
               ></small
             >
           </div>
+        </div>
+        <div
+          v-if="g.state.mode === 'space' && g.flightContact"
+          class="surface-tip"
+        >
+          {{ g.flightContact.bearing }}
+          {{ g.flightContact.wreck ? "Destroço" : g.flightContact.name }} ·
+          {{ g.flightContact.distance }} km
+          <template v-if="g.flightContact.wreck">
+            · <kbd>E</kbd> Saquear até 95 km</template
+          >
+          <template v-else>
+            · Casco {{ g.flightContact.hull }} · Escudo
+            {{ g.flightContact.shield }} · <kbd>F</kbd> Atirar</template
+          >
         </div>
         <div v-if="surface && !b.enabled" class="surface-tip">
           MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
@@ -372,7 +393,7 @@ function minutes() {
                     }}<small>%</small></b
                   >
                 </div>
-                <div v-if="surface" class="gold">
+                <div v-if="surface && g.hungerEnabled" class="gold">
                   <span>FOME</span>
                   <div class="meter">
                     <i :style="{ width: `${g.state.player.hunger ?? 100}%` }" />
@@ -433,6 +454,18 @@ function minutes() {
               max="100"
             />
           </div>
+          <div class="audio-options">
+            <label
+              ><input v-model="g.hungerEnabled" type="checkbox" /> Fome</label
+            >
+            <label
+              ><input v-model="g.autosaveEnabled" type="checkbox" /> Salvamento
+              automático</label
+            >
+            <p v-if="!g.autosaveEnabled">
+              Use Salvar partida no menu de pausa para gravar seu progresso.
+            </p>
+          </div>
           <button class="primary" @click="showOptions = false">
             VOLTAR À PAUSA
           </button>
@@ -457,9 +490,10 @@ function minutes() {
             VOLTAR AO MENU
           </button>
           <div class="help">
-            Nave: W acelerar · S frear · A/D rotacionar · Espaço minerar · E
-            órbita<br />Superfície: A/D andar · Espaço pular · Clique minerar ·
-            E embarcar<br />I carga · C fabricação · M mapa · Esc pausa
+            Nave: W acelerar · S frear · A/D rotacionar · Espaço minerar · F
+            atirar · E órbita<br />Superfície: A/D andar · Espaço pular · Clique
+            minerar · E embarcar<br />I carga · C fabricação · M mapa · Esc
+            pausa
           </div>
         </section>
         <StationPanel v-else-if="g.state.mode === 'docked' && !g.panel" />
@@ -653,7 +687,8 @@ function minutes() {
       </div>
       <div class="footer-right">
         <span v-if="g.started">TEMPO DE VOO {{ minutes() }}</span
-        ><button v-if="g.started" @click="g.save">◈ {{ g.saveStatus }}</button
+        ><button v-if="g.started" @click="g.save(true)">
+          ◈ {{ g.saveStatus }}</button
         ><span v-else>UNIVERSO DETERMINÍSTICO · SALVAMENTO LOCAL</span>
       </div>
     </footer>
@@ -663,7 +698,8 @@ function minutes() {
         <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
       ><span v-else
         ><kbd>W</kbd> PROPULSÃO <kbd>A</kbd><kbd>D</kbd> ROTACIONAR
-        <kbd>S</kbd> FREAR <kbd>ESPAÇO</kbd> MINERAR</span
+        <kbd>S</kbd> FREAR <kbd>ESPAÇO</kbd> MINERAR <kbd>F</kbd> ATIRAR</span
+      >
       ><span><kbd>E</kbd> INTERAGIR <kbd>ESC</kbd> PAUSAR</span
       ><span class="version">DESBRAVE O QUE VEM DEPOIS.</span>
     </div>

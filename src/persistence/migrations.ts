@@ -1,9 +1,11 @@
 import type { Save } from "../game/types";
+import { newProgression } from "../progression/careers";
 import { INITIAL_CREDITS } from "../economy/market";
 
 type StoredPlayer = Omit<Save["player"], "hunger"> & { hunger?: number };
-type SaveWithoutRequiredHunger = Omit<Save, "player"> & {
+type SaveWithoutRequiredHunger = Omit<Save, "player" | "progression"> & {
   player: StoredPlayer;
+  progression?: Save["progression"];
 };
 
 export type SaveV3 = Omit<
@@ -30,6 +32,7 @@ export function migrateSave(data: StoredGame): Save {
     case 4:
       return {
         ...data,
+        progression: { ...newProgression(), ...data.progression },
         player: { ...data.player, hunger: data.player.hunger ?? 100 },
         activeShip: data.activeShip ?? { id: "ship-1", model: "sparrow" },
         parkedShips: data.parkedShips ?? [],
@@ -40,6 +43,7 @@ export function migrateSave(data: StoredGame): Save {
     case 3:
       return {
         ...data,
+        progression: { ...newProgression(), ...data.progression },
         player: { ...data.player, hunger: data.player.hunger ?? 100 },
         version: 4,
         settlements: data.version === 1 ? {} : data.settlements,

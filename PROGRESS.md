@@ -172,3 +172,40 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - A fogueira é fabricada na oficina de campo com 4 madeiras e 2 ferros. Depois de instalada, interaja por E ou toque para transformar carne crua em carne assada.
 - A fome parte de 100%, cai durante a simulação e causa dano quando chega a zero. Fruta, carne crua e carne assada restauram 18, 8 e 35 pontos respectivamente, pela tela de carga. Saves anteriores começam com a barra cheia.
 - Fome, fogueiras, comida e tempos de retorno da fauna e das frutas são salvos. Frutas voltam após 3 minutos de jogo e animais após 5. O teste de navegador cobre coleta, caça, fabricação, instalação, preparo e alimentação no desktop e celular emulado.
+
+## Expansão Galáctica V2.0 · etapas 1 a 3
+
+- **Carreiras:** Explorador, Minerador e Pirata têm XP, níveis e patentes independentes. Limite atual de 30, com curva calculada até 100. O mapa mostra as barras de XP, patentes, estatísticas, histórico e contratos ativos. A carreira Pirata está preparada para receber eventos da etapa de combate.
+- **Exploração:** o primeiro pouso ou scan válido cataloga cada planeta uma vez. Saltos inéditos, anomalias e ruínas procedurais também rendem XP. O scanner mostra atmosfera e recursos dos planetas registrados, sinais dentro do alcance e veios reais de titânio e cristal. As estações compram cada conjunto de dados uma vez e o registro permanece consultável.
+- **Mineração:** XP é concedido após extração bem-sucedida de terreno natural ou asteroide, primeira extração de um depósito raro por região e lote de combustível refinado. As vantagens reduzem o custo de energia e o intervalo de mineração planetária em até 20%.
+- **Contratos:** estações oferecem levantamentos científicos e fornecimento de recursos. O quadro permite aceitar, acompanhar, entregar na estação emissora ou abandonar. Níveis profissionais liberam dificuldades superiores. Entrega, XP, créditos e estado de recompensa são gravados juntos.
+- **Compatibilidade:** o save recebe o campo de progressão ao carregar, sem trocar o banco IndexedDB ou alterar naves, saldo ou carga. Testes de regressão cobrem duplicação, migração e retomada. O índice do planeta também é redefinido antes das coordenadas no salto, para evitar um índice inválido ao chegar a um sistema com menos planetas.
+
+| Arquivos                                                                                                                                 | Alterações                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `src/progression/careers.ts`, `exploration.ts`, `contracts.ts`                                                                           | Curva e patentes, registro científico, ofertas e transações de contratos.                             |
+| `src/stores/game.ts`, `src/game/scenes/WorldScene.ts`, `src/game/types.ts`, `src/persistence/migrations.ts`                              | Pontos de entrada de mineração, salto, scanner e pouso, sinais renderizados e progressão persistente. |
+| `src/components/GalaxyMap.vue`, `CareerProgress.vue`, `ScannerPanel.vue`, `ScienceJournal.vue`, `ContractsBoard.vue`, `StationPanel.vue` | Painéis acessíveis no mapa e serviços funcionais nas estações.                                        |
+| `src/tests/careers.test.ts`, `src/tests/contracts.test.ts`                                                                               | Curva, atividades reais, venda única, geração, entrega e persistência.                                |
+
+**Validação:** lint, TypeScript, build e 110 testes passaram. Chromium validou catalogação, venda de dados e painel profissional em desktop e celular de 320 px. O contrato de fornecimento passou no desktop e celular horizontal, da aceitação ao recebimento. A regressão existente passou com mineração real, fabricação, decolagem e retomada.
+
+**Próxima etapa:** NPCs espaciais, armas, combate, destroços, saque e contrabando. Jurisdições, registros criminais, as 20 naves e o balanceamento de longo prazo seguem pendentes. A expansão está em teste local.
+
+## Expansão Galáctica V2.0 · etapa 4: pirataria
+
+- Cargueiros, mineradoras, escoltas e corsários têm IDs estáveis por sistema. Cargueiros e mineradoras fogem sob ataque. Escoltas e corsários podem perseguir e disparar.
+- **F** no PC ou **Atirar** no celular dispara projéteis com mira assistida até 340 km. A mineração mantém seu controle. O dano passa pelos escudos antes de reduzir o casco de um NPC.
+- Destruir uma nave deixa um destroço persistente. **E** ou **Saquear** recolhe a carga até 95 km e a 50 km/s ou menos, se houver espaço. Cada destroço só pode ser saqueado uma vez, inclusive após reload.
+- A estação inicial e parte das demais têm mercado clandestino. Vendas e contratos de contrabando pagam CR e XP de Pirata. O nível melhora a cotação e desbloqueia contratos avançados.
+- Implementação em `src/combat/flight.ts`, `src/combat/traffic.ts`, cena de voo, HUD e controles de toque, `BlackMarket.vue` e quadro de contratos. Lint, TypeScript, build e 113 testes passaram. Chromium validou disparo, destruição, saque e venda em desktop e celular emulado.
+- **Próxima etapa:** jurisdições, registro criminal, procurado, patrulhas policiais, caçadores de recompensa e regularização. A expansão de 20 naves e o balanceamento também seguem pendentes.
+
+## Expansão Galáctica V2.0 · autoridades e procurado
+
+- Cargueiros, mineradoras e escoltas circulam pelos sistemas. Corsários NPC aparecem apenas nos sistemas com mercado clandestino, marcados com ◆ no mapa.
+- Patrulhas aparecem em sistemas vigiados e perseguem a partir de procurado 2. Caçadores entram a partir do nível 4. No nível 5, chegam interceptores de elite e a estação local bloqueia a acoplagem.
+- Ataques e destruição de naves registram sistema, facção, horário, detecção, multa, recompensa e ID da nave usada. O alerta e a perseguição são exclusivos do sistema do crime, inclusive entre sistemas da mesma facção. O mapa marca os sistemas procurados e o nível ativo. As multas continuam vinculadas à facção. O alerta pode baixar com o tempo, mas as dívidas permanecem até a regularização. A carreira Pirata mantém seu XP.
+- O registro está no mapa e nas estações. É possível pagar multas da jurisdição em uma estação acessível. Os dados persistem no save, inclusive ao trocar de nave.
+- Implementação em `src/combat/law.ts`, `flight.ts`, `traffic.ts`, `CriminalRecord.vue`, mapa, HUD e store. Os 116 testes, lint, TypeScript e build passaram. Chromium validou mobilização, consulta e pagamento em desktop e celular.
+- Pendentes nesta frente: inspeções de carga, entrega voluntária, negociação clandestina e o aprofundamento de reputação e registros das naves. As 20 naves novas e o balanceamento de longo prazo continuam nas próximas etapas.

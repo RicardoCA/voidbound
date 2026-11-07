@@ -97,7 +97,7 @@ onBeforeUnmount(reset);
       </div>
       <span v-if="!surface" class="touch-hint">GIRAR / ACELERAR</span>
     </div>
-    <div class="touch-actions">
+    <div class="touch-actions" :class="{ 'space-actions': !surface }">
       <button
         v-if="!surface"
         class="touch-brake"
@@ -146,13 +146,26 @@ onBeforeUnmount(reset);
         }}
       </button>
       <button
+        v-if="!surface"
+        class="touch-fire"
+        aria-label="Disparar arma"
+        @pointerdown="action('fire', $event)"
+        @pointerup="stop('fire', $event)"
+        @pointercancel="stop('fire', $event)"
+        @lostpointercapture="stop('fire', $event)"
+      >
+        ATIRAR
+      </button>
+      <button
         class="touch-interact"
         :aria-label="
           surface
             ? 'Interagir com porta, nave ou armário'
-            : g.stationDistance <= 115
-              ? 'Acoplar à estação'
-              : 'Entrar em órbita'
+            : g.flightContact?.wreck && g.flightContact.distance <= 95
+              ? 'Saquear destroço'
+              : g.stationDistance <= 115
+                ? 'Acoplar à estação'
+                : 'Entrar em órbita'
         "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"
@@ -162,9 +175,11 @@ onBeforeUnmount(reset);
         {{
           surface
             ? "INTERAGIR"
-            : g.stationDistance <= 115
-              ? "ACOPLAR"
-              : "ÓRBITA"
+            : g.flightContact?.wreck && g.flightContact.distance <= 95
+              ? "SAQUEAR"
+              : g.stationDistance <= 115
+                ? "ACOPLAR"
+                : "ÓRBITA"
         }}
       </button>
     </div>

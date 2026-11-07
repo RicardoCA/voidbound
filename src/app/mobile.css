@@ -288,6 +288,15 @@
     gap: 9px;
     align-items: center;
   }
+  .touch-actions.space-actions {
+    grid-template-areas: "aux mine" "interact fire";
+  }
+  .touch-actions .touch-fire {
+    grid-area: fire;
+    min-height: 44px;
+    color: #ffbaab;
+    border-color: #b4776b;
+  }
   .touch-actions button {
     pointer-events: auto;
     touch-action: none;

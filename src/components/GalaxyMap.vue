@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { nearby } from "../universe/generator";
+import CriminalRecord from "./CriminalRecord.vue";
+import { wantedBySystem } from "../combat/law";
+import { hasBlackMarket } from "../combat/traffic";
+import ScannerPanel from "./ScannerPanel.vue";
+import CareerProgress from "./CareerProgress.vue";
 import BaseRegistry from "./BaseRegistry.vue";
 import { useBases } from "../stores/bases";
 import type { BaseSummary } from "../construction/catalog";
 import { useGame } from "../stores/game";
+import type { StarSystem } from "../game/types";
 const props = withDefaults(
   defineProps<{ initialTab?: "navigation" | "bases" }>(),
   { initialTab: "navigation" },
 );
 const g = useGame(),
   bases = useBases(),
-  tab = ref(props.initialTab),
+  tab = ref<"navigation" | "bases" | "careers" | "scanner" | "law">(
+    props.initialTab,
+  ),
   focusPlanet = ref("");
 function locate(base: BaseSummary) {
   mapX.value = base.system.x - g.state.systemX;
@@ -24,9 +32,10 @@ function inspect(planetId: string) {
   focusPlanet.value = planetId;
   tab.value = "bases";
 }
+const wantedLevels = computed(() => wantedBySystem(g.state));
 const mapX = ref(0),
   mapY = ref(0),
-  selected = ref(""),
+  selected = ref(g.system.id),
   mapSystems = computed(() =>
     nearby(
       g.state.seed,
@@ -45,6 +54,12 @@ const mapX = ref(0),
         )
       : 0,
   );
+function stationType(system: StarSystem) {
+  if (!system.station) return "Sem estação";
+  return hasBlackMarket(system)
+    ? "Estação com mercado clandestino"
+    : "Estação espacial";
+}
 </script>
 <template>
   <section class="dialog map-dialog">
@@ -54,7 +69,17 @@ const mapX = ref(0),
           NAVEGAÇÃO / ALCANCE {{ g.jumpRange }} ANOS-LUZ
         </div>
         <h2>
-          {{ tab === "bases" ? "Suas bases e depósitos" : "Além do horizonte" }}
+          {{
+            tab === "law"
+              ? "Registro criminal"
+              : tab === "scanner"
+                ? "Scanner planetário"
+                : tab === "careers"
+                  ? "Carreiras Galácticas"
+                  : tab === "bases"
+                    ? "Suas bases e depósitos"
+                    : "Além do horizonte"
+          }}
         </h2>
       </div>
       <button class="close" aria-label="Fechar mapa" @click="g.panel = ''">
@@ -64,7 +89,7 @@ const mapX = ref(0),
     <div
       class="tabs map-tabs"
       role="tablist"
-      aria-label="Navegação e depósitos"
+      aria-label="Navegação, depósitos, scanner, carreiras e registro criminal"
     >
       <button
         id="map-navigation-tab"
@@ -88,6 +113,36 @@ const mapX = ref(0),
         "
       >
         Bases e depósitos ({{ bases.all.length }})
+      </button>
+      <button
+        id="map-careers-tab"
+        role="tab"
+        :aria-selected="tab === 'careers'"
+        aria-controls="map-careers"
+        :class="{ active: tab === 'careers' }"
+        @click="tab = 'careers'"
+      >
+        Carreiras
+      </button>
+      <button
+        id="map-scanner-tab"
+        role="tab"
+        :aria-selected="tab === 'scanner'"
+        aria-controls="map-scanner"
+        :class="{ active: tab === 'scanner' }"
+        @click="tab = 'scanner'"
+      >
+        Scanner
+      </button>
+      <button
+        id="map-law-tab"
+        role="tab"
+        :aria-selected="tab === 'law'"
+        aria-controls="map-law"
+        :class="{ active: tab === 'law' }"
+        @click="tab = 'law'"
+      >
+        Registro criminal
       </button>
     </div>
     <div
@@ -134,6 +189,7 @@ const mapX = ref(0),
             current: s.id === g.system.id,
             chosen: s.id === selected,
             visited: g.state.visited.includes(s.id),
+            'has-wanted': wantedLevels.has(s.id),
             'has-base': bases.bySystem.has(s.id),
             'has-stock': (bases.bySystem.get(s.id)?.units ?? 0) > 0,
           }"
@@ -141,11 +197,13 @@ const mapX = ref(0),
             left: `${((s.x - g.state.systemX - mapX + 3.5) / 7) * 100}%`,
             top: `${((s.y - g.state.systemY - mapY + 3.5) / 7) * 100}%`,
           }"
-          :aria-label="`${s.name}${bases.bySystem.has(s.id) ? ` · ${bases.bySystem.get(s.id)!.bases.length} planetas com base · ${bases.bySystem.get(s.id)!.units} unidades guardadas` : ''}`"
-          :title="`${s.name}${bases.bySystem.has(s.id) ? ` · ${bases.bySystem.get(s.id)!.units} unidades guardadas` : ''}`"
+          :aria-label="`${s.name}${wantedLevels.has(s.id) ? ` · Procurado ${wantedLevels.get(s.id)}/5` : ''}${bases.bySystem.has(s.id) ? ` · ${bases.bySystem.get(s.id)!.bases.length} planetas com base · ${bases.bySystem.get(s.id)!.units} unidades guardadas` : ''}`"
+          :title="`${s.name} · ${s.id === g.system.id ? 'Sistema atual · ' : ''}${stationType(s)}${wantedLevels.has(s.id) ? ` · Procurado ${wantedLevels.get(s.id)}/5` : ''}`"
+          :aria-description="stationType(s)"
+          :aria-current="s.id === g.system.id ? 'location' : undefined"
           @click="selected = s.id"
         >
-          <span>{{ s.station ? "▣" : "✦" }}</span
+          <span>{{ hasBlackMarket(s) ? "◆" : s.station ? "▣" : "●" }}</span
           ><small>{{ s.name }}</small
           ><i
             v-if="bases.bySystem.has(s.id)"
@@ -153,15 +211,37 @@ const mapX = ref(0),
             aria-hidden="true"
             >{{ bases.bySystem.get(s.id)!.units > 0 ? "▤" : "⌂" }}</i
           >
+          <i
+            v-if="wantedLevels.has(s.id)"
+            class="map-wanted-badge"
+            aria-hidden="true"
+          >
+            ⚠{{ wantedLevels.get(s.id) }}
+          </i>
         </button>
       </div>
       <div class="map-base-legend">
-        <span>▣ Estação espacial</span><span>▤ Itens armazenados</span
-        ><span>⌂ Base sem itens</span>
+        <span>▣ Estação espacial</span><span>◆ Mercado clandestino</span
+        ><span>● Sem estação</span><span>▤ Itens armazenados</span
+        ><span>⌂ Base sem itens</span
+        ><span v-if="wantedLevels.size" class="map-wanted-legend"
+          >⚠ Nível de procurado no sistema</span
+        >
       </div>
       <div class="map-selection">
         <div>
           <h3>{{ destination?.name ?? "Selecione um sistema" }}</h3>
+          <p v-if="destination">
+            {{ destination.id === g.system.id ? "Sistema atual · " : ""
+            }}{{ stationType(destination) }}
+          </p>
+          <p
+            v-if="destination"
+            :class="{ 'map-wanted-legend': wantedLevels.has(destination.id) }"
+          >
+            Procurado neste sistema:
+            {{ wantedLevels.get(destination.id) ?? 0 }}/5
+          </p>
           <p v-if="destination?.station">
             {{ destination.station.name }} · Mercado, concessionária, hangar e
             serviços
@@ -216,12 +296,36 @@ const mapX = ref(0),
         </button>
       </section>
     </div>
-    <div v-else id="map-bases" role="tabpanel" aria-labelledby="map-bases-tab">
+    <div
+      v-else-if="tab === 'bases'"
+      id="map-bases"
+      role="tabpanel"
+      aria-labelledby="map-bases-tab"
+    >
       <BaseRegistry
         :focus-planet="focusPlanet"
         @locate="locate"
         @clear-focus="focusPlanet = ''"
       />
+    </div>
+    <div
+      v-else-if="tab === 'careers'"
+      id="map-careers"
+      role="tabpanel"
+      aria-labelledby="map-careers-tab"
+    >
+      <CareerProgress />
+    </div>
+    <div
+      v-else-if="tab === 'scanner'"
+      id="map-scanner"
+      role="tabpanel"
+      aria-labelledby="map-scanner-tab"
+    >
+      <ScannerPanel />
+    </div>
+    <div v-else id="map-law" role="tabpanel" aria-labelledby="map-law-tab">
+      <CriminalRecord />
     </div>
   </section>
 </template>

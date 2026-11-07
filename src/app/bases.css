@@ -33,6 +33,22 @@
   border-color: #a88753;
   background: #302719;
 }
+.star-node .map-wanted-badge {
+  position: absolute;
+  left: 1px;
+  top: -5px;
+  padding: 0 3px;
+  color: #ffb3a2;
+  background: #3c2228;
+  border: 1px solid #b66664;
+  border-radius: 3px;
+  font: 10px/16px monospace;
+  pointer-events: none;
+}
+.star-node.has-wanted small,
+.map-wanted-legend {
+  color: #ffb3a2;
+}
 .selected-system-bases {
   margin-top: 20px;
   border-top: 1px solid var(--line);

@@ -3,11 +3,24 @@ import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import HangarPanel from "./HangarPanel.vue";
 import DealershipPanel from "./DealershipPanel.vue";
+import CriminalRecord from "./CriminalRecord.vue";
+import BlackMarket from "./BlackMarket.vue";
+import { hasBlackMarket } from "../combat/traffic";
+import ContractsBoard from "./ContractsBoard.vue";
+import ScienceJournal from "./ScienceJournal.vue";
 import MarketPanel from "./MarketPanel.vue";
 const g = useGame();
-const section = ref<"market" | "workshop" | "fuel" | "dealer" | "hangar">(
-  "market",
-);
+const section = ref<
+  | "market"
+  | "workshop"
+  | "fuel"
+  | "dealer"
+  | "hangar"
+  | "science"
+  | "contracts"
+  | "black-market"
+  | "law"
+>("market");
 const fuelAmount = computed(() =>
   Math.max(0, Math.min(20, g.maxFuel - g.state.ship.fuel)),
 );
@@ -96,8 +109,41 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
       >
         Abastecimento
       </button>
+      <button
+        class="secondary"
+        :aria-pressed="section === 'science'"
+        @click="section = 'science'"
+      >
+        Dados científicos
+      </button>
+      <button
+        class="secondary"
+        :aria-pressed="section === 'contracts'"
+        @click="section = 'contracts'"
+      >
+        Contratos
+      </button>
+      <button
+        v-if="hasBlackMarket(g.system)"
+        class="secondary"
+        :aria-pressed="section === 'black-market'"
+        @click="section = 'black-market'"
+      >
+        Mercado clandestino
+      </button>
+      <button
+        class="secondary"
+        :aria-pressed="section === 'law'"
+        @click="section = 'law'"
+      >
+        Registro criminal
+      </button>
     </nav>
-    <MarketPanel v-if="section === 'market'" />
+    <CriminalRecord v-if="section === 'law'" settle />
+    <BlackMarket v-else-if="section === 'black-market'" />
+    <ContractsBoard v-else-if="section === 'contracts'" />
+    <ScienceJournal v-else-if="section === 'science'" sell />
+    <MarketPanel v-else-if="section === 'market'" />
     <DealershipPanel v-else-if="section === 'dealer'" />
     <HangarPanel v-else-if="section === 'hangar'" />
     <div v-else-if="section === 'workshop'" class="station-form">

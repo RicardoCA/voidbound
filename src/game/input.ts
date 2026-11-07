@@ -4,6 +4,7 @@ export const controls = {
   up: false,
   down: false,
   mine: false,
+  fire: false,
   jump: false,
   interact: false,
 };

@@ -1,3 +1,12 @@
+import { SpaceCombat } from "../../combat/flight";
+import {
+  salvage,
+  SALVAGE_RANGE,
+  systemWrecks,
+  type Wreck,
+} from "../../combat/traffic";
+import type { Save } from "../types";
+import { anomalyAt, ruinAt } from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
   clearPath,
@@ -9,7 +18,7 @@ import {
 } from "../../survival/wildlife";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
-import { shipPalette } from "../../fleet/models";
+import { shipModels, shipPalette } from "../../fleet/models";
 import Phaser from "phaser";
 import { useGame } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
@@ -22,8 +31,8 @@ import {
 import { stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
 import { daylight, solarPhase } from "../../construction/habitat";
-import { biomes, type Mode } from "../types";
-import { Terrain, tileItems } from "../procedural/terrain";
+import { biomes, type Mode, type Planet } from "../types";
+import { Terrain } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
 import { planetPosition } from "../../universe/generator";
 import {
@@ -58,6 +67,10 @@ export class WorldScene extends Phaser.Scene {
   private lastSystem = "";
   private lastPlanet = "";
   private rocks: Rock[] = [];
+  private planetLabels = new Map<string, Phaser.GameObjects.Text>();
+  private combat = new SpaceCombat();
+  private combatState?: Save;
+  private contactAt = 0;
   private camX = 0;
   private camY = 0;
   private vy = 0;
@@ -111,7 +124,7 @@ export class WorldScene extends Phaser.Scene {
     });
     this.gfx = this.add.graphics();
     this.keys = this.input.keyboard!.addKeys(
-      "W,A,S,D,SPACE,E,M,I,C,ESC",
+      "W,A,S,D,SPACE,E,F,M,I,C,ESC",
       false,
     ) as Record<string, Phaser.Input.Keyboard.Key>;
     const suppressScroll = (event: KeyboardEvent) => {
@@ -153,6 +166,13 @@ export class WorldScene extends Phaser.Scene {
       if (!this.store.started || this.store.trading || isEditing(e.target))
         return;
       if (e.repeat) return;
+      if (
+        e.code === "KeyF" &&
+        this.store.state.mode === "space" &&
+        !this.store.panel &&
+        !this.store.paused
+      )
+        queuePulse("fire");
       if (
         e.code === "Space" &&
         this.store.state.mode === "surface" &&
@@ -206,7 +226,15 @@ export class WorldScene extends Phaser.Scene {
       this.beam.life -= dt;
       if (this.beam.life <= 0) this.beam = undefined;
     }
-    if (this.lastSystem !== g.system.id) {
+    if (this.lastSystem !== g.system.id || this.combatState !== s) {
+      if (this.lastSystem !== g.system.id) {
+        for (const label of this.planetLabels.values()) label.destroy();
+        this.planetLabels.clear();
+      }
+      this.combatState = s;
+      this.combat.reset(s, g.system);
+      g.flightContact = undefined;
+      this.contactAt = 0;
       this.lastSystem = g.system.id;
       const r = random(hash(g.system.id + ":asteroids"));
       this.rocks = Array.from({ length: 70 }, (_, i) => ({
@@ -265,7 +293,7 @@ export class WorldScene extends Phaser.Scene {
         controls.interact;
       if (interact && !this.interactHeld) {
         if (s.mode === "space") {
-          if (!g.dock()) {
+          if (!this.recoverWreck() && !g.dock()) {
             let nearest = 0,
               distance = Infinity;
             g.system.planets.forEach((_, i) => {
@@ -384,6 +412,32 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     if (
+      (takePulse("fire") || this.down("F") || controls.fire) &&
+      this.combat.fire(g.state)
+    )
+      audio.play(260, 0.08);
+    const encounter = this.combat.update(g.state, g.system, dt);
+    if (encounter.crimeReported && !encounter.destroyed) {
+      g.notify(
+        `Ataque comunicado às autoridades. Procurado ${g.wanted.level}/5.`,
+      );
+      void g.save();
+    }
+    if (encounter.destroyed) {
+      g.notify(
+        "Nave destruída. Aproxime-se do destroço e interaja para recolher a carga.",
+      );
+      void g.save();
+    }
+    if (encounter.playerDisabled) {
+      g.notify("Casco crítico. A nave foi estabilizada em emergência.");
+      void g.save();
+    }
+    if (this.elapsed >= this.contactAt || encounter.destroyed) {
+      this.updateFlightContact();
+      this.contactAt = this.elapsed + 0.12;
+    }
+    if (
       (takePulse("mine") || this.down("SPACE") || controls.mine) &&
       this.mineTime <= 0 &&
       s.energy >= 2
@@ -401,21 +455,65 @@ export class WorldScene extends Phaser.Scene {
         )[0];
       if (rock) {
         this.mineTime = g.state.upgrades.includes("laser") ? 0.15 : 0.35;
-        s.energy -= 2;
+        s.energy -= 2 * (1 - g.extractionEfficiency);
         this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
         this.burst(rock.x, rock.y, 0xd8b48b);
         audio.play(170);
         rock.hits++;
-        if (rock.hits >= 3) {
-          if (g.collect(rock.ore, 3)) {
-            g.state.depleted.push(rock.id);
-            g.flag("asteroid");
-            g.progress();
-            void g.save();
-          } else rock.hits = 2;
-        }
+        if (rock.hits >= 3 && !g.mineAsteroid(rock.id, rock.ore)) rock.hits = 2;
       }
     }
+  }
+  private nearbyWrecks() {
+    const g = this.store;
+    return systemWrecks(g.system.id, g.state.progression.piracy);
+  }
+  private closestWreck(range: number): Wreck | undefined {
+    const ship = this.store.state.ship;
+    let closest: Wreck | undefined;
+    for (const wreck of this.nearbyWrecks()) {
+      const distance = Math.hypot(wreck.x - ship.x, wreck.y - ship.y);
+      if (distance <= range) {
+        closest = wreck;
+        range = distance;
+      }
+    }
+    return closest;
+  }
+  private recoverWreck() {
+    const g = this.store;
+    const wreck = this.closestWreck(SALVAGE_RANGE);
+    if (!wreck) return false;
+    const error = salvage(g.state, wreck, g.capacity);
+    g.notify(error ?? "Carga recuperada · +160 XP de Pirata.");
+    if (!error) {
+      this.updateFlightContact();
+      void g.save();
+    }
+    return true;
+  }
+  private updateFlightContact() {
+    const g = this.store;
+    const ship = g.state.ship;
+    const wreck = this.closestWreck(520);
+    const npc = this.combat.target(ship, 670);
+    const target = wreck ?? npc;
+    if (!target) {
+      g.flightContact = undefined;
+      return;
+    }
+    const dx = target.x - ship.x,
+      dy = target.y - ship.y;
+    const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+    g.flightContact = {
+      name: target.name,
+      distance: Math.round(Math.hypot(dx, dy)),
+      bearing: ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]!,
+      wreck: Boolean(wreck),
+      ...(target === npc
+        ? { hull: Math.ceil(npc.hull), shield: Math.ceil(npc.shield) }
+        : {}),
+    };
   }
   private canReachFood(x: number, y: number, reach = 78) {
     const p = this.store.state.player;
@@ -612,12 +710,10 @@ export class WorldScene extends Phaser.Scene {
           (tree) => tree.x === tx && tree.ground === ty,
         );
         if (rootedTree && !this.building.harvest(rootedTree)) return;
-        const resource = tileItems[tile] ?? "iron";
-        if (g.collect(resource, 1)) {
-          t.remove(tx, ty);
-          g.worldChanged();
-          p.energy -= g.state.upgrades.includes("drill") ? 0.5 : 1;
-          this.mineTime = g.state.upgrades.includes("drill") ? 0.1 : 0.22;
+        if (g.mineTerrain(t, tx, ty)) {
+          const drill = g.state.upgrades.includes("drill");
+          p.energy -= (drill ? 0.5 : 1) * (1 - g.extractionEfficiency);
+          this.mineTime = (drill ? 0.1 : 0.22) * (1 - g.extractionEfficiency);
           this.beam = {
             x: p.x,
             y: p.y - 3,
@@ -648,6 +744,7 @@ export class WorldScene extends Phaser.Scene {
       f = this.gfx;
     f.clear();
     const surface = s.mode === "surface";
+    for (const label of this.planetLabels.values()) label.setVisible(false);
     const storm = surface ? g.weather : undefined;
     const light = surface
       ? daylight(s.time) * (1 - 0.32 * (storm?.intensity ?? 0))
@@ -819,7 +916,17 @@ export class WorldScene extends Phaser.Scene {
       f.fillEllipse(x + radius * 0.35, y + 4, radius * 1.2, radius * 1.7);
       f.lineStyle(1, 0xb8e1da, 0.17);
       f.strokeCircle(x, y, radius + 7);
+      if (
+        g.started &&
+        g.state.mode === "space" &&
+        !g.panel &&
+        !g.paused &&
+        g.state.progression.cataloguedPlanets[p.id]
+      )
+        this.drawPlanetLabel(p, x, y, radius);
     });
+    const anomaly = anomalyAt(g.system);
+    if (anomaly) this.drawScienceSignal(anomaly.x, anomaly.y, 0x9ac9ee);
     for (const rock of this.rocks) {
       if (g.state.depleted.includes(rock.id)) continue;
       const x = Math.floor(rock.x - this.camX + this.centerX),
@@ -855,6 +962,52 @@ export class WorldScene extends Phaser.Scene {
       f.fillRect(x + 3, y + 1, 3, 3);
       f.fillRect(x - 4, y + 4, 2, 2);
     }
+    if (g.started && g.state.mode === "space") {
+      for (const npc of this.combat.npcs) {
+        if (npc.hull <= 0) continue;
+        const x = npc.x - this.camX + this.centerX;
+        const y = npc.y - this.camY + this.centerY;
+        if (
+          x < -35 ||
+          x > this.viewWidth + 35 ||
+          y < -35 ||
+          y > this.viewHeight + 35
+        )
+          continue;
+        this.drawShip(
+          x,
+          y,
+          npc.angle,
+          npc.engaged,
+          shipModels[npc.model].sprite,
+        );
+        f.fillStyle(npc.engaged || npc.role === "pirate" ? 0xff8c78 : 0xe5bb77);
+        f.fillRect(x - 11, y - 20, (22 * npc.hull) / npc.maxHull, 2);
+        if (npc.shield > 0) {
+          f.fillStyle(0x8ad7ff);
+          f.fillRect(x - 11, y - 24, npc.shield * 0.7, 2);
+        }
+      }
+      for (const wreck of this.nearbyWrecks()) {
+        const x = Math.round(wreck.x - this.camX + this.centerX);
+        const y = Math.round(wreck.y - this.camY + this.centerY);
+        f.fillStyle(0x687783);
+        f.fillRect(x - 15, y - 4, 11, 7);
+        f.fillRect(x + 9, y + 3, 8, 5);
+        f.fillStyle(0xc39cf6);
+        f.fillRect(x - 5, y - 5, 10, 10);
+        f.fillStyle(0x6c4f91);
+        f.fillRect(x - 2, y - 2, 4, 4);
+      }
+      for (const bolt of this.combat.bolts) {
+        f.fillStyle(bolt.hostile ? 0xff8874 : 0xe0f8be);
+        f.fillCircle(
+          bolt.x - this.camX + this.centerX,
+          bolt.y - this.camY + this.centerY,
+          2.5,
+        );
+      }
+    }
     if (g.started)
       this.drawShip(
         s.x - this.camX + this.centerX,
@@ -863,13 +1016,91 @@ export class WorldScene extends Phaser.Scene {
         this.down("W") || controls.up,
       );
   }
-  private drawShip(x: number, y: number, angle: number, thrust = false) {
+  private drawPlanetLabel(
+    planet: Planet,
+    x: number,
+    y: number,
+    radius: number,
+  ) {
+    const width = this.viewWidth,
+      height = this.viewHeight;
+    if (
+      x + radius < 0 ||
+      x - radius > width ||
+      y + radius < 0 ||
+      y - radius > height
+    )
+      return;
+
+    let label = this.planetLabels.get(planet.id);
+    if (!label) {
+      const biome = biomes[planet.kind]!;
+      label = this.add
+        .text(
+          0,
+          0,
+          [planet.name, `✓ Catalogado · ${biome.name}`, biome.resources],
+          {
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: "#b8e4db",
+            backgroundColor: "#101d2e",
+            padding: { x: 7, y: 5 },
+            lineSpacing: 3,
+          },
+        )
+        .setDepth(1);
+      this.planetLabels.set(planet.id, label);
+    }
+
+    const margin = 8,
+      gap = radius + 12;
+    const right = x + gap,
+      left = x - gap - label.width;
+    const side =
+      right + label.width <= width - margin
+        ? right
+        : left >= margin
+          ? left
+          : undefined;
+    const top =
+      side !== undefined
+        ? y - label.height / 2
+        : y - gap - label.height >= margin
+          ? y - gap - label.height
+          : y + gap;
+    label
+      .setPosition(
+        Math.round(
+          Phaser.Math.Clamp(
+            side ?? x - label.width / 2,
+            margin,
+            Math.max(margin, width - label.width - margin),
+          ),
+        ),
+        Math.round(
+          Phaser.Math.Clamp(
+            top,
+            margin,
+            Math.max(margin, height - label.height - margin),
+          ),
+        ),
+      )
+      .setVisible(true);
+  }
+
+  private drawShip(
+    x: number,
+    y: number,
+    angle: number,
+    thrust = false,
+    sprite = this.store.model.sprite as readonly string[],
+  ) {
     const f = this.gfx;
     const point = (px: number, py: number) => ({
       x: Math.round(x + px * Math.cos(angle) - py * Math.sin(angle)),
       y: Math.round(y + px * Math.sin(angle) + py * Math.cos(angle)),
     });
-    const sprite = this.store.model.sprite;
     sprite.forEach((row, rowIndex) => {
       let start = 0;
       while (start < row.length) {
@@ -901,6 +1132,25 @@ export class WorldScene extends Phaser.Scene {
         true,
       );
     }
+  }
+  private drawScienceSignal(wx: number, wy: number, color: number) {
+    const x = Math.round(wx - this.camX + this.centerX);
+    const y = Math.round(wy - this.camY + this.centerY);
+    if (
+      x < -30 ||
+      x > this.viewWidth + 30 ||
+      y < -30 ||
+      y > this.viewHeight + 30
+    )
+      return;
+    const f = this.gfx;
+    f.fillStyle(color, 0.15 + 0.08 * Math.sin(this.elapsed * 2));
+    f.fillRect(x - 13, y - 13, 26, 26);
+    f.fillStyle(0x324863);
+    f.fillRect(x - 6, y - 9, 12, 19);
+    f.fillStyle(color);
+    f.fillRect(x - 2, y - 6, 4, 11);
+    f.fillRect(x - 8, y - 1, 16, 3);
   }
   private drawWeather(
     storm: NonNullable<ReturnType<typeof useGame>["weather"]>,
@@ -1040,6 +1290,8 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       "pieces",
     );
+    const ruin = ruinAt(g.planet, t);
+    if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
     for (const fruit of this.fruit)
       drawFruit(
         f,

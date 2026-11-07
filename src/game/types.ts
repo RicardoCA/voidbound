@@ -1,3 +1,4 @@
+import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
   | "iron"
@@ -15,6 +16,7 @@ export type Item =
   | "jadePear"
   | "emberFruit"
   | "tideMelon"
+  | "sealedCargo"
   | "rawMeat"
   | "cookedMeat"
   | "rawFuel"
@@ -140,6 +142,7 @@ export interface ParkedShip extends ShipIdentity {
 }
 export interface Save {
   version: 4;
+  progression: Progression;
   credits: number;
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
@@ -216,6 +219,13 @@ export const items: Record<
     icon: "●",
     rarity: "Alimento",
     stack: 99,
+  },
+  sealedCargo: {
+    name: "Carga clandestina",
+    color: "#c39cf6",
+    icon: "▣",
+    rarity: "Contrabando",
+    stack: 20,
   },
   rawMeat: {
     name: "Carne crua",

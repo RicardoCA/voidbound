@@ -1,5 +1,15 @@
+import { wantedStatus } from "../combat/law";
+import type { FlightContact } from "../combat/traffic";
+import {
+  anomalyAt,
+  cataloguePlanet,
+  recordSystemSurvey,
+  ruinAt,
+  scanSite,
+  scannerRange,
+} from "../progression/exploration";
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { Item, Save } from "../game/types";
 import { biomes, items } from "../game/types";
 import { systemAt, planetPosition } from "../universe/generator";
@@ -9,7 +19,13 @@ import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
 import { emptySettlement } from "../construction/building";
-import { Terrain } from "../game/procedural/terrain";
+import {
+  awardCareerXP,
+  newProgression,
+  recordMining,
+  miningEfficiency,
+} from "../progression/careers";
+import { Terrain, tileItems } from "../game/procedural/terrain";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
 import { emptyHabitat } from "../construction/habitat";
 import { releaseControls } from "../game/input";
@@ -55,6 +71,7 @@ export const missions = [
 function initial(seed: string): Save {
   return {
     version: 4,
+    progression: newProgression(),
     credits: INITIAL_CREDITS,
     activeShip: { id: "ship-1", model: "sparrow" },
     parkedShips: [],
@@ -89,6 +106,31 @@ function initial(seed: string): Save {
     landingX: 0,
   };
 }
+function gameplayPreference(name: string) {
+  const key = `voidbound:option:${name}`;
+  let enabled = true;
+  try {
+    enabled =
+      typeof window === "undefined" ||
+      window.localStorage.getItem(key) !== "off";
+  } catch {
+    // The preference can still be changed for the current session.
+  }
+  const option = ref(enabled);
+  watch(
+    option,
+    (value) => {
+      try {
+        if (typeof window !== "undefined")
+          window.localStorage.setItem(key, value ? "on" : "off");
+      } catch {
+        // Storage can be disabled in some browser sessions.
+      }
+    },
+    { flush: "sync" },
+  );
+  return option;
+}
 export const useGame = defineStore("game", () => {
   const habitatSystem = new HabitatSystem(),
     habitat = ref(emptyHabitat()),
@@ -97,6 +139,8 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const hungerEnabled = gameplayPreference("hunger");
+  const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     panel = ref(""),
@@ -107,10 +151,12 @@ export const useGame = defineStore("game", () => {
     hasSave = ref(false),
     busy = ref(false),
     speed = ref(0),
+    flightContact = ref<FlightContact>(),
     trading = ref(false);
   const system = computed(() =>
       systemAt(state.value.seed, state.value.systemX, state.value.systemY),
     ),
+    wanted = computed(() => wantedStatus(state.value, system.value)),
     stationDistance = computed(() => {
       const station = system.value.station;
       const { x, y } = state.value.ship;
@@ -127,13 +173,16 @@ export const useGame = defineStore("game", () => {
     }),
     planet = computed(() => system.value.planets[state.value.planetIndex]!),
     weather = computed(() => weatherAt(planet.value, state.value.time)),
-    weatherTerrain = computed(
+    planetTerrain = computed(
       () =>
         new Terrain(planet.value, state.value.changes[planet.value.id] ?? {}),
     ),
     biome = computed(() => biomes[planet.value.kind]!),
     sicknessRemaining = computed(() =>
       Math.ceil(state.value.player.sickness ?? 0),
+    ),
+    extractionEfficiency = computed(() =>
+      miningEfficiency(state.value.progression),
     ),
     model = computed(() => shipModels[state.value.activeShip.model]),
     capacity = computed(() =>
@@ -174,8 +223,9 @@ export const useGame = defineStore("game", () => {
     saveRevision.value++;
     saveStatus.value = `Salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   }
-  async function save() {
-    if (!started.value || trading.value) return;
+  async function save(manual = false) {
+    if (!started.value || trading.value || (!manual && !autosaveEnabled.value))
+      return;
     try {
       await database.write(state.value);
       recordSave();
@@ -207,9 +257,10 @@ export const useGame = defineStore("game", () => {
         notify(error);
         return false;
       }
-      await database.write(draft);
+      const persist = autosaveEnabled.value;
+      if (persist) await database.write(draft);
       state.value = draft;
-      recordSave();
+      if (persist) recordSave();
       return true;
     } catch {
       notify("Operação cancelada. Não foi possível gravar a transação.");
@@ -231,6 +282,12 @@ export const useGame = defineStore("game", () => {
       stationDistance.value > 115
     )
       return false;
+    if (wanted.value.level >= 5) {
+      notify(
+        "Acoplagem bloqueada pela autoridade local. Procure outro sistema ou aguarde o alerta diminuir.",
+      );
+      return true;
+    }
     if (Math.hypot(s.ship.vx, s.ship.vy) > 35) {
       notify("Freie até 35 km/s para acoplar à estação.");
       return true;
@@ -305,6 +362,50 @@ export const useGame = defineStore("game", () => {
     progress();
     return true;
   }
+  function mineTerrain(terrain: Terrain, x: number, y: number) {
+    const s = state.value;
+    if (
+      s.mode !== "surface" ||
+      terrain.planet.id !== planet.value.id ||
+      terrain.changes !== s.changes[planet.value.id] ||
+      y < 0 ||
+      y >= 63
+    )
+      return false;
+    const tile = terrain.get(x, y);
+    if (!tile) return false;
+    const resource = tileItems[tile] ?? "iron";
+    if (!collect(resource)) return false;
+    terrain.remove(x, y);
+    worldChanged();
+    if (resource !== "wood" && resource !== "fiber")
+      recordMining(s.progression, 1, s.time);
+    if (resource === "titanium" || resource === "crystal") {
+      const deposit = `${planet.value.id}:${Math.floor(x / 32)}:${resource}`;
+      if (!s.progression.rareDeposits[deposit]) {
+        s.progression.rareDeposits[deposit] = true;
+        awardCareerXP(
+          s.progression,
+          "miner",
+          100,
+          `Depósito de ${items[resource].name}`,
+          s.time,
+        );
+      }
+    }
+    return true;
+  }
+  function mineAsteroid(id: string, ore: Item) {
+    const s = state.value;
+    if (s.mode !== "space" || s.depleted.includes(id) || !collect(ore, 3))
+      return false;
+    s.depleted.push(id);
+    recordMining(s.progression, 3, s.time);
+    flag("asteroid");
+    progress();
+    void save();
+    return true;
+  }
   function make(id: Item) {
     const recipe = recipes.find((r) => r.id === id);
     if (trading.value) return;
@@ -322,6 +423,16 @@ export const useGame = defineStore("game", () => {
     ) {
       notify("Materiais insuficientes, receita bloqueada ou carga cheia.");
       return;
+    }
+    if (id === "fuel") {
+      state.value.progression.refined++;
+      awardCareerXP(
+        state.value.progression,
+        "miner",
+        40,
+        "Lote refinado",
+        state.value.time,
+      );
     }
     flag(`crafted:${id}`);
     audio.play(640, 0.12);
@@ -343,6 +454,10 @@ export const useGame = defineStore("game", () => {
     if (trading.value) return;
     const nutrition = foodValue(id);
     if (nutrition) {
+      if (!hungerEnabled.value) {
+        notify("A fome está desativada nas opções.");
+        return;
+      }
       const hunger = s.player.hunger ?? 100;
       if (hunger >= 100) {
         notify("Você já está alimentado.");
@@ -408,6 +523,7 @@ export const useGame = defineStore("game", () => {
     state.value.player.x = zone * 384 + 8;
     state.value.player.y = 0;
     if (state.value.mission === 0) state.value.mission = 1;
+    cataloguePlanet(state.value, system.value, planet.value);
     notify("Pouso confirmado. Saia da nave para explorar.");
     void save();
   }
@@ -468,20 +584,62 @@ export const useGame = defineStore("game", () => {
     audio.play(80, 0.7);
     await new Promise((resolve) => setTimeout(resolve, 1200));
     s.ship.fuel -= cost;
+    s.planetIndex = 0;
     s.systemX = x;
     s.systemY = y;
-    s.planetIndex = 0;
     s.ship.x = 200;
     s.ship.y = 330;
     s.ship.vx = 0;
     s.ship.vy = 0;
     const id = systemAt(s.seed, x, y).id;
-    if (!s.visited.includes(id)) s.visited.push(id);
+    if (!s.visited.includes(id)) {
+      s.visited.push(id);
+      recordSystemSurvey(s, system.value);
+    }
     if (s.mission === 5) s.mission = 6;
     panel.value = "";
     busy.value = false;
     notify(`Salto concluído. Sistema ${system.value.name}.`);
     await save();
+  }
+  function scanPlanet(index: number) {
+    const s = state.value;
+    const target = system.value.planets[index];
+    if (!target || trading.value || busy.value) return;
+    const pos = planetPosition(index);
+    const reachable =
+      s.mode === "space"
+        ? Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s)
+        : ["orbit", "interior", "surface"].includes(s.mode) &&
+          s.planetIndex === index;
+    if (!reachable) {
+      notify("Aproxime-se do planeta para escanear.");
+      return;
+    }
+    if (!cataloguePlanet(s, system.value, target)) {
+      notify("Planeta já catalogado.");
+      return;
+    }
+    notify(`${target.name} catalogado.`);
+    void save();
+  }
+  function scanSignal() {
+    const s = state.value;
+    if (trading.value || busy.value) return;
+    const signal =
+      s.mode === "space"
+        ? anomalyAt(system.value)
+        : s.mode === "surface"
+          ? ruinAt(planet.value, planetTerrain.value)
+          : undefined;
+    if (!signal || !scanSite(s, system.value, signal)) {
+      notify(
+        "Sinal fora do alcance, já registrado ou acima do nível do scanner.",
+      );
+      return;
+    }
+    notify(`${signal.name} registrada.`);
+    void save();
   }
   function recover() {
     if (state.value.mode !== "interior") {
@@ -515,8 +673,10 @@ export const useGame = defineStore("game", () => {
       return;
     const s = state.value;
     s.time += dt;
-    s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
-    if (s.player.hunger === 0) s.player.health -= dt * 3;
+    if (hungerEnabled.value) {
+      s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
+      if (s.player.hunger === 0) s.player.health -= dt * 3;
+    }
     const sickTime = Math.min(dt, s.player.sickness ?? 0);
     if (sickTime > 0) {
       s.player.sickness = s.player.sickness! - sickTime;
@@ -536,7 +696,7 @@ export const useGame = defineStore("game", () => {
         const head = Math.floor((s.player.y - 11) / 16);
         const shelter = s.settlements[planet.value.id] ?? noShelter;
         if (
-          weatherCeiling(weatherTerrain.value, shelter, column, head) ===
+          weatherCeiling(planetTerrain.value, shelter, column, head) ===
           Infinity
         )
           s.player.health -= dt * storm.intensity * 1.5;
@@ -555,14 +715,14 @@ export const useGame = defineStore("game", () => {
       s.ship.oxygen -= amount;
       s.player.oxygen += amount;
       s.player.energy = Math.min(100, s.player.energy + dt * 12);
-      if (s.player.hunger > 0 && sickTime === 0)
+      if ((!hungerEnabled.value || s.player.hunger > 0) && sickTime === 0)
         s.player.health = Math.min(100, s.player.health + dt * 3);
       s.ship.energy = Math.min(100, s.ship.energy + dt * 8);
     } else s.ship.energy = Math.min(100, s.ship.energy + dt * 5);
     if (s.player.health <= 0) {
       s.player.health = 100;
       s.player.oxygen = Math.max(60, s.player.oxygen);
-      s.player.hunger = Math.max(25, s.player.hunger);
+      if (hungerEnabled.value) s.player.hunger = Math.max(25, s.player.hunger);
       delete s.player.sickness;
       s.ship.hull = Math.max(15, s.ship.hull - 10);
       if (s.mode === "surface") s.mode = "interior";
@@ -580,12 +740,16 @@ export const useGame = defineStore("game", () => {
     paused,
     notice,
     saveStatus,
+    hungerEnabled,
+    autosaveEnabled,
     saveRevision,
     hasSave,
     busy,
     speed,
+    flightContact,
     system,
     stationDistance,
+    wanted,
     stationBearing,
     trading,
     stationTransaction,
@@ -595,6 +759,7 @@ export const useGame = defineStore("game", () => {
     biome,
     weather,
     capacity,
+    extractionEfficiency,
     model,
     hullPercent,
     sicknessRemaining,
@@ -611,6 +776,10 @@ export const useGame = defineStore("game", () => {
     newGame,
     resume,
     collect,
+    mineTerrain,
+    mineAsteroid,
+    scanPlanet,
+    scanSignal,
     make,
     use,
     orbit,
