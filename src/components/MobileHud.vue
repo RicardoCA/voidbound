@@ -112,6 +112,7 @@ function pause() {
         ✧
       </button>
       <button
+        v-if="g.showMission"
         aria-label="Abrir diário de expedição"
         title="Missão"
         class="mission-toggle"

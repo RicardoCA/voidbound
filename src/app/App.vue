@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -49,16 +49,14 @@ const nav = computed(() => [
 ]);
 const saveTooltipVisible = ref(false);
 let saveTooltipTimer: ReturnType<typeof setTimeout> | undefined;
-watch(
-  () => g.saveRevision,
-  () => {
-    clearTimeout(saveTooltipTimer);
-    saveTooltipVisible.value = true;
-    saveTooltipTimer = setTimeout(() => {
-      saveTooltipVisible.value = false;
-    }, 2000);
-  },
-);
+async function saveManually() {
+  if (!(await g.save())) return;
+  clearTimeout(saveTooltipTimer);
+  saveTooltipVisible.value = true;
+  saveTooltipTimer = setTimeout(() => {
+    saveTooltipVisible.value = false;
+  }, 2000);
+}
 let timer: ReturnType<typeof setInterval>;
 onMounted(() => {
   void g.checkSave();
@@ -218,7 +216,7 @@ function minutes() {
           </p>
         </div>
         <HabitatStatus v-if="surface" class="desktop-habitat" />
-        <aside class="mission-card">
+        <aside v-if="g.showMission" class="mission-card">
           <div class="eyebrow">
             <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
             <span class="muted"
@@ -389,7 +387,8 @@ function minutes() {
           <p>A simulação está pausada.</p>
           <button class="primary" @click="g.paused = false">
             RETOMAR EXPEDIÇÃO →</button
-          ><button class="secondary" @click="g.save">SALVAR PARTIDA</button
+          ><button class="secondary" @click="saveManually">
+            SALVAR PARTIDA</button
           ><button
             class="secondary"
             @click="

@@ -98,6 +98,7 @@ export const useGame = defineStore("game", () => {
     ),
     usedSlots = computed(() => slots(state.value.inventory)),
     mission = computed(() => missions[state.value.mission]!),
+    showMission = computed(() => state.value.mission < missions.length - 1),
     maxFuel = computed(() =>
       state.value.upgrades.includes("tank") ? 160 : 100,
     ),
@@ -129,6 +130,7 @@ export const useGame = defineStore("game", () => {
       hasSave.value = true;
       saveRevision.value++;
       saveStatus.value = `Salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+      return true;
     } catch {
       saveStatus.value = "Falha ao salvar";
       notify(
@@ -417,6 +419,7 @@ export const useGame = defineStore("game", () => {
     capacity,
     usedSlots,
     mission,
+    showMission,
     maxFuel,
     jumpRange,
     notify,
