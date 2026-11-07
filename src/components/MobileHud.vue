@@ -59,6 +59,7 @@ watch(
 );
 onBeforeUnmount(() => clearTimeout(noticeTimer));
 function open(panel: string) {
+  if (g.inSequence) return;
   releaseControls();
   g.panel = g.panel === panel ? "" : panel;
 }
@@ -150,7 +151,7 @@ function pause() {
     </nav>
   </div>
   <div
-    v-if="!g.panel && !g.paused && !b.enabled"
+    v-if="!g.panel && !g.paused && !b.enabled && !g.inSequence"
     class="mobile-context"
     :class="{ notification: transient }"
     aria-live="polite"

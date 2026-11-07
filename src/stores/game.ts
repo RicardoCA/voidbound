@@ -38,6 +38,18 @@ import {
   foodValue,
 } from "../survival/food";
 import { INITIAL_CREDITS } from "../economy/market";
+export const JUMP_DURATION_MS = 5000;
+export const DOCKING_DURATION = 1.8;
+export const SURFACE_SEQUENCE_DURATION = {
+  landing: 2.3,
+  disembark: 1.1,
+} as const;
+type SurfaceSequence = {
+  kind: keyof typeof SURFACE_SEQUENCE_DURATION;
+  landingX: number;
+  elapsed: number;
+};
+
 export const missions = [
   {
     title: "Sinal perdido",
@@ -143,6 +155,8 @@ export const useGame = defineStore("game", () => {
   const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
+    surfaceSequence = ref<SurfaceSequence>(),
+    dockingSequence = ref<{ elapsed: number }>(),
     panel = ref(""),
     paused = ref(false),
     notice = ref("Sinal de emergência detectado. Explore o planeta próximo."),
@@ -153,6 +167,19 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     trading = ref(false);
+  watch(
+    started,
+    (playing) => {
+      if (!playing) {
+        surfaceSequence.value = undefined;
+        dockingSequence.value = undefined;
+      }
+    },
+    { flush: "sync" },
+  );
+  const inSequence = computed(() =>
+    Boolean(surfaceSequence.value || dockingSequence.value),
+  );
   const system = computed(() =>
       systemAt(state.value.seed, state.value.systemX, state.value.systemY),
     ),
@@ -277,6 +304,7 @@ export const useGame = defineStore("game", () => {
       paused.value ||
       panel.value ||
       busy.value ||
+      inSequence.value ||
       s.mode !== "space" ||
       !station ||
       stationDistance.value > 115
@@ -292,13 +320,30 @@ export const useGame = defineStore("game", () => {
       notify("Freie até 35 km/s para acoplar à estação.");
       return true;
     }
-    Object.assign(s.ship, { x: station.x, y: station.y, vx: 0, vy: 0 });
+    releaseControls();
+    dockingSequence.value = { elapsed: 0 };
+    return true;
+  }
+  function advanceDocking(dt: number) {
+    const sequence = dockingSequence.value;
+    const station = system.value.station;
+    if (!sequence || !station || paused.value || !started.value) return;
+    sequence.elapsed += dt;
+    if (sequence.elapsed < DOCKING_DURATION) return;
+    dockingSequence.value = undefined;
+    const s = state.value;
+    Object.assign(s.ship, {
+      x: station.x,
+      y: station.y,
+      angle: 0,
+      vx: 0,
+      vy: 0,
+    });
     s.mode = "docked";
     speed.value = 0;
     releaseControls();
     notify(`Acoplagem confirmada. ${station.name}.`);
     void save();
-    return true;
   }
   function undock() {
     const s = state.value,
@@ -517,6 +562,40 @@ export const useGame = defineStore("game", () => {
     notify("Selecione uma zona de pouso.");
     void save();
   }
+  function beginLanding(zone: number) {
+    if (state.value.mode !== "orbit" || surfaceSequence.value || paused.value)
+      return;
+    releaseControls();
+    surfaceSequence.value = {
+      kind: "landing",
+      landingX: zone * 24,
+      elapsed: 0,
+    };
+  }
+  function beginDisembark() {
+    if (
+      state.value.mode !== "interior" ||
+      surfaceSequence.value ||
+      paused.value
+    )
+      return;
+    releaseControls();
+    surfaceSequence.value = {
+      kind: "disembark",
+      landingX: state.value.landingX,
+      elapsed: 0,
+    };
+  }
+  function advanceSurfaceSequence(dt: number) {
+    const sequence = surfaceSequence.value;
+    if (!sequence || paused.value || !started.value) return;
+    sequence.elapsed += dt;
+    if (sequence.elapsed < SURFACE_SEQUENCE_DURATION[sequence.kind]) return;
+    surfaceSequence.value = undefined;
+    releaseControls();
+    if (sequence.kind === "landing") land(sequence.landingX / 24);
+    else exit();
+  }
   function land(zone: number) {
     state.value.landingX = zone * 24;
     state.value.mode = "interior";
@@ -565,6 +644,7 @@ export const useGame = defineStore("game", () => {
     void save();
   }
   async function jump(x: number, y: number) {
+    if (busy.value || inSequence.value) return;
     const s = state.value,
       d = Math.hypot(x - s.systemX, y - s.systemY),
       cost = Math.ceil(d * 8);
@@ -581,8 +661,9 @@ export const useGame = defineStore("game", () => {
       return;
     }
     busy.value = true;
+    releaseControls();
     audio.play(80, 0.7);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
     s.ship.fuel -= cost;
     s.planetIndex = 0;
     s.systemX = x;
@@ -736,6 +817,13 @@ export const useGame = defineStore("game", () => {
     worldChanged,
     refreshHabitat,
     started,
+    surfaceSequence,
+    dockingSequence,
+    inSequence,
+    advanceDocking,
+    beginLanding,
+    beginDisembark,
+    advanceSurfaceSequence,
     panel,
     paused,
     notice,

@@ -191,7 +191,7 @@ describe("Salto interestelar e controles de toque", () => {
     expect(g.state.inventory).toEqual({ iron: 9 });
     expect(g.state.visited).toContain("jump:1:0");
     expect(g.system.planets[0]!.id).not.toBe("jump:0:0:p0");
-  });
+  }, 10_000);
   it("preserva um toque rápido até o próximo frame", async () => {
     const { controls, pressControl, takePulse, releaseControls } =
       await import("../game/input");

@@ -395,9 +395,6 @@
   .is-playing .save-tooltip::after {
     display: none;
   }
-  .is-playing .jump-overlay {
-    z-index: 20;
-  }
   .is-playing .mission-dialog p {
     font-size: 14px;
     margin-bottom: 24px;

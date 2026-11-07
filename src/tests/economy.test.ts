@@ -69,6 +69,10 @@ describe("estações procedurais", () => {
       expect(g.state.mode).toBe("space");
       g.state.ship.vx = 0;
       expect(g.dock()).toBe(true);
+      expect(g.state.mode).toBe("space");
+      g.advanceDocking(1);
+      expect(g.state.mode).toBe("space");
+      g.advanceDocking(0.8);
       expect(g.state.mode).toBe("docked");
       expect(
         await g.stationTransaction((draft, id) =>

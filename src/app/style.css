@@ -1120,36 +1120,6 @@ kbd {
   font-size: 8px;
   min-width: 50px;
 }
-.jump-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: radial-gradient(ellipse, #153a5266, #07101ff5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  backdrop-filter: blur(10px);
-}
-.jump-overlay > div {
-  font-size: 100px;
-  color: var(--mint);
-  animation: warp 1s infinite;
-}
-.jump-overlay h2 {
-  font-weight: 400;
-  font-size: 30px;
-}
-.jump-overlay p {
-  color: #7ea7b3;
-  font-size: 11px;
-}
-@keyframes warp {
-  to {
-    transform: scale(3);
-    opacity: 0;
-  }
-}
 @media (min-width: 1600px) {
   .bottom-hud {
     gap: 40px;
@@ -1660,4 +1630,20 @@ kbd {
 .save-tooltip-leave-to {
   opacity: 0;
   transform: translateY(4px);
+}
+
+.surface-sequence-caption {
+  position: absolute;
+  z-index: 7;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  background: #101b29ed;
+  color: var(--mint);
+  text-align: center;
+  font-size: 12px;
+  pointer-events: none;
 }

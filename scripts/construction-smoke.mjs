@@ -69,7 +69,11 @@ try {
   await page.keyboard.press("e", { delay: 100 });
   await page.getByRole("button", { name: /Planície de Aurora/ }).click();
   await page.getByRole("button", { name: "EXPLORAR SUPERFÍCIE" }).click();
-  await page.waitForTimeout(900);
+  await page.waitForFunction(
+    () =>
+      window.__game.state.mode === "surface" &&
+      window.__game.state.player.y > 0,
+  );
   const trunk = await worldPoint(88, 416);
   await page.mouse.move(trunk.x, trunk.y);
   await page.mouse.down();

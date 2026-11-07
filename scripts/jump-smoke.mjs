@@ -38,7 +38,11 @@ try {
   await page.keyboard.press("e", { delay: 100 });
   await page.getByRole("button", { name: /Planície de Aurora/ }).click();
   await page.getByRole("button", { name: "EXPLORAR SUPERFÍCIE" }).click();
-  await page.waitForTimeout(400);
+  await page.waitForFunction(
+    () =>
+      window.__game.state.mode === "surface" &&
+      window.__game.state.player.y > 0,
+  );
   await jump(120);
   await jump(0);
   await jump(20);

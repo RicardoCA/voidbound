@@ -305,7 +305,7 @@ describe("Retorno a bases planetárias", () => {
     expect(b.settlement.cabinets["4,28"]).toEqual({ wood: 23, iron: 8 });
     expect(b.settlement.cutTrees).toEqual(["tree:0"]);
     expect(b.settlement.walls["3,28"]).toBe(true);
-  });
+  }, 15_000);
 });
 
 describe("Acesso à nave", () => {

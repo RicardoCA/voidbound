@@ -20,7 +20,11 @@ import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
 import { shipModels, shipPalette } from "../../fleet/models";
 import Phaser from "phaser";
-import { useGame } from "../../stores/game";
+import {
+  DOCKING_DURATION,
+  SURFACE_SEQUENCE_DURATION,
+  useGame,
+} from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
 import { treesInRange, treeContains } from "../procedural/trees";
 import {
@@ -165,7 +169,11 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
       if (!this.store.started || this.store.trading || isEditing(e.target))
         return;
-      if (e.repeat) return;
+      if (e.repeat || this.store.busy) return;
+      if (this.store.inSequence) {
+        if (e.code === "Escape") this.store.paused = !this.store.paused;
+        return;
+      }
       if (
         e.code === "KeyF" &&
         this.store.state.mode === "space" &&
@@ -279,9 +287,33 @@ export class WorldScene extends Phaser.Scene {
             this.terrain!.height(Math.floor(s.player.x / 16)) * 16 - 13;
         }
         this.camX = s.player.x;
-        this.camY = s.player.y;
+        this.camY = s.player.y - 32;
       }
       this.lastMode = s.mode;
+    }
+    if (g.dockingSequence && g.system.station) {
+      if (!g.paused) {
+        this.camX = Phaser.Math.Linear(this.camX, g.system.station.x, 0.09);
+        this.camY = Phaser.Math.Linear(this.camY, g.system.station.y, 0.09);
+      }
+      this.draw(dt);
+      g.advanceDocking(dt);
+      if (!g.dockingSequence) this.combat.bolts = [];
+      return;
+    }
+    const sequence = g.surfaceSequence;
+    if (sequence) {
+      const pad = sequence.landingX * 16;
+      const ground = this.terrain!.height(sequence.landingX) * 16;
+      const progress = Math.min(
+        1,
+        sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind],
+      );
+      this.camX = sequence.kind === "landing" ? pad : pad + 40 * progress;
+      this.camY = ground - 45;
+      this.draw(dt);
+      g.advanceSurfaceSequence(dt);
+      return;
     }
     if (g.started && !g.paused && !g.panel && !g.busy) {
       g.tick(dt);
@@ -743,7 +775,7 @@ export class WorldScene extends Phaser.Scene {
       s = g.state,
       f = this.gfx;
     f.clear();
-    const surface = s.mode === "surface";
+    const surface = s.mode === "surface" || Boolean(g.surfaceSequence);
     for (const label of this.planetLabels.values()) label.setVisible(false);
     const storm = surface ? g.weather : undefined;
     const light = surface
@@ -853,15 +885,6 @@ export class WorldScene extends Phaser.Scene {
         2,
       );
     }
-    if (g.busy) {
-      f.fillStyle(0x80cced, 0.25);
-      for (let i = 0; i < 50; i++) {
-        const angle = i * 0.37,
-          x = this.centerX + ((Math.cos(angle) * this.elapsed) % this.centerX),
-          y = this.centerY + ((Math.sin(angle) * this.elapsed) % this.centerY);
-        f.fillRect(x, y, 35, 1);
-      }
-    }
   }
   private drawSpace() {
     const f = this.gfx,
@@ -882,6 +905,14 @@ export class WorldScene extends Phaser.Scene {
       f.fillRect(x - 11, y - 10, 22, 5);
       f.fillStyle(0xd4b079);
       f.fillRect(x - 7, y + 7, 14, 4);
+      if (g.dockingSequence) {
+        const blink = Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0;
+        f.fillStyle(blink ? 0xffe2a0 : 0x92d6c8);
+        f.fillRect(x - 18, y - 17, 4, 3);
+        f.fillRect(x + 14, y - 17, 4, 3);
+        f.fillRect(x - 18, y + 14, 4, 3);
+        f.fillRect(x + 14, y + 14, 4, 3);
+      }
     }
     g.system.planets.forEach((p, i) => {
       const pos = planetPosition(i),
@@ -1008,13 +1039,24 @@ export class WorldScene extends Phaser.Scene {
         );
       }
     }
-    if (g.started)
+    if (g.started) {
+      const docking = g.dockingSequence;
+      const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
+      const eased = t * t * (3 - 2 * t);
+      const x =
+        docking && station ? Phaser.Math.Linear(s.x, station.x, eased) : s.x;
+      const y =
+        docking && station ? Phaser.Math.Linear(s.y, station.y, eased) : s.y;
+      const angle = docking
+        ? Phaser.Math.Angle.Wrap(s.angle) * (1 - eased)
+        : s.angle;
       this.drawShip(
-        s.x - this.camX + this.centerX,
-        s.y - this.camY + this.centerY,
-        s.angle,
-        this.down("W") || controls.up,
+        x - this.camX + this.centerX,
+        y - this.camY + this.centerY,
+        angle,
+        docking ? t < 0.78 : this.down("W") || controls.up,
       );
+    }
   }
   private drawPlanetLabel(
     planet: Planet,
@@ -1306,49 +1348,70 @@ export class WorldScene extends Phaser.Scene {
         Math.round(animal.x - this.camX + this.centerX),
         Math.round(animal.y - this.camY + this.centerY),
       );
-    const shipX = g.state.landingX * 16,
-      shipY = t.height(g.state.landingX) * 16 - 12;
-    this.drawShip(
-      shipX - this.camX + this.centerX,
-      shipY - this.camY + this.centerY,
-      0,
-    );
-    f.fillStyle(0x7b8f9a);
-    f.fillRect(
-      shipX - this.camX + this.centerX - 15,
-      shipY - this.camY + this.centerY + 10,
-      4,
-      4,
-    );
-    f.fillRect(
-      shipX - this.camX + this.centerX + 8,
-      shipY - this.camY + this.centerY + 10,
-      4,
-      4,
-    );
-    const x = Math.round(p.x - this.camX + this.centerX),
-      y = Math.round(p.y - this.camY + this.centerY),
-      walk = this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0;
-    f.fillStyle(0x3b5164);
-    f.fillRect(x - 6, y - 4, 4, 11);
-    f.fillStyle(0xc0c9c8);
-    f.fillRect(x - 4, y - 4, 9, 12);
-    f.fillRect(x - 3, y - 12, 9, 9);
-    f.fillStyle(0x5de3da);
-    f.fillRect(x - 1 + (this.facing < 0 ? -2 : 0), y - 10, 6, 4);
-    f.fillStyle(0x67858e);
-    f.fillRect(x - 3, y + 7, 3, 5 + walk);
-    f.fillRect(x + 2, y + 7, 3, 5 - walk);
-    f.fillStyle(0xe4ad71);
-    f.fillRect(x - 4, y + 1, 9, 2);
-    f.fillStyle(0xbfcbd2);
-    f.fillRect(x + (this.facing > 0 ? 5 : -9), y - 1, 5, 3);
+    const sequence = g.surfaceSequence;
+    const landingX = sequence?.landingX ?? g.state.landingX;
+    const shipX = landingX * 16 - this.camX + this.centerX;
+    const shipY = t.height(landingX) * 16 - 12 - this.camY + this.centerY;
+    if (sequence?.kind === "landing") {
+      const progress = Math.min(
+        1,
+        sequence.elapsed / SURFACE_SEQUENCE_DURATION.landing,
+      );
+      const approach = Math.max(0, 1 - progress / 0.86) ** 2;
+      const x = shipX - 92 * approach;
+      const y = shipY - 142 * approach;
+      this.drawShip(x, y, -0.22 * approach, progress < 0.86);
+      if (progress > 0.68) {
+        const dust = (progress - 0.68) / 0.32;
+        f.fillStyle(0xd6bfa1, Math.sin(Math.PI * dust) * 0.55);
+        for (let i = 0; i < 8; i++) {
+          const offset = (10 + 38 * dust + i * 3) * (i % 2 === 0 ? 1 : -1);
+          f.fillRect(
+            Math.round(shipX + offset),
+            Math.round(shipY + 10 - dust * ((i % 3) + 3)),
+            4,
+            2,
+          );
+        }
+      }
+    } else {
+      this.drawShip(shipX, shipY, 0);
+      f.fillStyle(0x7b8f9a);
+      f.fillRect(shipX - 15, shipY + 10, 4, 4);
+      f.fillRect(shipX + 8, shipY + 10, 4, 4);
+      if (sequence?.kind === "disembark") {
+        const progress = Math.min(
+          1,
+          sequence.elapsed / SURFACE_SEQUENCE_DURATION.disembark,
+        );
+        const step = Math.max(0, (progress - 0.18) / 0.82);
+        const worldX = landingX * 16 + 12 + 28 * step;
+        const ground = t.height(Math.floor(worldX / 16)) * 16;
+        f.fillStyle(0x657d90);
+        f.fillRect(shipX + 10, shipY + 4, 15, 3);
+        f.fillRect(shipX + 18, shipY + 7, 15, 3);
+        if (progress >= 0.18)
+          this.drawAstronaut(
+            Math.round(worldX - this.camX + this.centerX),
+            Math.round(ground - 13 - (1 - step) * 4 - this.camY + this.centerY),
+            Math.sin(step * Math.PI * 6) * 2,
+            1,
+          );
+      } else if (g.state.mode === "surface") {
+        this.drawAstronaut(
+          Math.round(p.x - this.camX + this.centerX),
+          Math.round(p.y - this.camY + this.centerY),
+          this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0,
+          this.facing,
+        );
+      }
+    }
     // Slow, deterministic day/night tint.
     f.fillStyle(0x050c25, (1 - light) * 0.35);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     f.fillStyle(0xffda9a, light * 0.1);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
-    if (this.building.enabled && !g.panel) {
+    if (this.building.enabled && !g.panel && !sequence) {
       const cursor = this.building.cursor ?? {
         x: Math.floor((p.x + this.facing * 32) / 16),
         y: Math.floor((p.y + 4) / 16),
@@ -1374,5 +1437,22 @@ export class WorldScene extends Phaser.Scene {
         footprint(this.building.selected, cursor.x, cursor.y).length * 16,
       );
     }
+  }
+  private drawAstronaut(x: number, y: number, walk: number, facing: number) {
+    const f = this.gfx;
+    f.fillStyle(0x3b5164);
+    f.fillRect(x - 6, y - 4, 4, 11);
+    f.fillStyle(0xc0c9c8);
+    f.fillRect(x - 4, y - 4, 9, 12);
+    f.fillRect(x - 3, y - 12, 9, 9);
+    f.fillStyle(0x5de3da);
+    f.fillRect(x - 1 + (facing < 0 ? -2 : 0), y - 10, 6, 4);
+    f.fillStyle(0x67858e);
+    f.fillRect(x - 3, y + 7, 3, 5 + walk);
+    f.fillRect(x + 2, y + 7, 3, 5 - walk);
+    f.fillStyle(0xe4ad71);
+    f.fillRect(x - 4, y + 1, 9, 2);
+    f.fillStyle(0xbfcbd2);
+    f.fillRect(x + (facing > 0 ? 5 : -9), y - 1, 5, 3);
   }
 }

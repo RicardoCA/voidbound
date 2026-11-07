@@ -40,7 +40,11 @@ try {
   await page.getByText("ÓRBITA ESTÁVEL / ESCANEAMENTO CONCLUÍDO").waitFor();
   await page.getByRole("button", { name: /Planície de Aurora/ }).click();
   await page.getByRole("button", { name: "EXPLORAR SUPERFÍCIE" }).click();
-  await page.waitForTimeout(500);
+  await page.waitForFunction(
+    () =>
+      window.__game.state.mode === "surface" &&
+      window.__game.state.player.y > 0,
+  );
   assert.equal((await state()).mode, "surface");
   // Remove actual generated terrain with mouse input. No inventory grants.
   for (let attempt = 0; attempt < 80; attempt++) {

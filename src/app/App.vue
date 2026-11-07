@@ -5,6 +5,7 @@ import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
+import JumpSequence from "../components/JumpSequence.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -97,6 +98,7 @@ function visibility() {
   if (document.hidden) blur();
 }
 function open(id: string) {
+  if (g.inSequence) return;
   g.panel = g.panel === id ? "" : id;
   releaseControls();
 }
@@ -327,6 +329,7 @@ function minutes() {
             !g.panel &&
             !g.paused &&
             !g.busy &&
+            !g.inSequence &&
             (g.state.mode === 'space' || surface)
           "
         />
@@ -432,11 +435,13 @@ function minutes() {
       <div
         v-if="
           g.started &&
-          (g.panel ||
-            g.paused ||
-            g.state.mode === 'orbit' ||
-            g.state.mode === 'docked' ||
-            inShip)
+          !g.busy &&
+          (g.paused ||
+            (!g.inSequence &&
+              (g.panel ||
+                g.state.mode === 'orbit' ||
+                g.state.mode === 'docked' ||
+                inShip)))
         "
         class="overlay"
         :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
@@ -595,7 +600,7 @@ function minutes() {
               v-for="zone in landingZones"
               :key="zone.id"
               class="zone"
-              @click="g.land(zone.id)"
+              @click="g.beginLanding(zone.id)"
             >
               <span>0{{ zone.id + 1 }} / ZONA SEGURA</span><b>{{ zone.name }}</b
               ><small
@@ -637,7 +642,7 @@ function minutes() {
             <div class="console-light" />
           </div>
           <div class="cabin-actions">
-            <button class="primary" @click="g.exit">
+            <button class="primary" @click="g.beginDisembark">
               EXPLORAR SUPERFÍCIE ↗</button
             ><button class="secondary" @click="open('craft')">
               ⌘ FABRICAÇÃO & REFINARIA</button
@@ -662,11 +667,20 @@ function minutes() {
           >
         </section>
       </div>
-      <div v-if="g.busy" class="jump-overlay">
-        <div>✧</div>
-        <h2>Dobrando o horizonte</h2>
-        <p>Sincronizando propulsor de salto…</p>
+      <div
+        v-if="g.inSequence && !g.paused"
+        class="surface-sequence-caption"
+        role="status"
+      >
+        {{
+          g.dockingSequence
+            ? "Acoplando à " + g.system.station?.name
+            : g.surfaceSequence?.kind === "landing"
+              ? "Descida para " + g.planet.name
+              : "Desembarcando"
+        }}
       </div>
+      <JumpSequence v-if="g.busy" />
     </section>
     <Transition name="save-tooltip">
       <div

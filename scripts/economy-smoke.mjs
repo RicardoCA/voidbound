@@ -57,6 +57,12 @@ try {
       if (mobile) await click("Acoplar à estação");
       else await page.keyboard.press("e", { delay: 80 });
       const station = page.getByRole("region", { name: "Estação espacial" });
+      await page
+        .locator(".surface-sequence-caption")
+        .filter({ hasText: "Acoplando" })
+        .waitFor();
+      assert.equal((await snapshot()).mode, "space");
+      assert.equal(await station.count(), 0);
       await station.waitFor();
       assert.equal((await snapshot()).credits, 500);
       await page.getByLabel("Quantidade", { exact: true }).fill("50");
