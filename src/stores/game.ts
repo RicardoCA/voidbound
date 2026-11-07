@@ -9,6 +9,11 @@ import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
 import { emptyHabitat } from "../construction/habitat";
+import { releaseControls } from "../game/input";
+import { advancePilotTrips } from "../fleet/pilots";
+import { shipModels } from "../fleet/models";
+import { shipCapacity, shipFuelCapacity } from "../fleet/hangar";
+import { INITIAL_CREDITS } from "../economy/market";
 export const missions = [
   {
     title: "Sinal perdido",
@@ -41,7 +46,12 @@ export const missions = [
 ];
 function initial(seed: string): Save {
   return {
-    version: 3,
+    version: 4,
+    credits: INITIAL_CREDITS,
+    activeShip: { id: "ship-1", model: "sparrow" },
+    parkedShips: [],
+    nextShipId: 2,
+    marketStocks: {},
     settlements: {},
     seed,
     mode: "space",
@@ -87,20 +97,39 @@ export const useGame = defineStore("game", () => {
     saveRevision = ref(0),
     hasSave = ref(false),
     busy = ref(false),
-    speed = ref(0);
+    speed = ref(0),
+    trading = ref(false);
   const system = computed(() =>
       systemAt(state.value.seed, state.value.systemX, state.value.systemY),
     ),
+    stationDistance = computed(() => {
+      const station = system.value.station;
+      const { x, y } = state.value.ship;
+      return station ? Math.hypot(x - station.x, y - station.y) : Infinity;
+    }),
+    stationBearing = computed(() => {
+      const station = system.value.station;
+      if (!station) return "";
+      const { x, y } = state.value.ship;
+      const octant = Math.round(
+        Math.atan2(station.y - y, station.x - x) / (Math.PI / 4),
+      );
+      return ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8];
+    }),
     planet = computed(() => system.value.planets[state.value.planetIndex]!),
     biome = computed(() => biomes[planet.value.kind]!),
+    model = computed(() => shipModels[state.value.activeShip.model]),
     capacity = computed(() =>
-      state.value.upgrades.includes("cargo") ? 40 : 24,
+      shipCapacity(state.value.activeShip.model, state.value.upgrades),
+    ),
+    hullPercent = computed(
+      () => (100 * state.value.ship.hull) / model.value.hull,
     ),
     usedSlots = computed(() => slots(state.value.inventory)),
     mission = computed(() => missions[state.value.mission]!),
     showMission = computed(() => state.value.mission < missions.length - 1),
     maxFuel = computed(() =>
-      state.value.upgrades.includes("tank") ? 160 : 100,
+      shipFuelCapacity(state.value.activeShip.model, state.value.upgrades),
     ),
     jumpRange = computed(() =>
       state.value.upgrades.includes("engine") ? 4 : 2,
@@ -123,13 +152,16 @@ export const useGame = defineStore("game", () => {
     if (s.mission === 4 && s.flags.includes("asteroid") && s.upgrades.length)
       s.mission = 5;
   }
+  function recordSave() {
+    hasSave.value = true;
+    saveRevision.value++;
+    saveStatus.value = `Salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  }
   async function save() {
-    if (!started.value) return;
+    if (!started.value || trading.value) return;
     try {
       await database.write(state.value);
-      hasSave.value = true;
-      saveRevision.value++;
-      saveStatus.value = `Salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+      recordSave();
       return true;
     } catch {
       saveStatus.value = "Falha ao salvar";
@@ -137,6 +169,80 @@ export const useGame = defineStore("game", () => {
         "Não foi possível salvar. Verifique o armazenamento do navegador.",
       );
     }
+  }
+  async function stationTransaction(
+    operation: (draft: Save, stationId: string) => string | undefined,
+  ) {
+    const station = system.value.station;
+    if (
+      trading.value ||
+      !started.value ||
+      paused.value ||
+      state.value.mode !== "docked" ||
+      !station
+    )
+      return false;
+    trading.value = true;
+    try {
+      const draft = JSON.parse(JSON.stringify(state.value)) as Save;
+      const error = operation(draft, station.id);
+      if (error) {
+        notify(error);
+        return false;
+      }
+      await database.write(draft);
+      state.value = draft;
+      recordSave();
+      return true;
+    } catch {
+      notify("Operação cancelada. Não foi possível gravar a transação.");
+      return false;
+    } finally {
+      trading.value = false;
+    }
+  }
+  function dock() {
+    const s = state.value,
+      station = system.value.station;
+    if (
+      !started.value ||
+      paused.value ||
+      panel.value ||
+      busy.value ||
+      s.mode !== "space" ||
+      !station ||
+      stationDistance.value > 115
+    )
+      return false;
+    if (Math.hypot(s.ship.vx, s.ship.vy) > 35) {
+      notify("Freie até 35 km/s para acoplar à estação.");
+      return true;
+    }
+    Object.assign(s.ship, { x: station.x, y: station.y, vx: 0, vy: 0 });
+    s.mode = "docked";
+    speed.value = 0;
+    releaseControls();
+    notify(`Acoplagem confirmada. ${station.name}.`);
+    void save();
+    return true;
+  }
+  function undock() {
+    const s = state.value,
+      station = system.value.station;
+    if (trading.value || paused.value || s.mode !== "docked" || !station)
+      return;
+    Object.assign(s.ship, {
+      x: station.x + 42,
+      y: station.y,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+    });
+    s.mode = "space";
+    panel.value = "";
+    releaseControls();
+    notify("Desacoplagem confirmada.");
+    void save();
   }
   async function checkSave() {
     try {
@@ -184,8 +290,10 @@ export const useGame = defineStore("game", () => {
   }
   function make(id: Item) {
     const recipe = recipes.find((r) => r.id === id);
+    if (trading.value) return;
     if (
       state.value.mode !== "interior" &&
+      state.value.mode !== "docked" &&
       !(state.value.mode === "surface" && recipe?.station === "hand")
     ) {
       notify("Entre na nave para acessar a estação de fabricação.");
@@ -215,7 +323,8 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (upgrades.includes(id) && s.mode !== "interior") {
+    if (trading.value) return;
+    if (upgrades.includes(id) && s.mode !== "interior" && s.mode !== "docked") {
       notify("Instale melhorias dentro da nave.");
       return;
     }
@@ -229,7 +338,8 @@ export const useGame = defineStore("game", () => {
       return;
     }
     if (!consume(s.inventory, { [id]: 1 })) return;
-    if (id === "repair") s.ship.hull = Math.min(100, s.ship.hull + 50);
+    if (id === "repair")
+      s.ship.hull = Math.min(model.value.hull, s.ship.hull + 50);
     if (id === "fuel") s.ship.fuel = Math.min(maxFuel.value, s.ship.fuel + 30);
     if (id === "oxygen") {
       if (s.mode === "interior")
@@ -278,7 +388,7 @@ export const useGame = defineStore("game", () => {
     void save();
   }
   function takeoff() {
-    if (state.value.ship.hull < 70) {
+    if (hullPercent.value < 70) {
       notify("Repare o casco até pelo menos 70% antes de decolar.");
       return;
     }
@@ -344,6 +454,7 @@ export const useGame = defineStore("game", () => {
     state.value.ship.fuel = Math.min(maxFuel.value, state.value.ship.fuel + 5);
     state.value.ship.oxygen = Math.min(100, state.value.ship.oxygen + 5);
     state.value.time += 60;
+    advancePilotTrips(state.value);
     notify("60 s de recuperação solar: +5 combustível e oxigênio.");
     void save();
   }
@@ -361,11 +472,13 @@ export const useGame = defineStore("game", () => {
       paused.value ||
       panel.value ||
       busy.value ||
+      state.value.mode === "docked" ||
       state.value.mode === "orbit"
     )
       return;
     const s = state.value;
     s.time += dt;
+    if (advancePilotTrips(s)) void save();
     habitat.value = habitatSystem.step(
       s,
       planet.value,
@@ -414,9 +527,17 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     system,
+    stationDistance,
+    stationBearing,
+    trading,
+    stationTransaction,
+    dock,
+    undock,
     planet,
     biome,
     capacity,
+    model,
+    hullPercent,
     usedSlots,
     mission,
     showMission,

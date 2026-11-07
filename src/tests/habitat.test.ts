@@ -267,8 +267,8 @@ describe("Persistência das casas pressurizadas", () => {
     legacy.close();
     const db = new SaveDatabase(name),
       saved = await db.read();
-    expect(saved).toEqual({ ...old, version: 3 });
-    expect(db.verno).toBe(3);
+    expect(saved).toEqual({ ...old, version: 4 });
+    expect(db.verno).toBe(4);
     await db.delete();
   });
   it("salva porta aberta e reservas exatas e continua a simulação ao carregar", async () => {

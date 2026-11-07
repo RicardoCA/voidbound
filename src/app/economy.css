@@ -1,0 +1,107 @@
+.station-dialog {
+  width: min(760px, 100%);
+}
+.station-banner svg {
+  width: 100%;
+  max-height: 120px;
+  display: block;
+  margin-bottom: 16px;
+  background: #172a42;
+}
+.station-credits {
+  color: var(--mint);
+  white-space: nowrap;
+}
+.station-form {
+  display: grid;
+  gap: 10px;
+  padding: 16px 0;
+}
+.station-form input,
+.station-form select {
+  background: #101c2a;
+  color: inherit;
+  border: 1px solid var(--line);
+  padding: 10px;
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  font-size: max(16px, 1em);
+}
+.station-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.station-actions button {
+  min-height: 44px;
+}
+.station-actions [aria-pressed="true"] {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+.station-target {
+  color: var(--mint);
+}
+.mobile-location small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dealership-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr));
+  gap: 10px;
+}
+.dealer-card,
+.fleet-card {
+  background: #101c2a;
+  border: 1px solid var(--line);
+  padding: 12px;
+}
+.fleet-card {
+  display: grid;
+  grid-template-columns: clamp(48px, 16%, 100px) minmax(0, 1fr);
+  gap: 12px;
+}
+.ship-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 85px;
+}
+.ship-specs {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+  font-size: 12px;
+}
+.ship-specs dd {
+  margin: 0;
+  text-align: right;
+  color: var(--mint);
+}
+.cargo-transfer {
+  border-top: 1px solid var(--line);
+}
+
+.pilot-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.pilot-panel button {
+  min-height: 44px;
+}
+.pilot-repeat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.station-form .pilot-repeat input {
+  width: 20px;
+  min-height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--mint);
+}

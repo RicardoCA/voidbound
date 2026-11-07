@@ -12,17 +12,9 @@ export class SaveDatabase extends Dexie {
   constructor(name = "voidbound-v1") {
     super(name);
     this.version(1).stores({ saves: "id,updated" });
-    this.version(2)
-      .stores({ saves: "id,updated" })
-      .upgrade((tx) =>
-        tx
-          .table<StoredSave>("saves")
-          .toCollection()
-          .modify((row) => {
-            row.data = migrateSave(row.data);
-          }),
-      );
-    this.version(3)
+    this.version(2).stores({ saves: "id,updated" });
+    this.version(3).stores({ saves: "id,updated" });
+    this.version(4)
       .stores({ saves: "id,updated" })
       .upgrade((tx) =>
         tx

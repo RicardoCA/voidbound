@@ -242,8 +242,8 @@ describe("Migração e persistência de assentamentos", () => {
     db1.close();
     const db2 = new SaveDatabase(name),
       migrated = await db2.read();
-    expect(migrated).toEqual({ ...old, version: 3, settlements: {} });
-    expect(db2.verno).toBe(3);
+    expect(migrated).toEqual({ ...old, version: 4, settlements: {} });
+    expect(db2.verno).toBe(4);
     await db2.delete();
   });
   it("reabre árvores cortadas, paredes, escadas e conteúdo de vários armários", async () => {

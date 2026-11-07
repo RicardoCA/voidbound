@@ -150,14 +150,24 @@ onBeforeUnmount(reset);
       <button
         class="touch-interact"
         :aria-label="
-          surface ? 'Interagir com porta, nave ou armário' : 'Entrar em órbita'
+          surface
+            ? 'Interagir com porta, nave ou armário'
+            : g.stationDistance <= 115
+              ? 'Acoplar à estação'
+              : 'Entrar em órbita'
         "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"
         @pointercancel="stop('interact', $event)"
         @lostpointercapture="stop('interact', $event)"
       >
-        {{ surface ? "INTERAGIR" : "ÓRBITA" }}
+        {{
+          surface
+            ? "INTERAGIR"
+            : g.stationDistance <= 115
+              ? "ACOPLAR"
+              : "ÓRBITA"
+        }}
       </button>
     </div>
   </div>

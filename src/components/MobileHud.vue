@@ -14,7 +14,7 @@ const location = computed(() =>
 const meters = computed(() => [
   {
     label: surface.value ? "VIDA" : "CASCO",
-    value: surface.value ? g.state.player.health : g.state.ship.hull,
+    value: surface.value ? g.state.player.health : g.hullPercent,
     max: 100,
   },
   {
@@ -65,12 +65,12 @@ function pause() {
 <template>
   <div class="mobile-hud">
     <div class="mobile-location">
-      <span>{{ surface ? "SUPERFÍCIE" : "VOIDBOUND" }}</span
+      <span>{{ g.state.credits.toLocaleString("pt-BR") }} CR</span
       ><strong>{{ location }}</strong
       ><small>{{
         surface
           ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
-          : `${g.speed} km/s`
+          : `${g.model.name} · ${g.speed} km/s`
       }}</small>
     </div>
     <div class="mobile-meters">
@@ -92,6 +92,14 @@ function pause() {
             }"
         /></i>
       </div>
+      <button
+        class="mobile-radar-toggle"
+        aria-label="Abrir radar local"
+        :aria-expanded="g.panel === 'radar'"
+        @click="open('radar')"
+      >
+        <span aria-hidden="true">⌖</span> Radar
+      </button>
     </div>
     <nav class="mobile-tools" aria-label="Painéis do jogo">
       <button aria-label="Abrir carga" title="Carga" @click="open('inventory')">
@@ -130,6 +138,17 @@ function pause() {
     aria-live="polite"
   >
     <template v-if="transient">{{ transient }}</template>
+    <template
+      v-else-if="
+        g.state.mode === 'space' &&
+        g.system.station &&
+        (g.stationDistance <= 115 || target.distance >= 210)
+      "
+    >
+      {{ g.stationBearing }} {{ g.system.station.name }} ·
+      {{ Math.round(g.stationDistance) }} km
+      <b v-if="g.stationDistance <= 115"> · Toque em Acoplar até 35 km/s</b>
+    </template>
     <template v-else-if="g.state.mode === 'space'"
       >⌖ {{ target.name }} · {{ Math.round(target.distance) }} km
       <b v-if="target.distance < 210">· Órbita disponível</b></template

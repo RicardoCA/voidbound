@@ -1,3 +1,4 @@
+import { shipPalette } from "../../fleet/models";
 import Phaser from "phaser";
 import { useGame } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
@@ -131,7 +132,8 @@ export class WorldScene extends Phaser.Scene {
       this.game.events.off("blur", releaseControls),
     );
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
-      if (!this.store.started || isEditing(e.target)) return;
+      if (!this.store.started || this.store.trading || isEditing(e.target))
+        return;
       if (e.repeat) return;
       if (
         e.code === "Space" &&
@@ -242,18 +244,21 @@ export class WorldScene extends Phaser.Scene {
         controls.interact;
       if (interact && !this.interactHeld) {
         if (s.mode === "space") {
-          let nearest = 0,
-            distance = Infinity;
-          g.system.planets.forEach((_, i) => {
-            const p = planetPosition(i),
-              d = Math.hypot(s.ship.x - p.x, s.ship.y - p.y);
-            if (d < distance) {
-              distance = d;
-              nearest = i;
-            }
-          });
-          if (distance < 210) g.orbit(nearest);
-          else g.notify("Aproxime-se de um planeta para entrar em órbita.");
+          if (!g.dock()) {
+            let nearest = 0,
+              distance = Infinity;
+            g.system.planets.forEach((_, i) => {
+              const p = planetPosition(i),
+                d = Math.hypot(s.ship.x - p.x, s.ship.y - p.y);
+              if (d < distance) {
+                distance = d;
+                nearest = i;
+              }
+            });
+            if (distance < 210) g.orbit(nearest);
+            else
+              g.notify("Aproxime-se de um planeta ou estação para interagir.");
+          }
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
           if (
@@ -296,10 +301,12 @@ export class WorldScene extends Phaser.Scene {
     const thrust = this.down("W") || controls.up,
       brake = this.down("S") || controls.down;
     if (thrust && s.fuel > 0) {
-      const acceleration = g.state.upgrades.includes("engine") ? 105 : 65;
+      const acceleration =
+        g.model.acceleration *
+        (g.state.upgrades.includes("engine") ? 105 / 65 : 1);
       s.vx += Math.cos(s.angle) * acceleration * dt;
       s.vy += Math.sin(s.angle) * acceleration * dt;
-      s.fuel = Math.max(0, s.fuel - dt * 0.4);
+      s.fuel = Math.max(0, s.fuel - dt * g.model.consumption);
       if (Math.random() < 0.7)
         this.particles.push({
           x: s.x - Math.cos(s.angle) * 22,
@@ -315,7 +322,7 @@ export class WorldScene extends Phaser.Scene {
       s.vy *= Math.exp(-dt * 2);
     }
     const speed = Math.hypot(s.vx, s.vy),
-      max = g.state.upgrades.includes("engine") ? 210 : 140;
+      max = g.model.speed * (g.state.upgrades.includes("engine") ? 1.5 : 1);
     if (speed > max) {
       s.vx = (s.vx / speed) * max;
       s.vy = (s.vy / speed) * max;
@@ -612,6 +619,22 @@ export class WorldScene extends Phaser.Scene {
     const f = this.gfx,
       g = this.store,
       s = g.state.ship;
+    const station = g.system.station;
+    if (station) {
+      const x = Math.round(station.x - this.camX + this.centerX);
+      const y = Math.round(station.y - this.camY + this.centerY);
+      f.fillStyle(0x30485e);
+      f.fillRect(x - 40, y - 9, 80, 18);
+      f.fillStyle(0x637f92);
+      f.fillRect(x - 17, y - 18, 34, 36);
+      f.fillStyle(0x172947);
+      f.fillRect(x - 37, y - 6, 20, 12);
+      f.fillRect(x + 17, y - 6, 20, 12);
+      f.fillStyle(0x92d6c8);
+      f.fillRect(x - 11, y - 10, 22, 5);
+      f.fillStyle(0xd4b079);
+      f.fillRect(x - 7, y + 7, 14, 4);
+    }
     g.system.planets.forEach((p, i) => {
       const pos = planetPosition(i),
         x = Math.round(pos.x - this.camX + this.centerX),
@@ -695,45 +718,31 @@ export class WorldScene extends Phaser.Scene {
       x: Math.round(x + px * Math.cos(angle) - py * Math.sin(angle)),
       y: Math.round(y + px * Math.sin(angle) + py * Math.cos(angle)),
     });
-    f.fillStyle(0x15283d);
-    f.fillPoints(
-      [
-        point(-22, -8),
-        point(-12, -13),
-        point(3, -7),
-        point(25, 0),
-        point(3, 7),
-        point(-12, 13),
-        point(-22, 8),
-      ],
-      true,
-    );
-    f.fillStyle(0x9baeb3);
-    f.fillPoints(
-      [point(-18, -5), point(2, -5), point(23, 0), point(2, 5), point(-18, 5)],
-      true,
-    );
-    f.fillStyle(0x536b7b);
-    f.fillPoints(
-      [point(-14, -12), point(-2, -6), point(-7, -4), point(-19, -7)],
-      true,
-    );
-    f.fillPoints(
-      [point(-14, 12), point(-2, 6), point(-7, 4), point(-19, 7)],
-      true,
-    );
-    f.fillStyle(0x86e0dd);
-    f.fillPoints([point(1, -3), point(12, 0), point(1, 3), point(-3, 0)], true);
-    f.lineStyle(2, 0xe5b571);
-    const a = point(-15, -10),
-      b = point(-8, -7),
-      c = point(-15, 10),
-      d = point(-8, 7);
-    f.lineBetween(a.x, a.y, b.x, b.y);
-    f.lineBetween(c.x, c.y, d.x, d.y);
-    f.fillStyle(0xa0f6e9);
-    const engine = point(-21, 0);
-    f.fillRect(engine.x - 2, engine.y - 3, 3, 6);
+    const sprite = this.store.model.sprite;
+    sprite.forEach((row, rowIndex) => {
+      let start = 0;
+      while (start < row.length) {
+        const pixel = row[start]!;
+        let end = start + 1;
+        while (end < row.length && row[end] === pixel) end++;
+        if (pixel !== ".") {
+          const left = start * 3 - 22,
+            right = end * 3 - 22;
+          const top = rowIndex * 2.5 - 14;
+          f.fillStyle(shipPalette[pixel as keyof typeof shipPalette]);
+          f.fillPoints(
+            [
+              point(left, top),
+              point(right, top),
+              point(right, top + 2.5),
+              point(left, top + 2.5),
+            ],
+            true,
+          );
+        }
+        start = end;
+      }
+    });
     if (thrust) {
       f.fillStyle(0x7de3ee, 0.8);
       f.fillPoints(

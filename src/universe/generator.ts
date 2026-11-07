@@ -47,14 +47,25 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
       radius: 1000 + Math.floor(p() * 9000),
     };
   });
-  return cache.set(id, { id, x, y, name, star, planets });
+  const stationSeed = hash(`${id}:station`);
+  const station =
+    (y === 0 && (x === 0 || x === 1)) || stationSeed % 3 === 0
+      ? {
+          id: `${id}:station`,
+          name: `Estação ${name}`,
+          x: 100 + (stationSeed % 80),
+          y: 560,
+        }
+      : undefined;
+  return cache.set(id, { id, x, y, name, star, planets, station });
 }
-export function nearby(seed: string, x: number, y: number) {
+export function nearby(seed: string, x: number, y: number, radius = 3) {
   const result: StarSystem[] = [];
-  for (let dx = -3; dx <= 3; dx++)
-    for (let dy = -3; dy <= 3; dy++) {
+  for (let dx = -radius; dx <= radius; dx++)
+    for (let dy = -radius; dy <= radius; dy++) {
       if (
         (dx === 0 && dy === 0) ||
+        (y + dy === 0 && (x + dx === 0 || x + dx === 1)) ||
         hash(`${seed}:${x + dx}:${y + dy}:exists`) % 5 !== 0
       )
         result.push(systemAt(seed, x + dx, y + dy));

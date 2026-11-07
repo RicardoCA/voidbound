@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import LocalRadar from "../components/LocalRadar.vue";
+import StationPanel from "../components/StationPanel.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -229,6 +231,19 @@ function minutes() {
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
           </p>
+          <p class="station-credits">
+            {{ g.state.credits.toLocaleString("pt-BR") }} CR
+          </p>
+          <p
+            v-if="g.state.mode === 'space' && g.system.station"
+            class="station-target"
+          >
+            {{ g.stationBearing }} {{ g.system.station.name }} ·
+            {{ Math.round(g.stationDistance) }} km
+            <span v-if="g.stationDistance <= 115">
+              · [E] ACOPLAR ATÉ 35 km/s</span
+            >
+          </p>
         </div>
         <HabitatStatus v-if="surface" class="desktop-habitat" />
         <aside v-if="g.showMission" class="mission-card">
@@ -280,8 +295,8 @@ function minutes() {
             <div class="ship-icon">➤</div>
             <div class="status-data">
               <div class="status-heading">
-                {{ surface ? "TRAJE EXPLORADOR" : "SPARROW MK-I" }}
-                <span>{{ surface ? "EVA" : "NAVE LEVE" }}</span>
+                {{ surface ? "TRAJE EXPLORADOR" : g.model.name }}
+                <span>{{ surface ? "EVA" : g.model.role }}</span>
               </div>
               <div class="meters">
                 <div>
@@ -289,14 +304,14 @@ function minutes() {
                   <div class="meter">
                     <i
                       :style="{
-                        width: `${surface ? g.state.player.health : g.state.ship.hull}%`,
+                        width: `${surface ? g.state.player.health : g.hullPercent}%`,
                       }"
                     />
                   </div>
                   <b
                     >{{
                       Math.ceil(
-                        surface ? g.state.player.health : g.state.ship.hull,
+                        surface ? g.state.player.health : g.hullPercent,
                       )
                     }}<small>%</small></b
                   >
@@ -358,40 +373,17 @@ function minutes() {
               ><kbd>{{ n.key }}</kbd>
             </button>
           </nav>
-          <div class="radar">
-            <svg viewBox="0 0 90 90" aria-label="Radar do sistema">
-              <circle cx="45" cy="45" r="40" />
-              <circle cx="45" cy="45" r="24" />
-              <path d="M45 5V85M5 45H85" />
-              <circle
-                v-for="(_, i) in g.system.planets"
-                :key="i"
-                :cx="
-                  45 +
-                  Math.max(
-                    -37,
-                    Math.min(37, (planetPosition(i).x - g.state.ship.x) / 22),
-                  )
-                "
-                :cy="
-                  45 +
-                  Math.max(
-                    -37,
-                    Math.min(37, (planetPosition(i).y - g.state.ship.y) / 22),
-                  )
-                "
-                r="2"
-                class="radar-planet"
-              />
-              <path d="M45 40L48 49L45 47L42 49Z" class="radar-ship" /></svg
-            ><span>RADAR LOCAL</span>
-          </div>
+          <div class="radar"><LocalRadar /><span>RADAR LOCAL</span></div>
         </div>
       </template>
       <div
         v-if="
           g.started &&
-          (g.panel || g.paused || g.state.mode === 'orbit' || inShip)
+          (g.panel ||
+            g.paused ||
+            g.state.mode === 'orbit' ||
+            g.state.mode === 'docked' ||
+            inShip)
         "
         class="overlay"
         :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
@@ -423,6 +415,7 @@ function minutes() {
           ><button class="secondary" @click="showOptions = true">OPÇÕES</button
           ><button
             class="secondary"
+            :disabled="g.trading"
             @click="
               g.save();
               g.started = false;
@@ -437,6 +430,7 @@ function minutes() {
             E embarcar<br />I carga · C fabricação · M mapa · Esc pausa
           </div>
         </section>
+        <StationPanel v-else-if="g.state.mode === 'docked' && !g.panel" />
         <section
           v-else-if="g.panel === 'mission'"
           class="dialog mission-dialog"
@@ -460,6 +454,36 @@ function minutes() {
           <button class="primary" @click="open('mission')">
             VOLTAR À EXPLORAÇÃO
           </button>
+        </section>
+        <section
+          v-else-if="g.panel === 'radar'"
+          class="dialog radar-dialog"
+          aria-label="Radar local"
+        >
+          <div class="dialog-heading">
+            <div>
+              <div class="eyebrow">{{ g.system.name }}</div>
+              <h2>Radar local</h2>
+            </div>
+            <button
+              class="close"
+              aria-label="Fechar radar local"
+              @click="open('radar')"
+            >
+              ×
+            </button>
+          </div>
+          <LocalRadar />
+          <p>
+            ▲ Sua nave · ● Planeta
+            <template v-if="g.system.station"
+              >· <span class="radar-station-label">▣ Estação</span></template
+            >
+          </p>
+          <p v-if="g.system.station" class="radar-station-label">
+            {{ g.stationBearing }} {{ g.system.station.name }} ·
+            {{ Math.round(g.stationDistance) }} km
+          </p>
         </section>
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
@@ -530,12 +554,12 @@ function minutes() {
         </section>
         <section v-else-if="inShip" class="dialog cockpit">
           <div class="eyebrow">
-            <span class="gold-dot" /> SPARROW MK-I / CABINE PRESSURIZADA
+            <span class="gold-dot" /> {{ g.model.name }} / CABINE PRESSURIZADA
           </div>
           <h2>Lar, entre as estrelas.</h2>
           <p>
             {{
-              g.state.ship.hull < 70
+              g.hullPercent < 70
                 ? "Casco danificado. Explore a superfície e fabrique um kit de reparo."
                 : "Sistemas prontos. A próxima fronteira está à sua espera."
             }}
@@ -558,7 +582,7 @@ function minutes() {
               ⌂ BASES E DEPÓSITOS</button
             ><button
               class="primary launch"
-              :disabled="g.state.ship.hull < 70 || g.state.ship.fuel < 5"
+              :disabled="g.hullPercent < 70 || g.state.ship.fuel < 5"
               @click="g.takeoff"
             >
               DECOLAR · 5 COMBUSTÍVEL ↑

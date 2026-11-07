@@ -1,6 +1,6 @@
 # Progresso — Voidbound
 
-## Entrega atual: alpha 0.3 / casas com suporte de vida
+## Base anterior: alpha 0.3 / casas com suporte de vida
 
 A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano abaixo diferencia implementação de validação. A publicação é feita pelo workflow do GitHub Pages.
 
@@ -129,3 +129,39 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - O preventDefault agora ocorre depois da leitura do Phaser, mantendo a proteção contra rolagem e ativação involuntária de botões durante o jogo.
 - Pulos por teclado usam o mesmo mecanismo de pulsos do toque para reconhecer pressionamentos rápidos entre frames. Uma tolerância de 120 ms preserva o comando logo antes da aterrissagem, sem criar pulos automáticos depois de quedas longas.
 - `npm run test:jump` verifica pulo normal/rápido, repetição após aterrissar, foco no HUD e retomada do save. Sem alteração no schema ou no progresso salvo.
+
+## Economia galáctica e frota
+
+- Novas partidas começam com 500 CR. Saves v1, v2 e v3 migram para v4 no mesmo banco IndexedDB, com 500 CR e a Sparrow original. O mundo, as bases, a carga e as melhorias existentes seguem com a partida.
+- O sistema inicial sempre tem uma estação. Outros sistemas recebem estações por seed, sem alterar os planetas gerados anteriormente. O mapa usa ▣ para indicar estações. Em voo, o HUD mostra direção e distância. Use E ou **Interagir** a até 115 km, com velocidade de até 35 km/s. **Desacoplar** retorna ao voo.
+- O mercado negocia dez recursos por quantidade. Cada estação tem estoque próprio, com 120 unidades iniciais por recurso e preços fixos de compra e venda. A oficina repara o casco a 3 CR por ponto e abre fabricação e melhorias. O abastecimento vende até 20 unidades por operação a 2 CR por unidade.
+- A concessionária oferece sete modelos filtráveis: uso geral (Sparrow MK-I e Atlas C-2), combate (Viper X e Bastion G-7) e mineração (Prospector P-1, Titan M-4 e Mammoth M-9). As compras entram no hangar da estação. A troca guarda a nave anterior no mesmo local com carga, combustível, casco e melhorias próprios. O preço de revenda depende do casco. Para vender uma nave, selecione outra como ativa e esvazie a carga da nave a vender.
+- O hangar lista naves locais e remotas. Só é possível ativar, vender e transferir carga de uma nave na estação onde ela está guardada. Melhorias de salto precisam estar instaladas na nave ativa. A Titan inclui laser avançado de fábrica.
+- As operações comerciais gravam a partida completa antes de confirmar a mudança na tela. Se a gravação falhar, o saldo, a carga, a frota e o estoque ficam como estavam. Um bloqueio impede operações concorrentes na mesma sessão.
+- Teste local em `http://localhost:4173/`. Os testes de economia cobrem validações, falha de gravação, concorrência, limites, migração e persistência. `npm run test:economy` cobre venda, compra, troca, transferência e retomada em Chromium desktop e mobile com toque.
+
+| Arquivos                                                                                                                                                                              | Alterações                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/economy/market.ts`                                                                                                                                                               | Catálogo, preços, estoques e validação das compras e vendas.                             |
+| `src/fleet/models.ts`, `src/fleet/hangar.ts`                                                                                                                                          | Modelos, sprites, identificação, localização, revenda, troca e transferência de carga.   |
+| `src/game/types.ts`, `src/persistence/database.ts`, `src/persistence/migrations.ts`                                                                                                   | Tipos e migração do save para v4.                                                        |
+| `src/stores/game.ts`, `src/universe/generator.ts`, `src/game/scenes/WorldScene.ts`                                                                                                    | Transações persistentes, acoplagem, geração procedural, atributos de voo e renderização. |
+| `src/components/StationPanel.vue`, `MarketPanel.vue`, `DealershipPanel.vue`, `HangarPanel.vue`, `ShipSprite.vue`                                                                      | Serviços da estação, mercado, concessionária, frota, transferência e prévias.            |
+| `src/app/App.vue`, `src/app/economy.css`, `src/main.ts`, `src/components/MobileHud.vue`, `GalaxyMap.vue`, `InventoryPanel.vue`, `CraftingPanel.vue`                                   | HUD, mapa, layout, identificação da nave ativa e acesso à fabricação na estação.         |
+| `src/tests/economy.test.ts`, `catalog.test.ts`, `construction.test.ts`, `habitat.test.ts`, `scripts/economy-smoke.mjs`, `construction-smoke.mjs`, `habitat-smoke.mjs`, `package.json` | Testes de economia e compatibilidade com o save v4.                                      |
+
+O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando com sua nave ativa. Naves guardadas também podem receber pilotos NPC para rotas comerciais.
+
+### Validação desta atualização
+
+- ESLint, TypeScript e build de produção passaram. Os 91 testes automatizados passaram.
+- Chromium desktop e mobile com toque completaram acoplagem, venda de carga preparada, compra da Atlas, transferência, troca, reload e desacoplagem. O hangar foi verificado em 320×568, 390×780 e 844×390.
+- Saves v4 locais gravados antes da inclusão da frota são completados na leitura, preservando saldo, carga e progresso. A retomada na superfície foi reproduzida e validada no navegador.
+- O teste de regressão completou pilotagem, órbita, pouso, mineração real, fabricação, reparo, decolagem e retomada da partida. A verificação móvel foi feita por emulação Chromium.
+
+## Pilotos NPC e rotas comerciais
+
+- No hangar, contrate um piloto por 100 CR para uma nave guardada. Selecione uma estação dentro do alcance, recurso e quantidade. O contrato mostra custo da mercadoria, frete com combustível, recebimento, lucro e duração.
+- O piloto compra o lote na origem, entrega ao destino e retorna ao hangar. A entrega repõe o estoque no destino e paga uma vez. A nave fica indisponível para troca, venda e transferência durante a rota. A nave ativa continua livre para explorar.
+- A repetição é opcional. Ela para após a viagem corrente quando solicitada, ou ao faltar saldo, estoque ou capacidade. O tempo avança durante o jogo. A contratação, a viagem em curso e os pagamentos usam o save existente.
+- Implementação em `src/fleet/pilots.ts`, `src/components/PilotPanel.vue`, integração com o hangar e o relógio do jogo. Validação de contratação, frete, pagamento, bloqueio de nave, repetição e persistência em `src/tests/pilots.test.ts`. Fluxo com retomada de viagem verificado em Chromium desktop e mobile emulado.

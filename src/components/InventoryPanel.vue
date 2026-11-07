@@ -42,7 +42,7 @@ function canUse(id: Item) {
   <section class="dialog">
     <div class="dialog-heading">
       <div>
-        <div class="eyebrow">SPARROW MK-I / COMPARTIMENTO COMPARTILHADO</div>
+        <div class="eyebrow">{{ g.model.name }} / COMPARTIMENTO DE CARGA</div>
         <h2>Carga & equipamentos</h2>
       </div>
       <button

@@ -220,7 +220,7 @@ try {
   await reload();
   let saved = await state(),
     pieces = saved.settlements[Object.keys(saved.settlements)[0]].pieces;
-  assert.equal(saved.version, 3);
+  assert.equal(saved.version, 4);
   assert.equal(pieces["3,28"].open, false);
   assert.ok(pieces["7,28"].energy > 0);
   assert.ok(

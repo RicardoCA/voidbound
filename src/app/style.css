@@ -546,17 +546,35 @@ kbd {
   width: 74px;
   display: block;
   margin: auto;
+}
+.local-radar {
   fill: none;
   stroke: #385461;
   stroke-width: 0.6;
 }
-.radar .radar-planet {
+.local-radar .radar-planet {
   fill: var(--gold);
   stroke: none;
 }
-.radar .radar-ship {
+.local-radar .radar-ship {
   fill: var(--mint);
   stroke: none;
+}
+.local-radar .radar-station {
+  fill: #85d6fc;
+  stroke: #102337;
+  stroke-width: 0.8;
+}
+.radar-dialog {
+  width: min(340px, 100%);
+}
+.radar-dialog .local-radar {
+  display: block;
+  width: min(100%, 190px, 37dvh);
+  margin: auto;
+}
+.radar-dialog .radar-station-label {
+  color: #85d6fc;
 }
 .radar > span {
   position: absolute;

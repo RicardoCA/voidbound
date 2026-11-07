@@ -122,7 +122,7 @@ describe("Catálogo de bases e depósitos", () => {
     db.close();
     const reopened = new SaveDatabase(name),
       saved = await reopened.read();
-    expect(saved!.version).toBe(3);
+    expect(saved!.version).toBe(4);
     expect(listBases(saved!)).toEqual(expected);
     await reopened.delete();
   });

@@ -11,7 +11,7 @@
 }
 @media (pointer: coarse), (max-width: 760px) {
   .app-shell.is-playing {
-    --mobile-hud-height: 100px;
+    --mobile-hud-height: 110px;
     position: fixed;
     inset: 0;
     width: 100%;
@@ -125,9 +125,24 @@
   .mobile-meters {
     grid-area: meters;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 8px;
     align-items: center;
+  }
+  .mobile-radar-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    background: #101c2a;
+    color: var(--mint);
+    font-size: 9px;
+    touch-action: manipulation;
+  }
+  .mobile-radar-toggle span {
+    display: block;
+    font-size: 16px;
+    line-height: 1;
   }
   .mobile-meter {
     color: var(--mint);

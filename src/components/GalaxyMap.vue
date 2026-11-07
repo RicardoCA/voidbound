@@ -145,7 +145,8 @@ const mapX = ref(0),
           :title="`${s.name}${bases.bySystem.has(s.id) ? ` · ${bases.bySystem.get(s.id)!.units} unidades guardadas` : ''}`"
           @click="selected = s.id"
         >
-          <span>✦</span><small>{{ s.name }}</small
+          <span>{{ s.station ? "▣" : "✦" }}</span
+          ><small>{{ s.name }}</small
           ><i
             v-if="bases.bySystem.has(s.id)"
             class="map-base-badge"
@@ -155,11 +156,16 @@ const mapX = ref(0),
         </button>
       </div>
       <div class="map-base-legend">
-        <span>▤ Itens armazenados</span><span>⌂ Base sem itens</span>
+        <span>▣ Estação espacial</span><span>▤ Itens armazenados</span
+        ><span>⌂ Base sem itens</span>
       </div>
       <div class="map-selection">
         <div>
           <h3>{{ destination?.name ?? "Selecione um sistema" }}</h3>
+          <p v-if="destination?.station">
+            {{ destination.station.name }} · Mercado, concessionária, hangar e
+            serviços
+          </p>
           <p>
             {{
               destination

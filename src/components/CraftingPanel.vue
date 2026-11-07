@@ -8,7 +8,9 @@ function open(id: string) {
   g.panel = g.panel === id ? "" : id;
 }
 const tab = ref("all"),
-  inShip = computed(() => g.state.mode === "interior"),
+  inShip = computed(
+    () => g.state.mode === "interior" || g.state.mode === "docked",
+  ),
   availableRecipes = computed(() =>
     recipes.filter(
       (r) =>

@@ -1,4 +1,4 @@
-export type Mode = "space" | "orbit" | "surface" | "interior";
+export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
   | "iron"
   | "copper"
@@ -43,6 +43,12 @@ export interface Planet {
   color: number;
   radius: number;
 }
+export interface Station {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+}
 export interface StarSystem {
   id: string;
   x: number;
@@ -50,6 +56,7 @@ export interface StarSystem {
   name: string;
   star: string;
   planets: Planet[];
+  station?: Station;
 }
 export type BuildItem =
   | "woodBlock"
@@ -74,25 +81,65 @@ export interface Settlement {
   cutTrees: string[];
   utilityTime?: number;
 }
+export type ShipModelId =
+  | "sparrow"
+  | "atlas"
+  | "viper"
+  | "bastion"
+  | "prospector"
+  | "titan"
+  | "mammoth";
+export interface ShipState {
+  x: number;
+  y: number;
+  angle: number;
+  vx: number;
+  vy: number;
+  hull: number;
+  fuel: number;
+  energy: number;
+  oxygen: number;
+}
+export interface ShipIdentity {
+  id: string;
+  model: ShipModelId;
+}
+export interface PilotTrip {
+  destination: { x: number; y: number };
+  item: import("../economy/market").MarketItem;
+  quantity: number;
+  repeat: boolean;
+  returnsAt: number;
+  payment: number;
+}
+
+export interface HiredPilot {
+  name: string;
+  trip?: PilotTrip;
+  message?: string;
+}
+
+export interface ParkedShip extends ShipIdentity {
+  pilot?: HiredPilot;
+  location: { x: number; y: number };
+  ship: ShipState;
+  inventory: Inventory;
+  upgrades: Item[];
+}
 export interface Save {
-  version: 3;
+  version: 4;
+  credits: number;
+  activeShip: ShipIdentity;
+  parkedShips: ParkedShip[];
+  nextShipId: number;
+  marketStocks: Record<string, Inventory>;
   settlements: Record<string, Settlement>;
   seed: string;
   mode: Mode;
   systemX: number;
   systemY: number;
   planetIndex: number;
-  ship: {
-    x: number;
-    y: number;
-    angle: number;
-    vx: number;
-    vy: number;
-    hull: number;
-    fuel: number;
-    energy: number;
-    oxygen: number;
-  };
+  ship: ShipState;
   player: {
     x: number;
     y: number;

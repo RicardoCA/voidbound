@@ -6,4 +6,5 @@ import "./app/mobile.css";
 import "./app/construction.css";
 import "./app/bases.css";
 import "./app/habitat.css";
+import "./app/economy.css";
 createApp(App).use(createPinia()).mount("#app");
