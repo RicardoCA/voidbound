@@ -8,6 +8,9 @@ import { craft, recipes } from "../crafting/recipes";
 import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
+import { emptySettlement } from "../construction/building";
+import { Terrain } from "../game/procedural/terrain";
+import { weatherAt, weatherCeiling } from "../game/procedural/weather";
 import { emptyHabitat } from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
@@ -93,6 +96,7 @@ export const useGame = defineStore("game", () => {
   function worldChanged() {
     worldRevision.value++;
   }
+  const noShelter = emptySettlement();
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     panel = ref(""),
@@ -122,6 +126,11 @@ export const useGame = defineStore("game", () => {
       return ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8];
     }),
     planet = computed(() => system.value.planets[state.value.planetIndex]!),
+    weather = computed(() => weatherAt(planet.value, state.value.time)),
+    weatherTerrain = computed(
+      () =>
+        new Terrain(planet.value, state.value.changes[planet.value.id] ?? {}),
+    ),
     biome = computed(() => biomes[planet.value.kind]!),
     sicknessRemaining = computed(() =>
       Math.ceil(state.value.player.sickness ?? 0),
@@ -521,6 +530,17 @@ export const useGame = defineStore("game", () => {
       dt,
     );
     if (s.mode === "surface") {
+      const storm = weather.value;
+      if (storm?.kind === "acid") {
+        const column = Math.floor(s.player.x / 16);
+        const head = Math.floor((s.player.y - 11) / 16);
+        const shelter = s.settlements[planet.value.id] ?? noShelter;
+        if (
+          weatherCeiling(weatherTerrain.value, shelter, column, head) ===
+          Infinity
+        )
+          s.player.health -= dt * storm.intensity * 1.5;
+      }
       s.player.energy = Math.min(100, s.player.energy + dt * 1.4);
       if (!planet.value.breathable && !habitat.value.supplied)
         s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
@@ -573,6 +593,7 @@ export const useGame = defineStore("game", () => {
     undock,
     planet,
     biome,
+    weather,
     capacity,
     model,
     hullPercent,

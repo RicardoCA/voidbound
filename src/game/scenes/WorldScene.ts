@@ -8,6 +8,7 @@ import {
   type Fruit,
 } from "../../survival/wildlife";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
+import { weatherCeiling } from "../procedural/weather";
 import { shipPalette } from "../../fleet/models";
 import Phaser from "phaser";
 import { useGame } from "../../stores/game";
@@ -647,7 +648,10 @@ export class WorldScene extends Phaser.Scene {
       f = this.gfx;
     f.clear();
     const surface = s.mode === "surface";
-    const light = surface ? daylight(s.time) : 0;
+    const storm = surface ? g.weather : undefined;
+    const light = surface
+      ? daylight(s.time) * (1 - 0.32 * (storm?.intensity ?? 0))
+      : 0;
     const biome = biomes[g.planet.kind]!;
     const sky = surface
       ? Phaser.Display.Color.GetColor(
@@ -706,7 +710,9 @@ export class WorldScene extends Phaser.Scene {
         const sunX = Math.round(
           this.viewWidth * (0.5 + Math.sin(phase) * 0.26),
         );
-        const sunY = Math.round(this.viewHeight * (0.34 - light * 0.2));
+        const sunY = Math.round(
+          this.viewHeight * (0.34 - daylight(s.time) * 0.2),
+        );
         const radius = Math.round(
           Math.min(this.viewWidth, this.viewHeight) * 0.065,
         );
@@ -718,6 +724,7 @@ export class WorldScene extends Phaser.Scene {
         f.fillCircle(sunX, sunY, radius);
       }
       this.drawSurface(light);
+      if (storm) this.drawWeather(storm);
     } else this.drawSpace();
     if (this.beam) {
       const b = this.beam;
@@ -893,6 +900,48 @@ export class WorldScene extends Phaser.Scene {
         [point(-22, -3), point(-34 - Math.random() * 10, 0), point(-22, 3)],
         true,
       );
+    }
+  }
+  private drawWeather(
+    storm: NonNullable<ReturnType<typeof useGame>["weather"]>,
+  ) {
+    const f = this.gfx;
+    const { kind, intensity } = storm;
+    const snow = kind === "snow";
+    const time = this.store.state.time;
+    const width = this.viewWidth,
+      height = this.viewHeight;
+    const wrap = (value: number, length: number) =>
+      ((value % length) + length) % length;
+    const ceilings = new Map<number, number>();
+    const count = Math.floor(this.stars.length * intensity);
+    f.fillStyle(kind === "acid" ? 0x96ef58 : snow ? 0xecf6ff : 0xa6cee9, 0.73);
+    for (let i = 0; i < count; i++) {
+      const seed = this.stars[i]!;
+      const wind = snow ? Math.sin(time * 1.5 + i) * 9 : time * 48;
+      const x = Math.floor(
+        wrap(seed.x * width + wind - this.camX * 0.6, width),
+      );
+      const speed = snow ? 22 + seed.r * 5 : 230 + seed.r * 28;
+      const y = Math.floor(
+        wrap(seed.y * height + time * speed - this.camY * 0.35, height),
+      );
+      const column = Math.floor((x + this.camX - this.centerX) / 16);
+      let ceiling = ceilings.get(column);
+      if (ceiling === undefined) {
+        ceiling = weatherCeiling(
+          this.terrain!,
+          this.building.settlement,
+          column,
+        );
+        ceilings.set(column, ceiling);
+      }
+      if (y + this.camY - this.centerY >= ceiling) continue;
+      const length = Math.min(
+        snow ? seed.r + 1 : 8,
+        Math.ceil(ceiling - y - this.camY + this.centerY),
+      );
+      f.fillRect(x, y, snow ? seed.r + 1 : 1, length);
     }
   }
   private drawSurface(light: number) {

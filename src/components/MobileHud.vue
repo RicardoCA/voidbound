@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
+import { weatherLabels } from "../game/procedural/weather";
 import { habitatMessage, planetClock } from "../construction/habitat";
 import { useConstruction } from "../stores/construction";
 import { planetPosition } from "../universe/generator";
@@ -154,6 +155,9 @@ function pause() {
     <template v-if="g.sicknessRemaining"
       >Intoxicação · {{ g.sicknessRemaining }} s</template
     >
+    <template v-else-if="surface && g.weather?.kind === 'acid'"
+      >Chuva ácida · Procure abrigo</template
+    >
     <template v-else-if="transient">{{ transient }}</template>
     <template
       v-else-if="
@@ -175,6 +179,9 @@ function pause() {
       >{{ habitatMessage(g.habitat) }} · Traje
       {{ Math.ceil(g.state.player.oxygen) }}%</template
     >
+    <template v-else-if="surface && g.weather">{{
+      weatherLabels[g.weather.kind]
+    }}</template>
     <template v-else-if="surface"
       >Toque em frutas ou animais · Interagir: nave / fogueira /
       armário</template

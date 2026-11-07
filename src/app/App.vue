@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { weatherLabels } from "../game/procedural/weather";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
@@ -244,6 +245,13 @@ function minutes() {
           </p>
           <p v-if="surface || inShip">
             Hora local · <time :datetime="localTime">{{ localTime }}</time>
+            <span
+              v-if="surface && g.weather"
+              :class="{ warning: g.weather.kind === 'acid' }"
+            >
+              · {{ weatherLabels[g.weather.kind]
+              }}{{ g.weather.kind === "acid" ? " · Procure abrigo" : "" }}
+            </span>
           </p>
           <p
             v-if="g.state.mode === 'space' && g.system.station"
