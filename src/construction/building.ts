@@ -6,16 +6,20 @@ import type {
   Settlement,
 } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
+import { keyAt, pieceAt, footprint, overlapsActor } from "./pieces";
+export { keyAt } from "./pieces";
 import { add, consume, slots } from "../inventory/inventory";
 export const buildItems: BuildItem[] = [
   "woodBlock",
   "woodWall",
   "woodStairs",
   "cabinet",
+  "woodDoor",
+  "solarPanel",
+  "oxygenGenerator",
 ];
 export const CABINET_SLOTS = 16,
   BUILD_RANGE = 96;
-export const keyAt = (x: number, y: number) => `${x},${y}`;
 export function emptySettlement(): Settlement {
   return { pieces: {}, walls: {}, cabinets: {}, cutTrees: [] };
 }
@@ -60,35 +64,45 @@ export function placementError(
     return "Local fora dos limites de construção.";
   if (!inReach(ctx.player, x, y))
     return "Aproxime-se: alcance de construção de 6 blocos.";
-  const key = keyAt(x, y),
-    { terrain, settlement } = ctx;
-  if (terrain.get(x, y) !== 0)
-    return "Minere o terreno antes de construir aqui.";
-  if (kind === "woodWall" ? settlement.walls[key] : settlement.pieces[key])
-    return "Já existe uma peça nesta camada.";
+  const { terrain, settlement } = ctx;
+  const cells = footprint(kind, x, y);
+  for (const cell of cells) {
+    if (cell.y < 1) return "A porta precisa de dois blocos livres de altura.";
+    if (terrain.get(cell.x, cell.y) !== 0)
+      return kind === "woodDoor"
+        ? "Abra um vão de 1 × 2 blocos para instalar a porta."
+        : "Minere o terreno antes de construir aqui.";
+    if (
+      kind === "woodWall"
+        ? settlement.walls[keyAt(cell.x, cell.y)]
+        : pieceAt(settlement, cell.x, cell.y)
+    )
+      return "Já existe uma peça nesta camada.";
+  }
   if (
-    kind === "woodBlock" &&
-    Math.abs(x * 16 + 8 - ctx.player.x) < 13 &&
-    Math.abs(y * 16 + 8 - ctx.player.y) < 20
+    (kind === "woodBlock" || kind === "woodDoor") &&
+    overlapsActor(kind, x, y, ctx.player)
   )
-    return "Não é possível fechar um bloco sobre o astronauta.";
+    return "Não é possível fechar uma peça sobre o astronauta.";
   const padY = terrain.height(ctx.landingX) * 16;
-  if (
-    kind !== "woodWall" &&
-    x * 16 < ctx.landingX * 16 + 27 &&
-    (x + 1) * 16 > ctx.landingX * 16 - 27 &&
-    y * 16 < padY &&
-    (y + 1) * 16 > padY - 32
-  )
-    return "Mantenha a área de acesso da nave livre.";
-  if (
-    (kind === "woodBlock" || kind === "woodStairs") &&
-    x * 16 < ctx.landingX * 16 + 48 &&
-    (x + 1) * 16 > ctx.landingX * 16 + 32 &&
-    y * 16 < padY &&
-    (y + 1) * 16 > padY - 32
-  )
-    return "Mantenha a saída do astronauta livre ao lado da nave.";
+  for (const cell of cells) {
+    if (
+      kind !== "woodWall" &&
+      cell.x * 16 < ctx.landingX * 16 + 27 &&
+      (cell.x + 1) * 16 > ctx.landingX * 16 - 27 &&
+      cell.y * 16 < padY &&
+      (cell.y + 1) * 16 > padY - 32
+    )
+      return "Mantenha a área de acesso da nave livre.";
+    if (
+      ["woodBlock", "woodStairs", "woodDoor"].includes(kind) &&
+      cell.x * 16 < ctx.landingX * 16 + 48 &&
+      (cell.x + 1) * 16 > ctx.landingX * 16 + 32 &&
+      cell.y * 16 < padY &&
+      (cell.y + 1) * 16 > padY - 32
+    )
+      return "Mantenha a saída do astronauta livre ao lado da nave.";
+  }
   const supported = [
     [x, y + 1],
     [x - 1, y],
@@ -97,7 +111,7 @@ export function placementError(
   ].some(
     ([nx, ny]) =>
       terrain.get(nx!, ny!) !== 0 ||
-      !!settlement.pieces[keyAt(nx!, ny!)] ||
+      !!pieceAt(settlement, nx!, ny!) ||
       !!settlement.walls[keyAt(nx!, ny!)],
   );
   const lowerStair = settlement.pieces[keyAt(x - facing, y + 1)];
@@ -108,13 +122,13 @@ export function placementError(
   if (!supported && !stairSupport)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
-    kind === "cabinet" &&
+    ["cabinet", "woodDoor", "solarPanel", "oxygenGenerator"].includes(kind) &&
     !(
       terrain.get(x, y + 1) ||
       settlement.pieces[keyAt(x, y + 1)]?.kind === "woodBlock"
     )
   )
-    return "O armário precisa de chão firme logo abaixo.";
+    return "Esta peça precisa de chão firme logo abaixo.";
   if ((ctx.inventory[kind] ?? 0) < 1)
     return "Fabrique mais peças de construção.";
   return undefined;
@@ -132,7 +146,12 @@ export function placePiece(
   const key = keyAt(x, y);
   if (kind === "woodWall") ctx.settlement.walls[key] = true;
   else {
-    ctx.settlement.pieces[key] = { kind, facing };
+    ctx.settlement.pieces[key] = {
+      kind,
+      facing,
+      ...(kind === "woodDoor" ? { open: false } : {}),
+      ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
+    };
     if (kind === "cabinet") ctx.settlement.cabinets[key] = {};
   }
 }
@@ -143,12 +162,13 @@ export function removePiece(
   wallLayer = false,
 ) {
   if (!inReach(ctx.player, x, y)) return "Aproxime-se para desmontar.";
-  const key = keyAt(x, y),
-    kind = wallLayer
-      ? ctx.settlement.walls[key]
-        ? "woodWall"
-        : undefined
-      : ctx.settlement.pieces[key]?.kind;
+  const located = pieceAt(ctx.settlement, x, y),
+    key = wallLayer ? keyAt(x, y) : (located?.key ?? keyAt(x, y));
+  const kind = wallLayer
+    ? ctx.settlement.walls[key]
+      ? "woodWall"
+      : undefined
+    : located?.piece.kind;
   if (!kind)
     return "Nenhuma peça nesta camada. Escolha Parede para desmontar o fundo.";
   if (kind === "cabinet" && slots(ctx.settlement.cabinets[key] ?? {}) > 0)

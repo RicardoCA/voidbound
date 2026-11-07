@@ -47,7 +47,9 @@ function quantity(available: number) {
       Os itens ficam neste armário, neste planeta, mesmo quando você decola ou
       fecha o jogo.
     </p>
-    <button class="text-button" @click="g.panel='bases'">Ver meus depósitos em todos os planetas →</button>
+    <button class="text-button" @click="g.panel = 'bases'">
+      Ver meus depósitos em todos os planetas →
+    </button>
     <div
       class="storage-amount"
       role="group"

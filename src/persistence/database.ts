@@ -1,9 +1,9 @@
 import Dexie, { type Table } from "dexie";
 import type { Save } from "../game/types";
-import { migrateSave, type LegacySave } from "./migrations";
+import { migrateSave, type StoredGame } from "./migrations";
 interface StoredSave {
   id: string;
-  data: Save | LegacySave;
+  data: StoredGame;
   updated: number;
 }
 export class SaveDatabase extends Dexie {
@@ -13,6 +13,16 @@ export class SaveDatabase extends Dexie {
     super(name);
     this.version(1).stores({ saves: "id,updated" });
     this.version(2)
+      .stores({ saves: "id,updated" })
+      .upgrade((tx) =>
+        tx
+          .table<StoredSave>("saves")
+          .toCollection()
+          .modify((row) => {
+            row.data = migrateSave(row.data);
+          }),
+      );
+    this.version(3)
       .stores({ saves: "id,updated" })
       .upgrade((tx) =>
         tx

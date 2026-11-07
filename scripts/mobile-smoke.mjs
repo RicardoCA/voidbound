@@ -165,7 +165,13 @@ try {
     id: 2,
   };
   await touch("touchStart", [miningTouch]);
-  await page.waitForTimeout(1300);
+  await page.waitForFunction(
+    () =>
+      Object.keys(window.__game.state.changes[window.__game.planet.id]).length >
+        0 && (window.__game.state.inventory.wood ?? 0) > 0,
+    null,
+    { timeout: 15000 },
+  );
   await touch("touchEnd", []);
 
   await page.waitForFunction(

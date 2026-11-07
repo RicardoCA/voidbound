@@ -150,7 +150,7 @@ onBeforeUnmount(reset);
       <button
         class="touch-interact"
         :aria-label="
-          surface ? 'Interagir com nave ou armário' : 'Entrar em órbita'
+          surface ? 'Interagir com porta, nave ou armário' : 'Entrar em órbita'
         "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"

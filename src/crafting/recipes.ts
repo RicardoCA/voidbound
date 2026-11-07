@@ -31,6 +31,19 @@ export const recipes: Recipe[] = [
     station: "hand",
   },
   { id: "cabinet", cost: { wood: 6, iron: 2 }, unlock: 0, station: "hand" },
+  { id: "woodDoor", cost: { wood: 4, iron: 1 }, unlock: 0, station: "hand" },
+  {
+    id: "solarPanel",
+    cost: { plate: 1, copper: 2, silicon: 3 },
+    unlock: 0,
+    station: "hand",
+  },
+  {
+    id: "oxygenGenerator",
+    cost: { plate: 3, circuit: 2, cell: 1 },
+    unlock: 0,
+    station: "hand",
+  },
 ];
 export function craft(
   inv: Inventory,

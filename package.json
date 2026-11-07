@@ -1,6 +1,6 @@
 {
   "name": "voidbound",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "test:mobile": "node scripts/mobile-smoke.mjs",
     "test:construction": "node scripts/construction-smoke.mjs",
-    "test:catalog": "node scripts/catalog-smoke.mjs"
+    "test:catalog": "node scripts/catalog-smoke.mjs",
+    "test:habitat": "node scripts/habitat-smoke.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.0",

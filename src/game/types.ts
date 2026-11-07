@@ -26,7 +26,10 @@ export type Item =
   | "woodBlock"
   | "woodWall"
   | "woodStairs"
-  | "cabinet";
+  | "cabinet"
+  | "woodDoor"
+  | "solarPanel"
+  | "oxygenGenerator";
 export type Inventory = Partial<Record<Item, number>>;
 export interface Planet {
   id: string;
@@ -47,19 +50,30 @@ export interface StarSystem {
   star: string;
   planets: Planet[];
 }
-export type BuildItem = "woodBlock" | "woodWall" | "woodStairs" | "cabinet";
+export type BuildItem =
+  | "woodBlock"
+  | "woodWall"
+  | "woodStairs"
+  | "cabinet"
+  | "woodDoor"
+  | "solarPanel"
+  | "oxygenGenerator";
 export interface PlacedPiece {
   kind: Exclude<BuildItem, "woodWall">;
   facing: 1 | -1;
+  open?: boolean;
+  energy?: number;
+  oxygen?: number;
 }
 export interface Settlement {
   pieces: Record<string, PlacedPiece>;
   walls: Record<string, true>;
   cabinets: Record<string, Inventory>;
   cutTrees: string[];
+  utilityTime?: number;
 }
 export interface Save {
-  version: 2;
+  version: 3;
   settlements: Record<string, Settlement>;
   seed: string;
   mode: Mode;
@@ -277,6 +291,27 @@ export const items: Record<
     name: "Armário planetário",
     color: "#b6bd9c",
     icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  woodDoor: {
+    name: "Porta de madeira",
+    color: "#d0a176",
+    icon: "▯",
+    rarity: "Construção",
+    stack: 99,
+  },
+  solarPanel: {
+    name: "Placa solar",
+    color: "#8ebfe9",
+    icon: "▦",
+    rarity: "Construção",
+    stack: 99,
+  },
+  oxygenGenerator: {
+    name: "Gerador de oxigênio",
+    color: "#8edfc8",
+    icon: "◉",
     rarity: "Construção",
     stack: 99,
   },

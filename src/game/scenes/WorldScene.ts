@@ -8,7 +8,8 @@ import {
   drawPiece,
 } from "../rendering/settlements";
 import { stepSurface } from "../physics/surface";
-import { keyAt } from "../../construction/building";
+import { footprint } from "../../construction/pieces";
+import { daylight } from "../../construction/habitat";
 import { biomes, type Mode } from "../types";
 import { Terrain, tileItems } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
@@ -235,19 +236,23 @@ export class WorldScene extends Phaser.Scene {
           if (distance < 210) g.orbit(nearest);
           else g.notify("Aproxime-se de um planeta para entrar em órbita.");
         } else if (s.mode === "surface") {
-          const cabinet = this.building.nearestCabinet();
+          const cabinet = this.building.nearestInteraction();
           if (
             cabinet.key &&
             cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
           ) {
-            this.building.openCabinet(cabinet.key);
+            const [x, y] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!);
           } else if (
             Math.abs(s.player.x - s.landingX * 16) < 90 &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
             g.enter();
-          else if (cabinet.key) this.building.openCabinet(cabinet.key);
-          else g.notify("Aproxime-se da nave ou de um armário para interagir.");
+          else if (cabinet.key) {
+            const [x, y] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!);
+          } else
+            g.notify("Aproxime-se da nave ou de um armário para interagir.");
         }
       }
       this.interactHeld = interact;
@@ -408,10 +413,7 @@ export class WorldScene extends Phaser.Scene {
       }
       return;
     }
-    if (tap && this.building.cabinetAt(tap.x, tap.y)) {
-      this.building.openCabinet(keyAt(tap.x, tap.y));
-      return;
-    }
+    if (tap && this.building.interactAt(tap.x, tap.y)) return;
     if (
       (mobileMine || pointer.isDown || tap) &&
       this.mineTime <= 0 &&
@@ -475,6 +477,7 @@ export class WorldScene extends Phaser.Scene {
         const resource = tileItems[tile] ?? "iron";
         if (g.collect(resource, 1)) {
           t.remove(tx, ty);
+          g.worldChanged();
           p.energy -= g.state.upgrades.includes("drill") ? 0.5 : 1;
           this.mineTime = g.state.upgrades.includes("drill") ? 0.1 : 0.22;
           this.beam = {
@@ -848,7 +851,7 @@ export class WorldScene extends Phaser.Scene {
     f.fillStyle(0xbfcbd2);
     f.fillRect(x + (this.facing > 0 ? 5 : -9), y - 1, 5, 3);
     // Slow, deterministic day/night tint.
-    f.fillStyle(0x050c25, Math.max(0, Math.sin(g.state.time / 150)) * 0.3);
+    f.fillStyle(0x050c25, (1 - daylight(g.state.time)) * 0.35);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     if (this.building.enabled && !g.panel) {
       const cursor = this.building.cursor ?? {
@@ -869,7 +872,12 @@ export class WorldScene extends Phaser.Scene {
       const valid =
         this.building.removing || !this.building.errorAt(cursor.x, cursor.y);
       f.lineStyle(1, valid ? 0x9cf0cf : 0xf09d86, 0.9);
-      f.strokeRect(sx, sy, 16, 16);
+      f.strokeRect(
+        sx,
+        sy - (this.building.selected === "woodDoor" ? 16 : 0),
+        16,
+        footprint(this.building.selected, cursor.x, cursor.y).length * 16,
+      );
     }
   }
 }

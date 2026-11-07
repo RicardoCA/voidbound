@@ -70,10 +70,14 @@ try {
   await page.getByRole("button", { name: /Planície de Aurora/ }).click();
   await page.getByRole("button", { name: "EXPLORAR SUPERFÍCIE" }).click();
   await page.waitForTimeout(900);
-  const trunk = await worldPoint(88, 440);
+  const trunk = await worldPoint(88, 416);
   await page.mouse.move(trunk.x, trunk.y);
   await page.mouse.down();
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(
+    () => window.__game.state.inventory.wood >= 13,
+    null,
+    { timeout: 15000 },
+  );
   await page.mouse.up();
   await page.waitForFunction(() => window.__game.state.inventory.wood >= 13);
   await clickTile(1, 29);
@@ -157,7 +161,7 @@ try {
   const restored = await state();
   assert.deepEqual(restored.settlements, snapshot.settlements);
   assert.deepEqual(restored.inventory, snapshot.inventory);
-  assert.equal(restored.version, 2);
+  assert.equal(restored.version, 3);
   await page.waitForTimeout(700);
   await clickTile(3, 28);
   await page

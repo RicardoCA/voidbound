@@ -7,6 +7,8 @@ import { add, consume, slots } from "../inventory/inventory";
 import { craft, recipes } from "../crafting/recipes";
 import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
+import { HabitatSystem } from "../game/systems/habitat";
+import { emptyHabitat } from "../construction/habitat";
 export const missions = [
   {
     title: "Sinal perdido",
@@ -39,7 +41,7 @@ export const missions = [
 ];
 function initial(seed: string): Save {
   return {
-    version: 2,
+    version: 3,
     settlements: {},
     seed,
     mode: "space",
@@ -70,6 +72,12 @@ function initial(seed: string): Save {
   };
 }
 export const useGame = defineStore("game", () => {
+  const habitatSystem = new HabitatSystem(),
+    habitat = ref(emptyHabitat()),
+    worldRevision = ref(0);
+  function worldChanged() {
+    worldRevision.value++;
+  }
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     panel = ref(""),
@@ -337,6 +345,14 @@ export const useGame = defineStore("game", () => {
     notify("60 s de recuperação solar: +5 combustível e oxigênio.");
     void save();
   }
+  function refreshHabitat() {
+    habitat.value = habitatSystem.step(
+      state.value,
+      planet.value,
+      worldRevision.value,
+      0,
+    );
+  }
   function tick(dt: number) {
     if (
       !started.value ||
@@ -348,9 +364,15 @@ export const useGame = defineStore("game", () => {
       return;
     const s = state.value;
     s.time += dt;
+    habitat.value = habitatSystem.step(
+      s,
+      planet.value,
+      worldRevision.value,
+      dt,
+    );
     if (s.mode === "surface") {
       s.player.energy = Math.min(100, s.player.energy + dt * 1.4);
-      if (!planet.value.breathable)
+      if (!planet.value.breathable && !habitat.value.supplied)
         s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
       if (s.player.oxygen <= 0) s.player.health -= dt * 7;
       if (
@@ -377,6 +399,9 @@ export const useGame = defineStore("game", () => {
   }
   return {
     state,
+    habitat,
+    worldChanged,
+    refreshHabitat,
     started,
     panel,
     paused,

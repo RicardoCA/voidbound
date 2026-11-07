@@ -4,6 +4,7 @@ import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
 import BuildPanel from "../components/BuildPanel.vue";
+import HabitatStatus from "../components/HabitatStatus.vue";
 import BuildToolbar from "../components/BuildToolbar.vue";
 import StoragePanel from "../components/StoragePanel.vue";
 import { useConstruction } from "../stores/construction";
@@ -123,7 +124,7 @@ function minutes() {
       >
       <div class="top-right">
         <span class="signal"><i /> SISTEMAS ONLINE</span
-        ><span class="build">ALPHA 0.2 / V1 EM DESENVOLVIMENTO</span
+        ><span class="build">ALPHA 0.3 / V1 EM DESENVOLVIMENTO</span
         ><button
           class="icon-button"
           :aria-label="sound ? 'Desativar som' : 'Ativar som'"
@@ -216,6 +217,7 @@ function minutes() {
             }}
           </p>
         </div>
+        <HabitatStatus v-if="surface" class="desktop-habitat" />
         <aside class="mission-card">
           <div class="eyebrow">
             <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO

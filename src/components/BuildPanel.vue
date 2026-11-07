@@ -2,6 +2,7 @@
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { buildItems } from "../construction/building";
+import HabitatStatus from "./HabitatStatus.vue";
 import { items, type Item } from "../game/types";
 import { recipes } from "../crafting/recipes";
 import { treeNames } from "../game/procedural/trees";
@@ -13,6 +14,12 @@ const descriptions = {
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
   cabinet:
     "16 slots de armazenamento exclusivo deste planeta. E ou toque abre.",
+  woodDoor:
+    "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
+  solarPanel:
+    "Coloque sobre piso ou teto, com céu livre acima. Alimenta o gerador mais próximo até 12 blocos.",
+  oxygenGenerator:
+    "Produz e armazena O₂ usando energia solar. Recarrega o traje em um cômodo vedado, com paredes de fundo.",
 };
 const constructionRecipes = buildItems.map((id) =>
   recipes.find((r) => r.id === id)!,
@@ -50,6 +57,14 @@ function affordable(cost: Partial<Record<Item, number>>) {
         >◆ FERRO <b>{{ g.state.inventory.iron ?? 0 }}</b></span
       >
     </div>
+    <HabitatStatus always />
+    <p class="habitat-guide">
+      Para recarregar o traje: feche piso, teto e laterais com blocos, preencha
+      o fundo com paredes e feche as portas. Deixe pelo menos dois blocos de
+      altura no interior. Coloque o gerador dentro e as placas no teto, até 12
+      blocos do gerador. As reservas permitem operar durante a noite.
+      Componentes eletrônicos são fabricados na nave.
+    </p>
     <div class="build-recipes">
       <article v-for="r in constructionRecipes" :key="r.id" class="build-card">
         <div class="build-card-heading">

@@ -25,6 +25,7 @@ import {
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
+import { pieceAt, footprint, overlapsActor } from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
     enabled = ref(false),
@@ -97,13 +98,18 @@ export const useConstruction = defineStore("construction", () => {
         x - 1,
         x + 1,
         settlement.value.cutTrees,
-      ).some((tree) => treeContains(tree, x * 16 + 8, y * 16 + 8))
+      ).some((tree) =>
+        footprint(selected.value, x, y).some((cell) =>
+          treeContains(tree, cell.x * 16 + 8, cell.y * 16 + 8),
+        ),
+      )
     )
       return "Corte a árvore antes de construir neste tronco.";
   }
   function apply(x: number, y: number) {
     if (g.state.mode !== "surface" || g.paused || g.panel || !enabled.value)
       return false;
+    g.refreshHabitat();
     let error: string | undefined;
     if (removing.value)
       error = removePiece(context(), x, y, selected.value === "woodWall");
@@ -118,6 +124,12 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     }
     lastError.value = "";
+    if (
+      !removing.value &&
+      ["solarPanel", "oxygenGenerator"].includes(selected.value)
+    )
+      settlementFor(g.state, g.planet.id).utilityTime = g.state.time;
+    g.worldChanged();
     audio.play(removing.value ? 260 : 520, 0.08);
     void g.save();
     return true;
@@ -167,15 +179,58 @@ export const useConstruction = defineStore("construction", () => {
     g.panel = "storage";
     return true;
   }
-  function nearestCabinet() {
+  function toggleDoor(key: string) {
+    const piece = settlement.value.pieces[key];
+    if (g.state.mode !== "surface" || piece?.kind !== "woodDoor") return false;
+    const [x, y] = key.split(",").map(Number);
+    if (!inReach(g.state.player, x!, y!, 76)) {
+      g.notify("Aproxime-se da porta para interagir.");
+      return false;
+    }
+    if (piece.open && overlapsActor("woodDoor", x!, y!, g.state.player)) {
+      g.notify("Afaste-se do vão antes de fechar a porta.");
+      return false;
+    }
+    g.refreshHabitat();
+    piece.open = !piece.open;
+    g.worldChanged();
+    audio.play(piece.open ? 310 : 220, 0.12);
+    g.notify(piece.open ? "Porta aberta." : "Porta fechada.");
+    void g.save();
+    return true;
+  }
+  function interactAt(x: number, y: number) {
+    const found = pieceAt(settlement.value, x, y);
+    if (!found) return false;
+    if (found.piece.kind === "woodDoor") {
+      toggleDoor(found.key);
+      return true;
+    }
+    if (found.piece.kind === "cabinet") {
+      openCabinet(found.key);
+      return true;
+    }
+    if (
+      found.piece.kind === "oxygenGenerator" &&
+      inReach(g.state.player, found.x, found.y, 76)
+    ) {
+      g.notify(
+        `Gerador: energia ${Math.floor(found.piece.energy ?? 0)}/100 · O₂ ${Math.floor(found.piece.oxygen ?? 0)}/100.`,
+      );
+      return true;
+    }
+    return false;
+  }
+  function nearestInteraction() {
     let key: string | undefined,
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
-      if (piece.kind !== "cabinet") continue;
+      if (!["cabinet", "woodDoor", "oxygenGenerator"].includes(piece.kind))
+        continue;
       const [x, y] = id.split(",").map(Number),
         d = Math.hypot(
           x! * 16 + 8 - g.state.player.x,
-          y! * 16 + 8 - g.state.player.y,
+          y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
       if (d < distance) {
         distance = d;
@@ -255,7 +310,9 @@ export const useConstruction = defineStore("construction", () => {
     apply,
     harvest,
     openCabinet,
-    nearestCabinet,
+    nearestInteraction,
+    toggleDoor,
+    interactAt,
     moveItem,
     setCursor,
     cabinetAt,

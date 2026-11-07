@@ -2,7 +2,7 @@
 
 Survival espacial procedural, em português, com Vue 3, TypeScript estrito, Phaser 3, Pinia, Dexie e Simplex Noise. Todos os sprites e efeitos são desenhados por código. Sem imagens, fontes, serviços ou banco externos em tempo de execução.
 
-**Estado: alpha 0.2, com árvores, construção e armazenamento planetário. A V1 completa ainda está em desenvolvimento.** Consulte [PROGRESS.md](PROGRESS.md).
+**Estado: alpha 0.3, com bases, portas, energia solar e oxigênio. A V1 completa ainda está em desenvolvimento.** Consulte [PROGRESS.md](PROGRESS.md).
 
 ## Executar
 
@@ -58,7 +58,7 @@ Em telas com toque, o joystick controla movimento lateral na superfície e rota�
 
 Uma partida por origem de navegador é salva em IndexedDB a cada 30 segundos e em pousos, embarques, fabricação, uso de itens, saltos e mudança de visibilidade. O rodapé também permite salvar manualmente. O menu pede confirmação antes de substituir uma partida.
 
-Continue usando o mesmo navegador, perfil e endereço/origem para encontrar o salvamento. O esquema Dexie e o payload estão na versão 2. Partidas da versão 1 migram automaticamente, preservando seed, nave, inventário, missões e alterações do terreno. O banco mantém o nome original `voidbound-v1` para preservar o slot existente.
+Continue usando o mesmo navegador, perfil e endereço/origem para encontrar o salvamento. O esquema Dexie e o payload estão na versão 3. Partidas das versões 1 e 2 migram automaticamente, preservando seed, nave, inventário, missões, construções, armários e alterações do terreno. O banco mantém o nome original `voidbound-v1` para preservar o slot existente.
 
 Sem combustível, solte a aceleração para receber uma reserva solar lenta até 3 unidades. Embarcado, **Recuperação solar** avança 60 segundos do relógio da expedição e restaura 5 unidades de combustível e oxigênio. Decolar custa 5 unidades e exige casco de pelo menos 70%. Morte resgata o astronauta na nave e reduz o casco em 10 pontos. Temperaturas extremas exigem o escudo instalado para proteção.
 
@@ -116,11 +116,11 @@ Fabrique e equipe uma peça. Clique/toque em uma célula vazia até 6 blocos do 
 
 Abra um armário próximo com **E**, **INTERAGIR**, ou clicando/tocando nele fora do modo de construção. Selecione 1, 10 ou Todos e use Guardar/Retirar. Transferências são atômicas: falta de espaço não remove itens da origem. Um armário com conteúdo não pode ser desmontado; esvazie-o primeiro.
 
-Construções, direção das escadas, paredes, árvores cortadas e cada inventário de armário são salvos por **ID do planeta e coordenada**, em pousos, transferências, colocações/desmontagens, cortes de árvore e no autosave existente. Decolar, saltar, retornar, fechar ou recarregar a página preserva esses dados. Casas não pressurizam o ambiente: a sobrevivência mantém as regras existentes de oxigênio e temperatura.
+Construções, direção das escadas, paredes, árvores cortadas e cada inventário de armário são salvos por **ID do planeta e coordenada**, em pousos, transferências, colocações/desmontagens, cortes de árvore e no autosave existente. Decolar, saltar, retornar, fechar ou recarregar a página preserva esses dados. Casas fechadas com paredes de fundo, portas e um gerador abastecido agora recarregam o oxigênio do traje. A proteção contra temperaturas extremas continua dependendo do escudo.
 
 ### Teste de construção e migração
 
-`npm test` cobre geração de árvores, custo de fabricação, colisão, escadas nas duas direções, suporte, alcance, proteção de armários, transferências, retorno entre sistemas, reabertura do banco e upgrade real do IndexedDB de 1 para 2.
+`npm test` cobre geração de árvores, custo de fabricação, colisão, escadas nas duas direções, suporte, alcance, proteção de armários, transferências, retorno entre sistemas, reabertura do banco e upgrade real do IndexedDB das versões 1 e 2 para 3.
 
 Com o Vite em execução, `npm run test:construction` corta uma árvore e minera ferro por controles reais, fabrica e coloca pisos/paredes/escada/armário, guarda peças, sobe a escada, recarrega a página e recupera itens. Não concede materiais por código. Screenshots ficam em `/tmp/voidbound-construction-qa`. O teste `npm run test:mobile` também fabrica e coloca um bloco por toque.
 
@@ -134,8 +134,40 @@ Cada entrada mostra nome do planeta e sistema, coordenadas do setor, total guard
 
 Na órbita, o planeta informa sua base e estoque, e as zonas de pouso indicam se são as mais próximas dos armários. As distâncias horizontais e coordenadas do catálogo ajudam a caminhar até o local exato: a zona mais próxima ainda pode ficar distante de uma base construída longe dos pontos iniciais.
 
-O catálogo é uma consulta ao save versão 2 existente: não precisa de cadastro manual, nova partida ou migração adicional. Depósitos/retiradas, desmontagem e carregamento da partida atualizam os indicadores. A carga da nave não entra nesses totais. Consultar à distância não permite transferir itens; isso continua exigindo proximidade do armário na superfície.
+O catálogo é uma consulta aos assentamentos do save atual: não precisa de cadastro manual, nova partida ou migração adicional. Depósitos/retiradas, desmontagem e carregamento da partida atualizam os indicadores. A carga da nave não entra nesses totais. Consultar à distância não permite transferir itens; isso continua exigindo proximidade do armário na superfície.
 
 ### Testar o catálogo
 
 Com o Vite em execução, `npm run test:catalog` usa um cenário de UI salvo com bases locais, remotas e vazias para verificar filtros, busca, coordenadas, marcadores, localização sem teleporte e informações de órbita em telas móveis. Screenshots ficam em `/tmp/voidbound-catalog-qa`. O teste `npm run test:construction` também confere o catálogo de itens guardados durante o percurso com materiais coletados no jogo.
+
+## Portas, placas solares e oxigênio — alpha 0.3
+
+Na oficina de campo (**B** ou **⌂**), além das peças de madeira, estão disponíveis:
+
+| Peça                | Custo                                                  | Uso                                                      |
+| ------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| Porta de madeira    | 4 madeiras + 1 ferro                                   | Ocupa 1 × 2 blocos; abre/fecha com E, INTERAGIR ou toque |
+| Placa solar         | 1 placa metálica + 2 cobres + 3 silícios               | Coloque no teto ou no chão, com céu livre acima          |
+| Gerador de oxigênio | 3 placas metálicas + 2 circuitos + 1 célula energética | Equipamento elétrico instalado dentro da casa            |
+
+Os componentes são fabricados na estação da nave; a montagem final dessas peças pode ser feita na superfície. Portas, painéis e geradores precisam de piso firme. Uma porta fechada bloqueia o personagem e veda a passagem; não é possível fechá-la sobre o astronauta. Tocar a parte superior também interage com a porta inteira.
+
+Para recarregar o traje:
+
+1. Feche o contorno do cômodo com blocos sólidos e/ou terreno: piso, teto e laterais. Deixe ao menos dois blocos livres de altura para o astronauta.
+2. Preencha todo o interior com **paredes de fundo**. Escadas e móveis não substituem as paredes ou os blocos que vedam o contorno.
+3. Instale o gerador dentro desse mesmo cômodo.
+4. Instale placas solares com céu livre, até **12 blocos** do gerador. Cada placa alimenta automaticamente o gerador mais próximo; não precisa de cabos. Blocos, terreno e outros painéis acima impedem a captação.
+5. Entre e feche a porta. O traje recarrega automaticamente. Abra a porta ou remova uma parede/teto e a recarga será interrompida até a vedação ser restabelecida.
+
+Uma placa fornece até 8 unidades de energia por segundo de jogo, conforme a luz. Não produz durante a noite. Cada gerador armazena até 100 de energia e 100 de O₂, produzindo até 6 de O₂ por segundo e consumindo 1 de energia por 3 de O₂. As reservas permitem continuar operando no escuro. Oxigênio armazenado pode abastecer o traje mesmo sem captação naquele instante; sem reservas, o gerador para. O visor informa falta de energia, porta aberta, paredes incompletas ou cômodo fechado sem gerador.
+
+O HUD móvel mostra a recarga e a oficina exibe energia, reserva de O₂, luz e placas conectadas. E/toque no gerador informa suas reservas. O equipamento atende apenas o cômodo vedado que o contém, não outra sala do lado. Salas muito grandes podem precisar ser divididas; a busca de vedação é limitada a 1.024 células para manter o jogo responsivo.
+
+Portas abertas/fechadas, peças, energia e O₂ são preservados no save. Ao voltar a um planeta, a produção é atualizada pelo **tempo de jogo** transcorrido, com integração da luz e limites dos tanques. Pausas e o tempo real com o jogo fechado não geram recursos adicionais. Desmontar recupera a peça, mas libera as reservas de energia/O₂ daquele gerador.
+
+### Testar suporte de vida
+
+`npm test` cobre vedação, colisão da porta, sombra/noite, compartilhamento de energia sem duplicação, reservas, recarga/limites do traje, perda da vedação, conservação de tempo e migração real de saves v2 para v3.
+
+Com Vite em execução, `npm run test:habitat` parte de uma casa e ingredientes de teste, fabrica/instala as três peças pela interface, verifica colisão, abre a porta por interação, entra, fecha, observa O₂ aumentar e faz reload para validar porta e reservas. Também verifica o menu móvel. Screenshots ficam em `/tmp/voidbound-habitat-qa`.

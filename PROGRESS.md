@@ -1,6 +1,6 @@
 # Progresso — Voidbound
 
-## Entrega atual: alpha 0.2 / exploração e bases planetárias
+## Entrega atual: alpha 0.3 / casas com suporte de vida
 
 A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano abaixo diferencia implementação de validação. A publicação é feita pelo workflow do GitHub Pages.
 
@@ -28,7 +28,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 
 ### Verificação executada nesta entrega
 
-- [x] Build de produção, incluindo verificação TypeScript; 49 testes automatizados passaram.
+- [x] Build de produção, incluindo verificação TypeScript; 69 testes automatizados passaram.
 - [x] ESLint.
 - [x] Testes de determinismo após expulsão do cache, seis biomas, limites de memória e terreno negativo.
 - [x] Testes de inventário e crafting com rollback por falta de materiais/capacidade.
@@ -54,7 +54,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 - [x] Joystick de toque com dead zone, botões independentes, multitouch e cancelamento de ponteiros. A direção do joystick ainda é convertida para os eixos digitais do jogo.
 - [ ] Validar os novos controles e desempenho em aparelhos físicos, incluindo Safari no iOS.
 - [ ] Ajustes de volume, bindings de controles, acessibilidade e penalidade de morte configurável.
-- [x] Migração real e testada do IndexedDB e payload de save da versão 1 para 2.
+- [x] Migrações reais e testadas do IndexedDB e payload de save das versões 1 e 2 para 3.
 - [ ] Exportação/importação e múltiplos slots de save.
 - [ ] Validar mais extensamente gamepad/input, retorno aos três pontos de pouso e restauração em caves profundas.
 - [ ] Validar aquisição de todos os upgrades e missões 5–6 integralmente pelo navegador, sem preparação de inventário.
@@ -101,7 +101,7 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - Armários com 16 slots, interface de depósito/saque de 1, 10 ou todos, validação de capacidade e proteção contra desmontagem com conteúdo. Cada armário é vinculado ao seu planeta e coordenada.
 - Saves versão 1 migram automaticamente para a versão 2 no mesmo banco. Seed, terreno alterado, inventários e progressão anteriores são preservados. Todos os eventos novos usam o salvamento atual e o tooltip de confirmação.
 - Teste de navegador constrói com materiais coletados, guarda itens, sobe escadas e recupera o mundo após reload. Emulação móvel também fabrica e coloca bloco por toque. Testes de lógica cobrem retorno após saltos, isolamento entre planetas e migração real do banco.
-- Continuação: validar casas extensas e Safari físico; portas, outros móveis e pressurização de casas ainda não fazem parte desta entrega.
+- Portas e pressurização implementadas na alpha 0.3; continuam pendentes outros móveis, casas extensas e validação em Safari físico.
 
 ## Localização de bases e armazenamento
 
@@ -111,3 +111,14 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - Órbita mostra o resumo da base do planeta e indica zonas de pouso mais próximas dos armários.
 - Consulta remota não expõe transferência de recursos; a regra de proximidade física permanece.
 - Testes de índice, seeds com ':', coordenadas negativas, atualização reativa, leitura após reload, isolamento da carga da nave e cenários móveis de navegação. O percurso de construção com materiais coletados também verifica seus itens no catálogo.
+
+## Portas e suporte de vida — alpha 0.3
+
+- Porta de madeira de 1×2 células com colisão fechada, passagem aberta, interação por E/toque e impedimento de fechamento sobre o personagem. Demolição pela célula superior devolve uma única porta.
+- Placas solares recebem luz do ciclo dia/noite, verificam obstruções e abastecem apenas o gerador mais próximo até 12 blocos. Energia não é duplicada entre geradores.
+- Gerador elétrico de O₂ com capacidades reais de 100 para energia e oxigênio; consome energia para produzir e abastecer o traje. Componentes/peças têm receitas e consumo de materiais.
+- Vedação por busca limitada ao cômodo: piso, teto, laterais, portas fechadas e paredes de fundo. Furos e portas abertas impedem a recarga; um gerador não atende outra sala isolada.
+- Cache de topologia invalidado por obras, mineração e portas; produção ao retornar a um planeta integrada por tempo de jogo sem simular cada segundo. Pausar ou fechar o navegador não cria produção por tempo real.
+- HUD e oficina mostram estado da casa, luz, energia e reserva de O₂. Estado da porta e reservas por gerador são persistidos no save v3, com migração das versões anteriores mantendo bases e armários.
+- Testes de lógica, persistência, v2→v3 e percurso móvel pela interface cobrem abrir/entrar/fechar, recarga efetiva e recuperação após reload.
+- A recarga de O₂ não fornece proteção térmica adicional; permanece a regra do escudo contra temperaturas extremas.

@@ -1,6 +1,6 @@
 import type { Settlement } from "../types";
 import type { Terrain } from "../procedural/terrain";
-import { keyAt } from "../../construction/building";
+import { keyAt, blocksAir } from "../../construction/pieces";
 export interface Actor {
   x: number;
   y: number;
@@ -13,10 +13,7 @@ export function solidCell(
   x: number,
   y: number,
 ) {
-  return (
-    terrain.get(x, y) !== 0 ||
-    settlement.pieces[keyAt(x, y)]?.kind === "woodBlock"
-  );
+  return terrain.get(x, y) !== 0 || blocksAir(settlement, x, y);
 }
 export function stairFloor(settlement: Settlement, x: number, tileY: number) {
   const tx = Math.floor(x / 16),

@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import type { Settlement, BuildItem } from "../types";
+import type { Settlement, BuildItem, PlacedPiece } from "../types";
 import type { AlienTree } from "../procedural/trees";
 export function drawAlienTree(
   g: Phaser.GameObjects.Graphics,
@@ -107,6 +107,7 @@ export function drawPiece(
   y: number,
   facing: 1 | -1 = 1,
   alpha = 1,
+  state?: PlacedPiece,
 ) {
   g.fillStyle(kind === "woodWall" ? 0x72513e : 0xba8b59, alpha);
   if (kind === "woodWall") {
@@ -134,6 +135,55 @@ export function drawPiece(
       g.fillStyle(0xf1c593, alpha);
       g.fillRect(x + sx, y + 12 - i * 4, 4, 1);
     }
+    return;
+  }
+  if (kind === "woodDoor") {
+    g.fillStyle(0x6a4b38, alpha);
+    g.fillRect(x, y - 16, 2, 32);
+    g.fillRect(x + 14, y - 16, 2, 32);
+    g.fillRect(x, y - 16, 16, 2);
+    if (state?.open) {
+      g.fillStyle(0xcaa172, alpha);
+      g.fillRect(x + (facing === 1 ? 1 : 11), y - 14, 4, 30);
+      g.fillStyle(0xf0d39a, alpha);
+      g.fillRect(x + (facing === 1 ? 4 : 11), y + 1, 1, 2);
+    } else {
+      g.fillStyle(0xb38458, alpha);
+      g.fillRect(x + 2, y - 14, 12, 30);
+      g.fillStyle(0xe0b482, alpha);
+      g.fillRect(x + 4, y - 12, 8, 9);
+      g.fillRect(x + 4, y + 1, 8, 10);
+      g.fillStyle(0x51493f, alpha);
+      g.fillRect(x + 11, y - 1, 2, 3);
+    }
+    return;
+  }
+  if (kind === "solarPanel") {
+    g.fillStyle(0x536e86, alpha);
+    g.fillRect(x + 3, y + 12, 2, 4);
+    g.fillRect(x + 11, y + 12, 2, 4);
+    g.fillStyle(0x23456f, alpha);
+    g.fillRect(x, y + 2, 16, 11);
+    g.lineStyle(1, 0x8dbed6, alpha);
+    g.strokeRect(x + 0.5, y + 2.5, 15, 10);
+    g.lineBetween(x + 5, y + 3, x + 5, y + 12);
+    g.lineBetween(x + 10, y + 3, x + 10, y + 12);
+    g.lineBetween(x + 1, y + 7, x + 15, y + 7);
+    g.fillStyle(0xc8e8ef, alpha * 0.55);
+    g.fillRect(x + 1, y + 3, 3, 2);
+    return;
+  }
+  if (kind === "oxygenGenerator") {
+    g.fillStyle(0x54727b, alpha);
+    g.fillRect(x + 1, y + 1, 14, 15);
+    g.fillStyle(0x263d4a, alpha);
+    g.fillRect(x + 3, y + 3, 10, 10);
+    g.fillStyle(0x94d8c3, alpha);
+    g.fillRect(x + 4, y + 5, 4, 7);
+    g.fillStyle((state?.oxygen ?? 0) > 0 ? 0xa9f2cc : 0x64808d, alpha);
+    g.fillRect(x + 10, y + 4, 2, 2);
+    g.fillStyle(0x86d7dc, alpha);
+    g.fillRect(x + 4, y + 13, Math.round((8 * (state?.oxygen ?? 0)) / 100), 1);
     return;
   }
   g.fillRect(x + 1, y + 1, 14, 15);
@@ -175,6 +225,8 @@ export function drawSettlement(
           Math.round(tx * 16 - camX + width / 2),
           Math.round(ty * 16 - camY + height / 2),
           piece.facing,
+          1,
+          piece.kind === "woodWall" ? undefined : piece,
         );
     }
 }

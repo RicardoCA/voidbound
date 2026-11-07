@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
+import { habitatMessage } from "../construction/habitat";
 import { useConstruction } from "../stores/construction";
 import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
@@ -132,8 +133,13 @@ function pause() {
       >⌖ {{ target.name }} · {{ Math.round(target.distance) }} km
       <b v-if="target.distance < 210">· Órbita disponível</b></template
     >
+    <template
+      v-else-if="surface && (g.habitat.hasGenerator || g.habitat.sealed)"
+      >{{ habitatMessage(g.habitat) }} · Traje
+      {{ Math.ceil(g.state.player.oxygen) }}%</template
+    >
     <template v-else-if="surface"
-      >Árvores: madeira · Interagir: nave / armário</template
+      >Árvores: madeira · Interagir: porta / nave / armário</template
     >
   </div>
 </template>

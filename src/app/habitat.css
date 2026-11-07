@@ -1,0 +1,59 @@
+.habitat-status {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  margin: 14px 0;
+  border: 1px solid #5c6658;
+  background: #25291e;
+  color: #dec797;
+}
+.habitat-status strong {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.habitat-status small {
+  color: #a7bbbd;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.habitat-status.supplied {
+  border-color: #598e7e;
+  background: #152d2b;
+  color: var(--mint);
+}
+.habitat-guide {
+  padding: 12px;
+  border-left: 2px solid #688e83;
+  background: #122531;
+  font-size: 11px !important;
+  line-height: 1.9 !important;
+}
+.desktop-habitat {
+  position: absolute;
+  top: 130px;
+  left: 30px;
+  z-index: 2;
+  width: min(350px, 40%);
+  margin: 0;
+  background: #122330dc;
+  pointer-events: none;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .desktop-habitat {
+    display: none;
+  }
+  .habitat-status {
+    padding: 11px;
+  }
+  .habitat-status strong {
+    font-size: 12px;
+  }
+  .habitat-guide {
+    font-size: 12px !important;
+  }
+  .is-playing .build-card > p {
+    font-size: 12px;
+  }
+}
