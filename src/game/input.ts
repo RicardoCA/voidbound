@@ -9,9 +9,12 @@ export const controls = {
 };
 export type Control = keyof typeof controls;
 const pulses = new Set<Control>();
+export function queuePulse(id: Control) {
+  pulses.add(id);
+}
 export function pressControl(id: Control) {
   controls[id] = true;
-  pulses.add(id);
+  queuePulse(id);
 }
 export function takePulse(id: Control) {
   const pending = pulses.has(id);

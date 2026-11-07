@@ -122,3 +122,10 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - HUD e oficina mostram estado da casa, luz, energia e reserva de O₂. Estado da porta e reservas por gerador são persistidos no save v3, com migração das versões anteriores mantendo bases e armários.
 - Testes de lógica, persistência, v2→v3 e percurso móvel pela interface cobrem abrir/entrar/fechar, recarga efetiva e recuperação após reload.
 - A recarga de O₂ não fornece proteção térmica adicional; permanece a regra do escudo contra temperaturas extremas.
+
+## Correção do Espaço no desktop
+
+- Reproduzida a falha no navegador: o bloqueio de rolagem em captura marcava o evento como tratado antes de o KeyboardManager do Phaser recebê-lo.
+- O preventDefault agora ocorre depois da leitura do Phaser, mantendo a proteção contra rolagem e ativação involuntária de botões durante o jogo.
+- Pulos por teclado usam o mesmo mecanismo de pulsos do toque para reconhecer pressionamentos rápidos entre frames.
+- `npm run test:jump` verifica pulo normal/rápido, repetição após aterrissar, foco no HUD e retomada do save. Sem alteração no schema ou no progresso salvo.

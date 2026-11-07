@@ -14,7 +14,8 @@
     "test:mobile": "node scripts/mobile-smoke.mjs",
     "test:construction": "node scripts/construction-smoke.mjs",
     "test:catalog": "node scripts/catalog-smoke.mjs",
-    "test:habitat": "node scripts/habitat-smoke.mjs"
+    "test:habitat": "node scripts/habitat-smoke.mjs",
+    "test:jump": "node scripts/jump-smoke.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.0",

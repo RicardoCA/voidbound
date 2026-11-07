@@ -171,3 +171,7 @@ Portas abertas/fechadas, peças, energia e O₂ são preservados no save. Ao vol
 `npm test` cobre vedação, colisão da porta, sombra/noite, compartilhamento de energia sem duplicação, reservas, recarga/limites do traje, perda da vedação, conservação de tempo e migração real de saves v2 para v3.
 
 Com Vite em execução, `npm run test:habitat` parte de uma casa e ingredientes de teste, fabrica/instala as três peças pela interface, verifica colisão, abre a porta por interação, entra, fecha, observa O₂ aumentar e faz reload para validar porta e reservas. Também verifica o menu móvel. Screenshots ficam em `/tmp/voidbound-habitat-qa`.
+
+### Regressão do pulo no desktop
+
+Com Vite em execução, `npm run test:jump` pilota, pousa e verifica Espaço normal/rápido, pulos consecutivos, foco em botão do HUD e pulo após carregar o save. O bloqueio da rolagem é aplicado depois da leitura do Phaser; pulsos de pulo preservam toques rápidos entre frames.

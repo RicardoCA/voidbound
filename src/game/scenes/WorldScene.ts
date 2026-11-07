@@ -14,7 +14,13 @@ import { biomes, type Mode } from "../types";
 import { Terrain, tileItems } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
 import { planetPosition } from "../../universe/generator";
-import { controls, takePulse, releaseControls, isEditing } from "../input";
+import {
+  controls,
+  takePulse,
+  queuePulse,
+  releaseControls,
+  isEditing,
+} from "../input";
 import { audio } from "../systems/audio";
 interface Rock {
   id: string;
@@ -103,10 +109,11 @@ export class WorldScene extends Phaser.Scene {
         releaseControls();
       }
     };
-    window.addEventListener("keydown", suppressScroll, true);
+    // Phaser queues the key first; only then prevent browser scrolling.
+    window.addEventListener("keydown", suppressScroll);
     window.addEventListener("focusin", focusInput);
     this.events.once("shutdown", () => {
-      window.removeEventListener("keydown", suppressScroll, true);
+      window.removeEventListener("keydown", suppressScroll);
       window.removeEventListener("focusin", focusInput);
     });
     const r = random(142);
@@ -123,6 +130,13 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
       if (!this.store.started || isEditing(e.target)) return;
       if (e.repeat) return;
+      if (
+        e.code === "Space" &&
+        this.store.state.mode === "surface" &&
+        !this.store.panel &&
+        !this.store.paused
+      )
+        queuePulse("jump");
       if (e.code === "KeyB") {
         if (this.building.enabled) this.building.disable();
         else this.building.openPalette();
@@ -369,8 +383,9 @@ export class WorldScene extends Phaser.Scene {
       (this.down("D") || controls.right ? 1 : 0) -
       (this.down("A") || controls.left ? 1 : 0);
     if (direction) this.facing = direction;
-    const jumping = takePulse("jump") || this.down("SPACE") || controls.jump;
-    const jump = jumping && !this.jumpHeld;
+    const pulse = takePulse("jump");
+    const jumping = this.down("SPACE") || controls.jump;
+    const jump = pulse || (jumping && !this.jumpHeld);
     if (jump && this.grounded) audio.play(300);
     this.jumpHeld = jumping;
     const movement = stepSurface(
