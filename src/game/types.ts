@@ -22,7 +22,11 @@ export type Item =
   | "shield"
   | "cargo"
   | "jump"
-  | "drill";
+  | "drill"
+  | "woodBlock"
+  | "woodWall"
+  | "woodStairs"
+  | "cabinet";
 export type Inventory = Partial<Record<Item, number>>;
 export interface Planet {
   id: string;
@@ -43,8 +47,20 @@ export interface StarSystem {
   star: string;
   planets: Planet[];
 }
+export type BuildItem = "woodBlock" | "woodWall" | "woodStairs" | "cabinet";
+export interface PlacedPiece {
+  kind: Exclude<BuildItem, "woodWall">;
+  facing: 1 | -1;
+}
+export interface Settlement {
+  pieces: Record<string, PlacedPiece>;
+  walls: Record<string, true>;
+  cabinets: Record<string, Inventory>;
+  cutTrees: string[];
+}
 export interface Save {
-  version: 1;
+  version: 2;
+  settlements: Record<string, Settlement>;
   seed: string;
   mode: Mode;
   systemX: number;
@@ -235,6 +251,34 @@ export const items: Record<
     icon: "✧",
     rarity: "Melhoria",
     stack: 1,
+  },
+  woodBlock: {
+    name: "Bloco de madeira",
+    color: "#c89e6e",
+    icon: "▣",
+    rarity: "Construção",
+    stack: 99,
+  },
+  woodWall: {
+    name: "Parede de madeira",
+    color: "#ad835d",
+    icon: "▥",
+    rarity: "Construção",
+    stack: 99,
+  },
+  woodStairs: {
+    name: "Escada de madeira",
+    color: "#d8b17e",
+    icon: "◩",
+    rarity: "Construção",
+    stack: 99,
+  },
+  cabinet: {
+    name: "Armário planetário",
+    color: "#b6bd9c",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
   },
   drill: {
     name: "Broca aprimorada",

@@ -1,5 +1,14 @@
 import Phaser from "phaser";
 import { useGame } from "../../stores/game";
+import { useConstruction } from "../../stores/construction";
+import { treesInRange, treeContains } from "../procedural/trees";
+import {
+  drawAlienTree,
+  drawSettlement,
+  drawPiece,
+} from "../rendering/settlements";
+import { stepSurface } from "../physics/surface";
+import { keyAt } from "../../construction/building";
 import { biomes, type Mode } from "../types";
 import { Terrain, tileItems } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
@@ -16,6 +25,9 @@ interface Rock {
 }
 export class WorldScene extends Phaser.Scene {
   private store!: ReturnType<typeof useGame>;
+  private building!: ReturnType<typeof useConstruction>;
+  private treeHits = new Map<string, number>();
+  private surfaceTap: { x: number; y: number } | undefined;
   private gfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
@@ -48,6 +60,27 @@ export class WorldScene extends Phaser.Scene {
   }
   create() {
     this.store = useGame();
+    this.building = useConstruction();
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (
+        this.store.state.mode === "surface" &&
+        !this.store.panel &&
+        !this.store.paused
+      ) {
+        this.surfaceTap = {
+          x: Math.floor((pointer.x - this.centerX + this.camX) / 16),
+          y: Math.floor((pointer.y - this.centerY + this.camY) / 16),
+        };
+        this.building.setCursor(this.surfaceTap.x, this.surfaceTap.y);
+      }
+    });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.store.state.mode === "surface")
+        this.building.setCursor(
+          Math.floor((pointer.x - this.centerX + this.camX) / 16),
+          Math.floor((pointer.y - this.centerY + this.camY) / 16),
+        );
+    });
     this.gfx = this.add.graphics();
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,SPACE,E,M,I,C,ESC",
@@ -67,6 +100,11 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
       if (!this.store.started) return;
       if (e.repeat) return;
+      if (e.code === "KeyB") {
+        if (this.building.enabled) this.building.disable();
+        else this.building.openPalette();
+      }
+      if (e.code === "KeyR" && this.building.enabled) this.building.rotate();
       if (e.code === "KeyM")
         this.store.panel = this.store.panel === "map" ? "" : "map";
       if (e.code === "KeyI")
@@ -75,6 +113,7 @@ export class WorldScene extends Phaser.Scene {
         this.store.panel = this.store.panel === "craft" ? "" : "craft";
       if (e.code === "Escape") {
         if (this.store.panel) this.store.panel = "";
+        else if (this.building.enabled) this.building.disable();
         else this.store.paused = !this.store.paused;
       }
     });
@@ -132,6 +171,7 @@ export class WorldScene extends Phaser.Scene {
       this.terrain?.changes !== s.changes[g.planet.id]
     ) {
       this.lastPlanet = g.planet.id;
+      this.treeHits.clear();
       s.changes[g.planet.id] ??= {};
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
     }
@@ -171,16 +211,24 @@ export class WorldScene extends Phaser.Scene {
           if (distance < 210) g.orbit(nearest);
           else g.notify("Aproxime-se de um planeta para entrar em órbita.");
         } else if (s.mode === "surface") {
+          const cabinet = this.building.nearestCabinet();
           if (
+            cabinet.key &&
+            cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
+          ) {
+            this.building.openCabinet(cabinet.key);
+          } else if (
             Math.abs(s.player.x - s.landingX * 16) < 90 &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
             g.enter();
-          else g.notify("Volte até a Sparrow MK-I para embarcar.");
+          else if (cabinet.key) this.building.openCabinet(cabinet.key);
+          else g.notify("Aproxime-se da nave ou de um armário para interagir.");
         }
       }
       this.interactHeld = interact;
     } else {
+      this.surfaceTap = undefined;
       this.interactHeld = this.down("E") || controls.interact;
     }
     if (!g.started) {
@@ -288,44 +336,28 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store,
       p = g.state.player,
       t = this.terrain!;
-    let dx =
+    const direction =
       (this.down("D") || controls.right ? 1 : 0) -
       (this.down("A") || controls.left ? 1 : 0);
-    dx *= 90 * dt;
-    if (dx) this.facing = Math.sign(dx);
-    const nx = p.x + dx;
-    const solid = (x: number, y: number) =>
-      t.get(Math.floor(x / 16), Math.floor(y / 16)) !== 0;
-    if (
-      !solid(nx + Math.sign(dx) * 5, p.y - 10) &&
-      !solid(nx + Math.sign(dx) * 5, p.y + 10)
-    )
-      p.x = nx;
+    if (direction) this.facing = direction;
     const jumping = takePulse("jump") || this.down("SPACE") || controls.jump;
-    if (jumping && !this.jumpHeld && this.grounded) {
-      this.vy = -190;
-      this.grounded = false;
-      audio.play(300);
-    }
+    const jump = jumping && !this.jumpHeld;
+    if (jump && this.grounded) audio.play(300);
     this.jumpHeld = jumping;
-    this.vy += 340 * g.planet.gravity * dt;
-    const nextY = p.y + this.vy * dt;
-    this.grounded = false;
-    if (
-      this.vy >= 0 &&
-      (solid(p.x - 4, nextY + 12) || solid(p.x + 4, nextY + 12))
-    ) {
-      if (this.vy > 320) p.health -= Math.max(0, (this.vy - 320) * 0.08);
-      p.y = Math.floor((nextY + 12) / 16) * 16 - 12;
-      this.vy = 0;
-      this.grounded = true;
-    } else if (
-      this.vy < 0 &&
-      (solid(p.x - 4, nextY - 12) || solid(p.x + 4, nextY - 12))
-    ) {
-      p.y = (Math.floor((nextY - 12) / 16) + 1) * 16 + 12;
-      this.vy = 0;
-    } else p.y = nextY;
+    const movement = stepSurface(
+      { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
+      direction,
+      jump,
+      g.planet.gravity,
+      dt,
+      t,
+      this.building.settlement,
+    );
+    p.x = movement.x;
+    p.y = movement.y;
+    p.health -= movement.fallDamage;
+    this.vy = movement.vy;
+    this.grounded = movement.grounded;
     if (p.y > 1005) {
       p.health -= 25;
       p.x = g.state.landingX * 16 + 40;
@@ -336,9 +368,71 @@ export class WorldScene extends Phaser.Scene {
     this.camY = Phaser.Math.Linear(this.camY, p.y - 32, 0.1);
     const pointer = this.input.activePointer;
     const mobileMine = takePulse("mine") || controls.mine;
-    if ((mobileMine || pointer.isDown) && this.mineTime <= 0 && p.energy >= 1) {
-      let tx = Math.floor((pointer.x - this.centerX + this.camX) / 16),
-        ty = Math.floor((pointer.y - this.centerY + this.camY) / 16);
+    const tap = this.surfaceTap;
+    this.surfaceTap = undefined;
+    if (this.building.enabled) {
+      if (tap) {
+        this.building.apply(tap.x, tap.y);
+        this.mineTime = 0.2;
+      } else if (mobileMine && this.mineTime <= 0) {
+        const target = this.building.cursor ?? {
+          x: Math.floor((p.x + this.facing * 32) / 16),
+          y: Math.floor((p.y + 4) / 16),
+        };
+        this.building.apply(target.x, target.y);
+        this.mineTime = 0.2;
+      }
+      return;
+    }
+    if (tap && this.building.cabinetAt(tap.x, tap.y)) {
+      this.building.openCabinet(keyAt(tap.x, tap.y));
+      return;
+    }
+    if (
+      (mobileMine || pointer.isDown || tap) &&
+      this.mineTime <= 0 &&
+      p.energy >= 1
+    ) {
+      const trees = treesInRange(
+        g.planet,
+        t,
+        Math.floor(p.x / 16) - 8,
+        Math.floor(p.x / 16) + 8,
+        this.building.settlement.cutTrees,
+      );
+      const wx = pointer.x - this.centerX + this.camX,
+        wy = pointer.y - this.centerY + this.camY;
+      const tree = trees
+        .filter(
+          (tree) =>
+            Math.hypot(tree.x * 16 + 8 - p.x, tree.ground * 16 - 8 - p.y) <=
+              96 &&
+            (mobileMine
+              ? (tree.x * 16 + 8 - p.x) * this.facing > 0
+              : treeContains(tree, wx, wy)),
+        )
+        .sort(
+          (a, b) => Math.abs(a.x * 16 + 8 - p.x) - Math.abs(b.x * 16 + 8 - p.x),
+        )[0];
+      if (tree && p.energy >= 3) {
+        this.mineTime = 0.28;
+        const hits = (this.treeHits.get(tree.id) ?? 0) + 1;
+        this.treeHits.set(tree.id, hits);
+        this.beam = {
+          x: p.x,
+          y: p.y - 3,
+          tx: tree.x * 16 + 8,
+          ty: tree.ground * 16 - 24,
+          life: 0.15,
+        };
+        this.burst(tree.x * 16 + 8, tree.ground * 16 - 24, tree.accent);
+        audio.play(140);
+        if (hits >= 3 && this.building.harvest(tree))
+          this.treeHits.delete(tree.id);
+        return;
+      }
+      let tx = Math.floor(wx / 16),
+        ty = Math.floor(wy / 16);
       if (mobileMine) {
         tx = Math.floor((p.x + this.facing * 24) / 16);
         ty = Math.floor((p.y + 14) / 16);
@@ -350,6 +444,10 @@ export class WorldScene extends Phaser.Scene {
         ty < 63 &&
         Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y) < 77
       ) {
+        const rootedTree = trees.find(
+          (tree) => tree.x === tx && tree.ground === ty,
+        );
+        if (rootedTree && !this.building.harvest(rootedTree)) return;
         const resource = tileItems[tile] ?? "iron";
         if (g.collect(resource, 1)) {
           t.remove(tx, ty);
@@ -613,6 +711,31 @@ export class WorldScene extends Phaser.Scene {
         horizon,
       );
     }
+    for (const tree of treesInRange(
+      g.planet,
+      t,
+      startX,
+      startX + Math.ceil(this.viewWidth / 16) + 2,
+      this.building.settlement.cutTrees,
+    )) {
+      drawAlienTree(
+        f,
+        tree,
+        tree.x * 16 + 8 - this.camX + this.centerX,
+        tree.ground * 16 - this.camY + this.centerY,
+        this.elapsed,
+        this.treeHits.get(tree.id) ?? 0,
+      );
+    }
+    drawSettlement(
+      f,
+      this.building.settlement,
+      this.camX,
+      this.camY,
+      this.viewWidth,
+      this.viewHeight,
+      "walls",
+    );
     const colors: Record<number, number> = {
       2: 0x9fb8bf,
       3: 0xd99268,
@@ -654,6 +777,15 @@ export class WorldScene extends Phaser.Scene {
           f.fillRect(sx + 4, sy + 7, 3, 2);
         }
       }
+    drawSettlement(
+      f,
+      this.building.settlement,
+      this.camX,
+      this.camY,
+      this.viewWidth,
+      this.viewHeight,
+      "pieces",
+    );
     const shipX = g.state.landingX * 16,
       shipY = t.height(g.state.landingX) * 16 - 12;
     this.drawShip(
@@ -694,5 +826,26 @@ export class WorldScene extends Phaser.Scene {
     // Slow, deterministic day/night tint.
     f.fillStyle(0x050c25, Math.max(0, Math.sin(g.state.time / 150)) * 0.3);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    if (this.building.enabled && !g.panel) {
+      const cursor = this.building.cursor ?? {
+        x: Math.floor((p.x + this.facing * 32) / 16),
+        y: Math.floor((p.y + 4) / 16),
+      };
+      const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),
+        sy = Math.round(cursor.y * 16 - this.camY + this.centerY);
+      if (!this.building.removing)
+        drawPiece(
+          f,
+          this.building.selected,
+          sx,
+          sy,
+          this.building.facing,
+          0.45,
+        );
+      const valid =
+        this.building.removing || !this.building.errorAt(cursor.x, cursor.y);
+      f.lineStyle(1, valid ? 0x9cf0cf : 0xf09d86, 0.9);
+      f.strokeRect(sx, sy, 16, 16);
+    }
   }
 }

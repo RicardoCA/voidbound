@@ -4,6 +4,8 @@ export interface Recipe {
   id: Item;
   cost: Inventory;
   unlock: number;
+  amount?: number;
+  station?: "ship" | "hand";
 }
 export const recipes: Recipe[] = [
   { id: "plate", cost: { iron: 3 }, unlock: 0 },
@@ -19,6 +21,16 @@ export const recipes: Recipe[] = [
   { id: "cargo", cost: { plate: 4, circuit: 1 }, unlock: 4 },
   { id: "jump", cost: { plate: 2, circuit: 2, crystal: 2 }, unlock: 4 },
   { id: "drill", cost: { titanium: 2, circuit: 1 }, unlock: 4 },
+  { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
+  { id: "woodWall", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
+  {
+    id: "woodStairs",
+    cost: { wood: 3 },
+    unlock: 0,
+    amount: 4,
+    station: "hand",
+  },
+  { id: "cabinet", cost: { wood: 6, iron: 2 }, unlock: 0, station: "hand" },
 ];
 export function craft(
   inv: Inventory,
@@ -28,7 +40,10 @@ export function craft(
 ) {
   if (mission < recipe.unlock) return false;
   const draft = { ...inv };
-  if (!consume(draft, recipe.cost) || !add(draft, recipe.id, 1, capacity))
+  if (
+    !consume(draft, recipe.cost) ||
+    !add(draft, recipe.id, recipe.amount ?? 1, capacity)
+  )
     return false;
   for (const key of Object.keys(inv)) delete inv[key as Item];
   Object.assign(inv, draft);

@@ -1,6 +1,6 @@
 {
   "name": "voidbound",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "test:browser": "node scripts/browser-smoke.mjs",
     "format": "prettier --write src scripts *.json *.ts *.js *.html *.md",
     "preview": "vite preview --host 127.0.0.1",
-    "test:mobile": "node scripts/mobile-smoke.mjs"
+    "test:mobile": "node scripts/mobile-smoke.mjs",
+    "test:construction": "node scripts/construction-smoke.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.0",

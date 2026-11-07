@@ -2,7 +2,16 @@
 import { computed } from "vue";
 import { items, type Item } from "../game/types";
 import { useGame } from "../stores/game";
-const g = useGame();
+import { useConstruction } from "../stores/construction";
+import { isBuildItem } from "../construction/building";
+const g = useGame(),
+  b = useConstruction();
+function use(id: Item) {
+  if (isBuildItem(id)) {
+    if (g.state.mode === "surface") b.equip(id);
+    else g.notify("Saia da nave para equipar uma peça de construção.");
+  } else g.use(id);
+}
 function open(id: string) {
   g.panel = g.panel === id ? "" : id;
 }
@@ -54,12 +63,18 @@ function canUse(id: Item) {
         :key="id"
         class="item-cell"
         :style="{ '--item-color': items[id].color }"
-        @click="g.use(id)"
+        @click="use(id)"
       >
         <span class="item-icon">{{ items[id].icon }}</span
         ><b>{{ n }}</b
         ><span>{{ items[id].name }}</span
-        ><small>{{ canUse(id) ? "USAR / INSTALAR" : items[id].rarity }}</small>
+        ><small>{{
+          isBuildItem(id)
+            ? "EQUIPAR CONSTRUÇÃO"
+            : canUse(id)
+              ? "USAR / INSTALAR"
+              : items[id].rarity
+        }}</small>
       </button>
       <div
         v-for="n in Math.max(0, 12 - inventory.length)"

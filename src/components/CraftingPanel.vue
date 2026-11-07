@@ -38,7 +38,8 @@ function affordable(cost: Partial<Record<Item, number>>) {
       </button>
     </div>
     <p v-if="!inShip" class="warning">
-      Entre na nave para operar a estação de fabricação e a refinaria.
+      Receitas da oficina exigem a nave. Peças de madeira também podem ser
+      fabricadas à mão.
     </p>
     <div class="tabs">
       <button :class="{ active: tab === 'all' }" @click="tab = 'all'">
@@ -72,11 +73,18 @@ function affordable(cost: Partial<Record<Item, number>>) {
         <button
           class="secondary"
           :disabled="
-            !inShip || !affordable(r.cost) || g.state.mission < r.unlock
+            (!inShip &&
+              !(g.state.mode === 'surface' && r.station === 'hand')) ||
+            !affordable(r.cost) ||
+            g.state.mission < r.unlock
           "
           @click="g.make(r.id)"
         >
-          {{ g.state.mission < r.unlock ? "MISSÃO 05" : "FABRICAR +" }}
+          {{
+            g.state.mission < r.unlock
+              ? "MISSÃO 05"
+              : `FABRICAR ${r.amount ?? 1} +`
+          }}
         </button>
       </article>
     </div>

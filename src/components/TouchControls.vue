@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useGame } from "../stores/game";
+import { useConstruction } from "../stores/construction";
 import {
   controls,
   pressControl,
   releaseControls,
   type Control,
 } from "../game/input";
+const b = useConstruction();
 const g = useGame(),
   surface = computed(() => g.state.mode === "surface");
 const x = ref(0),
@@ -122,23 +124,40 @@ onBeforeUnmount(reset);
       </button>
       <button
         class="touch-mine"
-        :aria-label="surface ? 'Minerar blocos' : 'Minerar asteroides'"
+        :aria-label="
+          b.enabled
+            ? 'Aplicar construção'
+            : surface
+              ? 'Minerar blocos'
+              : 'Minerar asteroides'
+        "
         @pointerdown="action('mine', $event)"
         @pointerup="stop('mine', $event)"
         @pointercancel="stop('mine', $event)"
         @lostpointercapture="stop('mine', $event)"
       >
-        <span aria-hidden="true">⌁</span>{{ surface ? "MINERAR" : "LASER" }}
+        <span aria-hidden="true">⌁</span
+        >{{
+          b.enabled
+            ? b.removing
+              ? "REMOVER"
+              : "COLOCAR"
+            : surface
+              ? "MINERAR"
+              : "LASER"
+        }}
       </button>
       <button
         class="touch-interact"
-        :aria-label="surface ? 'Embarcar na nave' : 'Entrar em órbita'"
+        :aria-label="
+          surface ? 'Interagir com nave ou armário' : 'Entrar em órbita'
+        "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"
         @pointercancel="stop('interact', $event)"
         @lostpointercapture="stop('interact', $event)"
       >
-        {{ surface ? "EMBARCAR" : "ÓRBITA" }}
+        {{ surface ? "INTERAGIR" : "ÓRBITA" }}
       </button>
     </div>
   </div>

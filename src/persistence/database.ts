@@ -1,10 +1,27 @@
 import Dexie, { type Table } from "dexie";
 import type { Save } from "../game/types";
+import { migrateSave, type LegacySave } from "./migrations";
+interface StoredSave {
+  id: string;
+  data: Save | LegacySave;
+  updated: number;
+}
 export class SaveDatabase extends Dexie {
-  saves!: Table<{ id: string; data: Save; updated: number }, string>;
+  saves!: Table<StoredSave, string>;
+  // Keep the existing database name: old players retain the same save slot.
   constructor(name = "voidbound-v1") {
     super(name);
     this.version(1).stores({ saves: "id,updated" });
+    this.version(2)
+      .stores({ saves: "id,updated" })
+      .upgrade((tx) =>
+        tx
+          .table<StoredSave>("saves")
+          .toCollection()
+          .modify((row) => {
+            row.data = migrateSave(row.data);
+          }),
+      );
   }
   async write(data: Save) {
     await this.saves.put({
@@ -15,10 +32,7 @@ export class SaveDatabase extends Dexie {
   }
   async read() {
     const row = await this.saves.get("commander");
-    if (!row) return undefined;
-    if (row.data.version !== 1)
-      throw new Error("Versão de salvamento incompatível");
-    return row.data;
+    return row ? migrateSave(row.data) : undefined;
   }
 }
 export const database = new SaveDatabase();

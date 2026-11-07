@@ -39,7 +39,8 @@ export const missions = [
 ];
 function initial(seed: string): Save {
   return {
-    version: 1,
+    version: 2,
+    settlements: {},
     seed,
     mode: "space",
     systemX: 0,
@@ -173,7 +174,10 @@ export const useGame = defineStore("game", () => {
   }
   function make(id: Item) {
     const recipe = recipes.find((r) => r.id === id);
-    if (state.value.mode !== "interior") {
+    if (
+      state.value.mode !== "interior" &&
+      !(state.value.mode === "surface" && recipe?.station === "hand")
+    ) {
       notify("Entre na nave para acessar a estação de fabricação.");
       return;
     }
@@ -186,7 +190,7 @@ export const useGame = defineStore("game", () => {
     }
     flag(`crafted:${id}`);
     audio.play(640, 0.12);
-    notify(`${items[id].name} fabricado.`);
+    notify(`${recipe.amount ?? 1} × ${items[id].name} fabricado.`);
     progress();
     void save();
   }

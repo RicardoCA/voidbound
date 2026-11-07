@@ -45,7 +45,7 @@ async function layout(label) {
       view = { width: innerWidth, height: innerHeight };
     const controls = [
       ...document.querySelectorAll(
-        ".mobile-tools button,.touch-actions button,.touch-stick",
+        ".mobile-tools button,.touch-actions button,.touch-stick,.build-toolbar>button",
       ),
     ].filter((e) => e.getBoundingClientRect().width);
     return {
@@ -158,7 +158,16 @@ try {
     initialX,
   );
   await touch("touchEnd", []);
-  await page.getByRole("button", { name: "Minerar blocos", exact: true }).tap();
+  const miningTouch = {
+    ...(await center(
+      page.getByRole("button", { name: "Minerar blocos", exact: true }),
+    )),
+    id: 2,
+  };
+  await touch("touchStart", [miningTouch]);
+  await page.waitForTimeout(1300);
+  await touch("touchEnd", []);
+
   await page.waitForFunction(
     () =>
       Object.keys(window.__game.state.changes[window.__game.planet.id]).length >
@@ -168,6 +177,60 @@ try {
     Object.values((await state()).inventory).some((n) => n > 0),
     "Touch mining awards actual resources",
   );
+  await page.getByRole("button", { name: "Abrir construção" }).tap();
+  const blockRecipe = page.locator(".build-card").filter({
+    has: page.getByRole("heading", { name: "Bloco de madeira", exact: true }),
+  });
+  await blockRecipe
+    .getByRole("button", { name: "FABRICAR 4", exact: true })
+    .tap();
+  await blockRecipe.getByRole("button", { name: "EQUIPAR", exact: true }).tap();
+  await page.waitForTimeout(500);
+  const buildPoint = await page.evaluate(() => {
+    const game = window.__game,
+      p = game.state.player,
+      c = document.querySelector("canvas"),
+      box = c.getBoundingClientRect();
+    const providers =
+      document.querySelector("#app").__vue_app__._context.provides;
+    const builder =
+      providers[
+        Reflect.ownKeys(providers).find((k) => String(k) === "Symbol(pinia)")
+      ]._s.get("construction");
+    for (let dy = 0; dy <= 3; dy++)
+      for (let dx = -4; dx <= 4; dx++) {
+        const tx = Math.floor(p.x / 16) + dx,
+          ty = Math.floor((p.y + 12) / 16) - dy;
+        if (builder.errorAt(tx, ty)) continue;
+        return {
+          key: `${tx},${ty}`,
+          x: box.x + ((tx * 16 + 8 - p.x + c.width / 2) * box.width) / c.width,
+          y:
+            box.y +
+            ((ty * 16 + 8 - (p.y - 32) + c.height / 2) * box.height) / c.height,
+        };
+      }
+    return null;
+  });
+  assert.ok(buildPoint, "A legal building target is available");
+  await page.touchscreen.tap(buildPoint.x, buildPoint.y);
+  await page.waitForFunction(
+    (key) =>
+      window.__game.state.settlements[window.__game.planet.id]?.pieces[key]
+        ?.kind === "woodBlock",
+    buildPoint.key,
+  );
+  await layout("mobile-building-844x280");
+  for (const [width, height] of [
+    [390, 664],
+    [320, 568],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await layout(`mobile-building-${width}x${height}`);
+  }
+  await page.setViewportSize({ width: 844, height: 280 });
+  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: "Sair da construção" }).tap();
   await page.waitForTimeout(500);
   const initialY = (await state()).player.y;
   await page.getByRole("button", { name: "Pular", exact: true }).tap();
@@ -191,8 +254,8 @@ try {
   }
   await page.getByRole("button", { name: "Abrir carga" }).tap();
   await page.getByRole("button", { name: "Fechar inventário" }).tap();
-  await page.getByRole("button", { name: "Abrir fabricação" }).tap();
-  await page.getByRole("button", { name: "Fechar fabricação" }).tap();
+  await page.getByRole("button", { name: "Abrir construção" }).tap();
+  await page.getByRole("button", { name: "Fechar construção" }).tap();
   await page.getByRole("button", { name: "Abrir mapa galáctico" }).tap();
   await page.getByRole("button", { name: "Fechar mapa" }).tap();
   await page.getByRole("button", { name: "Pausar jogo", exact: true }).tap();
@@ -201,7 +264,7 @@ try {
   await page.getByRole("button", { name: "RETOMAR EXPEDIÇÃO" }).tap();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: mobile pilotagem, multitouch, órbita, pouso, caminhada, mineração, pulo, painéis, rotação e salvamento.",
+    "PASS: mobile pilotagem, multitouch, órbita, pouso, caminhada, mineração, pulo, construção por toque, painéis, rotação e salvamento.",
   );
 } finally {
   await browser.close();

@@ -1,8 +1,8 @@
 # Progresso — Voidbound
 
-## Entrega atual: alpha 0.1 / ciclo vertical completo
+## Entrega atual: alpha 0.2 / exploração e bases planetárias
 
-A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano abaixo diferencia implementação de validação. Não foi feita publicação externa.
+A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano abaixo diferencia implementação de validação. A publicação é feita pelo workflow do GitHub Pages.
 
 ### Implementado
 
@@ -28,7 +28,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 
 ### Verificação executada nesta entrega
 
-- [x] Build de produção, incluindo verificação TypeScript; 22 testes automatizados passaram.
+- [x] Build de produção, incluindo verificação TypeScript; 40 testes automatizados passaram.
 - [x] ESLint.
 - [x] Testes de determinismo após expulsão do cache, seis biomas, limites de memória e terreno negativo.
 - [x] Testes de inventário e crafting com rollback por falta de materiais/capacidade.
@@ -42,17 +42,20 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 ### Pendências para V1 completa
 
 - [ ] Separar inventário pessoal (20 slots) da carga da nave, com transferência explícita.
-- [ ] Adicionar luas, eventos de exploração, estruturas construíveis e colocação de blocos.
-- [ ] Vegetação e formações geológicas específicas de cada bioma; árvores e água com interação própria.
+- [x] Estruturas construíveis e colocação de blocos, paredes, escadas e armários persistentes.
+- [ ] Adicionar luas e eventos de exploração.
+- [x] Árvores originais por bioma, variantes por seed e coleta de madeira com persistência de cortes.
+- [ ] Ampliar outras formas de vegetação, formações geológicas e água interativa.
 - [ ] Refinar distribuição de minérios por profundidade e classe estelar; ampliar diferenças de atmosfera/perigos.
-- [ ] Física de movimento e colisão atual é resolvida por código na cena. Arcade está configurado, mas ainda precisa ser integrado aos corpos e colisores.
+- [ ] Física de movimento e colisão atual é resolvida por código, com o movimento lateral extraído em `game/physics/surface.ts`. Arcade está configurado, mas ainda precisa ser integrado aos corpos e colisores.
 - [ ] Extrair atualização física e renderização da cena em sistemas menores conforme o conteúdo crescer.
 - [ ] Melhorar animações de caminhada, descida e decolagem; estrelas com mais variedade e luz local.
 - [ ] Escalonamento inteiro no desktop; atualmente Phaser FIT e nearest-neighbor mantêm bordas sem suavização, mas a escala pode ser fracionária.
 - [x] Joystick de toque com dead zone, botões independentes, multitouch e cancelamento de ponteiros. A direção do joystick ainda é convertida para os eixos digitais do jogo.
 - [ ] Validar os novos controles e desempenho em aparelhos físicos, incluindo Safari no iOS.
 - [ ] Ajustes de volume, bindings de controles, acessibilidade e penalidade de morte configurável.
-- [ ] Migrações reais quando houver uma segunda versão do schema; exportação/importação e múltiplos slots de save.
+- [x] Migração real e testada do IndexedDB e payload de save da versão 1 para 2.
+- [ ] Exportação/importação e múltiplos slots de save.
 - [ ] Validar mais extensamente gamepad/input, retorno aos três pontos de pouso e restauração em caves profundas.
 - [ ] Validar aquisição de todos os upgrades e missões 5–6 integralmente pelo navegador, sem preparação de inventário.
 - [ ] Perfil de memória e benchmarks reais de 60/30 FPS; considerar pool de partículas e workers conforme medições.
@@ -89,3 +92,13 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 - Joystick com captura de ponteiros e botões de pelo menos 44 px para frear, minerar, pular e interagir. Soltar um botão não cancela o outro dedo.
 - Painéis rolam internamente; orientação pode mudar sem recriar a partida. Tooltip de salvamento preservado e reposicionado para não cobrir os controles.
 - Teste móvel dedicado usa contatos de toque reais na emulação Chromium, exercita o ciclo até mineração/pulo e verifica tamanhos de 844×280 a 320×568. Isso não substitui teste em Safari físico.
+
+## Árvores e construção — alpha 0.2
+
+- Seis famílias de árvores por bioma com posição, altura, paleta e variante determinísticas. Cortar com a multitool coleta madeira; somente árvores removidas são registradas no save.
+- Oficina de campo e receitas à mão para blocos, paredes, escadas reversíveis e armários. Construção e desmontagem por célula, com custo/devolução de itens, prévia, alcance, suporte e proteção contra fechamento sobre o astronauta ou bloqueio da saída da nave.
+- Camadas separadas para paredes de fundo e peças. Pisos colidem; escadas permitem subir nas duas direções; móveis e paredes de fundo não bloqueiam a caminhada. Só construções visíveis são renderizadas.
+- Armários com 16 slots, interface de depósito/saque de 1, 10 ou todos, validação de capacidade e proteção contra desmontagem com conteúdo. Cada armário é vinculado ao seu planeta e coordenada.
+- Saves versão 1 migram automaticamente para a versão 2 no mesmo banco. Seed, terreno alterado, inventários e progressão anteriores são preservados. Todos os eventos novos usam o salvamento atual e o tooltip de confirmação.
+- Teste de navegador constrói com materiais coletados, guarda itens, sobe escadas e recupera o mundo após reload. Emulação móvel também fabrica e coloca bloco por toque. Testes de lógica cobrem retorno após saltos, isolamento entre planetas e migração real do banco.
+- Continuação: validar casas extensas e Safari físico; portas, outros móveis e pressurização de casas ainda não fazem parte desta entrega.

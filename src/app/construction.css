@@ -1,0 +1,287 @@
+.build-panel > p b {
+  color: var(--mint);
+  font-weight: 500;
+}
+.build-materials {
+  display: flex;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  color: #a3b9c3;
+  letter-spacing: 0.6px;
+}
+.build-materials b {
+  color: var(--gold);
+  font-size: 15px;
+  margin-left: 8px;
+}
+.build-recipes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+.build-card {
+  background: #101c28;
+  border: 1px solid #31424c;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.build-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.build-card-heading > span {
+  font-size: 27px;
+}
+.build-card h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.build-card small {
+  font-size: 9px;
+  color: #92adba;
+}
+.build-card > p {
+  margin: 0;
+  flex: 1;
+  font-size: 11px;
+}
+.build-card-actions {
+  display: flex;
+  gap: 8px;
+}
+.build-card-actions button {
+  flex: 1;
+  padding: 11px 8px;
+  font-size: 9px;
+}
+.build-instructions {
+  font-size: 10px !important;
+}
+.build-toolbar {
+  position: absolute;
+  bottom: 142px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: #0d1e2ef2;
+  padding: 5px;
+  border: 1px solid #688f91;
+  box-shadow: 0 5px 20px #0004;
+  max-width: calc(100% - 24px);
+}
+.build-toolbar > button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 20px;
+  touch-action: manipulation;
+}
+.build-toolbar .active {
+  background: #623f35;
+  color: #f6c2a3;
+  border-color: #b88462;
+}
+.build-toolbar .build-picker {
+  width: auto;
+  min-width: 170px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+.build-picker > span {
+  font-size: 25px;
+  color: var(--gold);
+}
+.build-picker > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.build-picker b {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.build-picker small {
+  font-size: 8px;
+  color: #9fb8c2;
+  white-space: nowrap;
+}
+.storage-amount {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 18px 0;
+}
+.storage-amount > span {
+  font-size: 9px;
+  color: #93a9b7;
+  margin-right: 8px;
+  letter-spacing: 1px;
+}
+.storage-amount button {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 12px;
+}
+.storage-amount button.active {
+  background: #274a4c;
+  color: var(--mint);
+  border-color: var(--mint);
+}
+.storage-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.storage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.storage-heading h3 {
+  font-size: 13px;
+}
+.storage-heading > span {
+  font-size: 9px;
+  color: #92aab7;
+  white-space: nowrap;
+}
+.storage-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0;
+  border-bottom: 1px solid #263744;
+}
+.storage-row > span {
+  font-size: 23px;
+  width: 26px;
+  text-align: center;
+}
+.storage-row > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.storage-row b {
+  font-size: 10px;
+  font-weight: 500;
+}
+.storage-row small {
+  font-size: 9px;
+  color: #88a6b7;
+}
+.storage-row button {
+  font-size: 9px;
+  padding: 8px;
+  min-height: 44px;
+}
+.storage-empty {
+  font-size: 11px !important;
+  padding: 12px 0;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .is-playing .build-toolbar {
+    bottom: auto;
+    top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px) + 8px);
+    width: min(410px, calc(100% - 20px));
+    padding: 4px;
+  }
+  .is-playing .build-toolbar .build-picker {
+    padding: 0 5px;
+    gap: 7px;
+  }
+  .is-playing .build-picker b {
+    font-size: 10px;
+  }
+  .is-playing .build-picker small {
+    font-size: 8px;
+  }
+  .is-playing .build-toolbar > button {
+    width: 44px;
+    min-width: 44px;
+  }
+  .is-playing .build-toolbar .build-picker {
+    width: auto;
+  }
+  .is-playing .build-recipes {
+    gap: 10px;
+  }
+  .is-playing .build-card {
+    padding: 13px;
+  }
+  .is-playing .build-card-actions {
+    flex-direction: column;
+  }
+  .is-playing .storage-row button {
+    font-size: 10px;
+  }
+  .is-playing .storage-row b {
+    font-size: 11px;
+  }
+  .is-playing .build-card-actions button {
+    font-size: 10px;
+  }
+  .is-playing .build-panel .build-instructions {
+    font-size: 11px !important;
+  }
+}
+@media (max-width: 500px) {
+  .build-recipes,
+  .storage-columns {
+    grid-template-columns: 1fr;
+  }
+  .build-card-actions {
+    flex-direction: row !important;
+  }
+  .storage-column {
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+}
+
+.build-feedback {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: #2a2020ee;
+  color: #efbe9d;
+  border: 1px solid #795647;
+  padding: 7px 9px;
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .is-playing.is-building .save-tooltip {
+    top: auto;
+    bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 148px);
+  }
+}

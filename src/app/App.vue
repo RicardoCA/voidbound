@@ -3,6 +3,10 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
+import BuildPanel from "../components/BuildPanel.vue";
+import BuildToolbar from "../components/BuildToolbar.vue";
+import StoragePanel from "../components/StoragePanel.vue";
+import { useConstruction } from "../stores/construction";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
@@ -10,6 +14,7 @@ import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
+const b = useConstruction();
 const g = useGame(),
   seed = ref("VOIDBOUND"),
   sound = ref(true),
@@ -29,11 +34,14 @@ const closest = computed(() => {
   });
   return { planet: g.system.planets[index]!, distance: d, index };
 });
-const nav = [
+const nav = computed(() => [
   { id: "inventory", icon: "▦", label: "Carga", key: "I" },
   { id: "craft", icon: "⌘", label: "Fabricação", key: "C" },
   { id: "map", icon: "✧", label: "Mapa galáctico", key: "M" },
-];
+  ...(surface.value
+    ? [{ id: "build", icon: "⌂", label: "Construir", key: "B" }]
+    : []),
+]);
 const saveTooltipVisible = ref(false);
 let saveTooltipTimer: ReturnType<typeof setTimeout> | undefined;
 watch(
@@ -96,7 +104,10 @@ function minutes() {
 }
 </script>
 <template>
-  <main class="app-shell" :class="{ 'is-playing': g.started }">
+  <main
+    class="app-shell"
+    :class="{ 'is-playing': g.started, 'is-building': b.enabled }"
+  >
     <header class="topbar">
       <a
         class="brand"
@@ -108,7 +119,7 @@ function minutes() {
       >
       <div class="top-right">
         <span class="signal"><i /> SISTEMAS ONLINE</span
-        ><span class="build">ALPHA 0.1 / V1 EM DESENVOLVIMENTO</span
+        ><span class="build">ALPHA 0.2 / V1 EM DESENVOLVIMENTO</span
         ><button
           class="icon-button"
           :aria-label="sound ? 'Desativar som' : 'Ativar som'"
@@ -128,6 +139,7 @@ function minutes() {
     <section class="flight-deck">
       <GameCanvas :playing="g.started" />
       <MobileHud v-if="g.started" />
+      <BuildToolbar v-if="g.started" />
       <div class="vignette" />
       <template v-if="!g.started">
         <div class="start-menu">
@@ -227,9 +239,9 @@ function minutes() {
             >
           </div>
         </div>
-        <div v-if="surface" class="surface-tip">
+        <div v-if="surface && !b.enabled" class="surface-tip">
           MULTITOOL <span>◆</span> Clique em um bloco próximo para minerar
-          <kbd>E</kbd> Embarcar perto da nave
+          <kbd>E</kbd> Nave / armário <kbd>B</kbd> Construir
         </div>
         <TouchControls
           v-if="
@@ -407,6 +419,8 @@ function minutes() {
             VOLTAR À EXPLORAÇÃO
           </button>
         </section>
+        <BuildPanel v-else-if="g.panel === 'build'" />
+        <StoragePanel v-else-if="g.panel === 'storage'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
         <GalaxyMap v-else-if="g.panel === 'map'" />
@@ -531,7 +545,7 @@ function minutes() {
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
         ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
-        <kbd>CLIQUE</kbd> MINERAR</span
+        <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
       ><span v-else
         ><kbd>W</kbd> PROPULSÃO <kbd>A</kbd><kbd>D</kbd> ROTACIONAR
         <kbd>S</kbd> FREAR <kbd>ESPAÇO</kbd> MINERAR</span

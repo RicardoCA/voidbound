@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
+import { useConstruction } from "../stores/construction";
 import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
-const g = useGame();
+const g = useGame(),
+  b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
 const location = computed(() =>
   surface.value || g.state.mode === "interior" ? g.planet.name : g.system.name,
@@ -95,11 +97,11 @@ function pause() {
         ▦
       </button>
       <button
-        aria-label="Abrir fabricação"
-        title="Fabricação"
-        @click="open('craft')"
+        :aria-label="surface ? 'Abrir construção' : 'Abrir fabricação'"
+        :title="surface ? 'Construção' : 'Fabricação'"
+        @click="surface ? b.openPalette() : open('craft')"
       >
-        ⌘
+        {{ surface ? "⌂" : "⌘" }}
       </button>
       <button
         aria-label="Abrir mapa galáctico"
@@ -120,7 +122,7 @@ function pause() {
     </nav>
   </div>
   <div
-    v-if="!g.panel && !g.paused"
+    v-if="!g.panel && !g.paused && !b.enabled"
     class="mobile-context"
     :class="{ notification: transient }"
     aria-live="polite"
@@ -131,7 +133,7 @@ function pause() {
       <b v-if="target.distance < 210">· Órbita disponível</b></template
     >
     <template v-else-if="surface"
-      >Multitool · toque nos blocos para minerar</template
+      >Árvores: madeira · Interagir: nave / armário</template
     >
   </div>
 </template>

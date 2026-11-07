@@ -2,7 +2,7 @@
 
 Survival espacial procedural, em português, com Vue 3, TypeScript estrito, Phaser 3, Pinia, Dexie e Simplex Noise. Todos os sprites e efeitos são desenhados por código. Sem imagens, fontes, serviços ou banco externos em tempo de execução.
 
-**Estado: alpha 0.1, com ciclo vertical funcional. A V1 completa ainda está em desenvolvimento.** Consulte [PROGRESS.md](PROGRESS.md).
+**Estado: alpha 0.2, com árvores, construção e armazenamento planetário. A V1 completa ainda está em desenvolvimento.** Consulte [PROGRESS.md](PROGRESS.md).
 
 ## Executar
 
@@ -58,7 +58,7 @@ Em telas com toque, o joystick controla movimento lateral na superfície e rota�
 
 Uma partida por origem de navegador é salva em IndexedDB a cada 30 segundos e em pousos, embarques, fabricação, uso de itens, saltos e mudança de visibilidade. O rodapé também permite salvar manualmente. O menu pede confirmação antes de substituir uma partida.
 
-Continue usando o mesmo navegador, perfil e endereço/origem para encontrar o salvamento. O esquema Dexie e o payload começam na versão 1. Futuras versões precisam de migrações explícitas; nenhuma migração fictícia foi criada.
+Continue usando o mesmo navegador, perfil e endereço/origem para encontrar o salvamento. O esquema Dexie e o payload estão na versão 2. Partidas da versão 1 migram automaticamente, preservando seed, nave, inventário, missões e alterações do terreno. O banco mantém o nome original `voidbound-v1` para preservar o slot existente.
 
 Sem combustível, solte a aceleração para receber uma reserva solar lenta até 3 unidades. Embarcado, **Recuperação solar** avança 60 segundos do relógio da expedição e restaura 5 unidades de combustível e oxigênio. Decolar custa 5 unidades e exige casco de pelo menos 70%. Morte resgata o astronauta na nave e reduz o casco em 10 pontos. Temperaturas extremas exigem o escudo instalado para proteção.
 
@@ -94,3 +94,32 @@ Selecionar GitHub Actions na configuração não cria o deploy sozinho: é neces
 ### Verificação móvel
 
 Com o Vite em execução, rode `npm run test:mobile`. O teste usa toque e múltiplos contatos para pilotar, entrar em órbita, pousar, caminhar, minerar, pular e acessar os painéis. Verifica também a preservação do estado ao girar a tela, controles de pelo menos 44 px, ausência de rolagem da página e o centro do jogo livre de sobreposições em 844×280, 667×280, 844×390, 390×664 e 320×568. Screenshots são gravadas em `/tmp/voidbound-mobile-qa`. A validação em aparelhos físicos continua recomendada.
+
+## Árvores e bases planetárias
+
+Cada bioma tem uma família de árvores alienígenas: cedros de basalto, acácias âmbar, coníferas glaciais, copas de jade, árvores brasa e mangues-lâmina. A seed do planeta determina variações de altura, copa, cor e posição. Árvores cortadas não reaparecem após viajar ou carregar o save.
+
+Na superfície, mire no tronco e segure a mineração (ou use o botão **MINERAR** perto da árvore, olhando para ela). Três pulsos cortam a árvore e colocam 14–16 madeiras na carga. Não é necessário sair em uma nova partida: as árvores também aparecem nos planetas de saves antigos, preservando o terreno minerado.
+
+Pressione **B** ou toque no botão **⌂** do HUD móvel para abrir a oficina de campo. Ela funciona fora da nave, sem bloquear receitas por missão:
+
+| Peça               | Custo                 | Resultado | Função                                   |
+| ------------------ | --------------------- | --------- | ---------------------------------------- |
+| Bloco de madeira   | 2 madeiras            | 4 blocos  | Fundação, piso, pilar ou teto sólido     |
+| Parede de madeira  | 2 madeiras            | 4 paredes | Fundo da casa; permite caminhar à frente |
+| Escada de madeira  | 3 madeiras            | 4 escadas | Rampa com degraus que se sobe caminhando |
+| Armário planetário | 6 madeiras + 2 ferros | 1 armário | 16 slots independentes naquele local     |
+
+Fabrique e equipe uma peça. Clique/toque em uma célula vazia até 6 blocos do astronauta. A prévia indica se a posição é válida; cada colocação consome exatamente uma peça. É preciso conectar a construção ao chão ou a outra peça. Paredes ocupam uma camada própria e podem ficar atrás do piso, escada ou armário. Deixe pelo menos dois tiles livres de altura para caminhar dentro da casa.
+
+**R** ou o botão de seta inverte a escada. O botão **⌫** alterna para desmontagem e devolve a peça à carga. Para retirar uma parede, selecione Parede antes de desmontar, escolhendo a camada de fundo. **B**, **Esc** ou **×** encerra a construção. No celular, também é possível usar **COLOCAR** para a célula da prévia (por padrão, à frente do personagem), ou tocar diretamente no mundo.
+
+Abra um armário próximo com **E**, **INTERAGIR**, ou clicando/tocando nele fora do modo de construção. Selecione 1, 10 ou Todos e use Guardar/Retirar. Transferências são atômicas: falta de espaço não remove itens da origem. Um armário com conteúdo não pode ser desmontado; esvazie-o primeiro.
+
+Construções, direção das escadas, paredes, árvores cortadas e cada inventário de armário são salvos por **ID do planeta e coordenada**, em pousos, transferências, colocações/desmontagens, cortes de árvore e no autosave existente. Decolar, saltar, retornar, fechar ou recarregar a página preserva esses dados. Casas não pressurizam o ambiente: a sobrevivência mantém as regras existentes de oxigênio e temperatura.
+
+### Teste de construção e migração
+
+`npm test` cobre geração de árvores, custo de fabricação, colisão, escadas nas duas direções, suporte, alcance, proteção de armários, transferências, retorno entre sistemas, reabertura do banco e upgrade real do IndexedDB de 1 para 2.
+
+Com o Vite em execução, `npm run test:construction` corta uma árvore e minera ferro por controles reais, fabrica e coloca pisos/paredes/escada/armário, guarda peças, sobe a escada, recarrega a página e recupera itens. Não concede materiais por código. Screenshots ficam em `/tmp/voidbound-construction-qa`. O teste `npm run test:mobile` também fabrica e coloca um bloco por toque.
