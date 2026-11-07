@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -22,8 +22,20 @@ const b = useConstruction(),
   bases = useBases();
 const g = useGame(),
   seed = ref("VOIDBOUND"),
-  sound = ref(true),
+  sound = ref(audio.enabled),
+  volume = ref(Math.round(audio.volume * 100)),
+  showOptions = ref(false),
   confirmNew = ref(false);
+watch([sound, volume], ([enabled, percent]) => {
+  audio.enabled = enabled;
+  audio.volume = percent / 100;
+});
+watch(
+  () => g.paused,
+  (paused) => {
+    if (!paused) showOptions.value = false;
+  },
+);
 const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(() => g.state.mode === "interior");
 const closest = computed(() => {
@@ -90,10 +102,6 @@ function newGame() {
   g.newGame(seed.value);
   confirmNew.value = false;
 }
-function toggleSound() {
-  sound.value = !sound.value;
-  audio.enabled = sound.value;
-}
 function orbitCancel() {
   g.state.mode = "space";
   void g.save();
@@ -123,12 +131,6 @@ function minutes() {
       <div class="top-right">
         <span class="signal"><i /> SISTEMAS ONLINE</span
         ><span class="build">ALPHA 0.3 / V1 EM DESENVOLVIMENTO</span
-        ><button
-          class="icon-button"
-          :aria-label="sound ? 'Desativar som' : 'Ativar som'"
-          @click="toggleSound"
-        >
-          {{ sound ? "♫" : "♩" }}</button
         ><button
           v-if="g.started"
           class="icon-button"
@@ -381,7 +383,24 @@ function minutes() {
         class="overlay"
         :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
       >
-        <section v-if="g.paused" class="dialog narrow">
+        <section v-if="g.paused && showOptions" class="dialog narrow">
+          <h2>Opções</h2>
+          <div class="audio-options">
+            <label><input v-model="sound" type="checkbox" /> Som do jogo</label>
+            <label for="game-volume">Volume do jogo · {{ volume }}%</label>
+            <input
+              id="game-volume"
+              v-model.number="volume"
+              type="range"
+              min="0"
+              max="100"
+            />
+          </div>
+          <button class="primary" @click="showOptions = false">
+            VOLTAR À PAUSA
+          </button>
+        </section>
+        <section v-else-if="g.paused" class="dialog narrow">
           <div class="eyebrow">TRANSMISSÃO EM ESPERA</div>
           <h2>Uma pausa entre estrelas.</h2>
           <p>A simulação está pausada.</p>
@@ -389,6 +408,7 @@ function minutes() {
             RETOMAR EXPEDIÇÃO →</button
           ><button class="secondary" @click="saveManually">
             SALVAR PARTIDA</button
+          ><button class="secondary" @click="showOptions = true">OPÇÕES</button
           ><button
             class="secondary"
             @click="

@@ -674,6 +674,23 @@ kbd {
   display: block;
   margin: 10px 0;
 }
+.audio-options {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.audio-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.audio-options input {
+  accent-color: var(--mint);
+}
+.audio-options input[type="range"] {
+  width: 100%;
+  min-height: 36px;
+}
 .help {
   font-size: 10px;
   line-height: 2.2;
