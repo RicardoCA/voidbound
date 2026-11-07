@@ -23,5 +23,14 @@ const g = useGame(),
       {{ Math.floor(g.habitat.energy) }} · Reserva O₂
       {{ Math.floor(g.habitat.oxygen) }}</small
     >
+    <small v-if="g.habitat.batteries"
+      >Baterias conectadas: {{ g.habitat.batteries }} · Carga
+      {{ Math.floor(g.habitat.batteryEnergy) }}/{{
+        g.habitat.batteryCapacity
+      }}
+      ({{
+        Math.floor((100 * g.habitat.batteryEnergy) / g.habitat.batteryCapacity)
+      }}%)</small
+    >
   </section>
 </template>

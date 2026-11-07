@@ -140,37 +140,38 @@ O catálogo é uma consulta aos assentamentos do save atual: não precisa de cad
 
 Com o Vite em execução, `npm run test:catalog` usa um cenário de UI salvo com bases locais, remotas e vazias para verificar filtros, busca, coordenadas, marcadores, localização sem teleporte e informações de órbita em telas móveis. Screenshots ficam em `/tmp/voidbound-catalog-qa`. O teste `npm run test:construction` também confere o catálogo de itens guardados durante o percurso com materiais coletados no jogo.
 
-## Portas, placas solares e oxigênio — alpha 0.3
+## Portas, placas solares, baterias e oxigênio — alpha 0.3
 
 Na oficina de campo (**B** ou **⌂**), além das peças de madeira, estão disponíveis:
 
-| Peça                | Custo                                                  | Uso                                                      |
-| ------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
-| Porta de madeira    | 4 madeiras + 1 ferro                                   | Ocupa 1 × 2 blocos; abre/fecha com E, INTERAGIR ou toque |
-| Placa solar         | 1 placa metálica + 2 cobres + 3 silícios               | Coloque no teto ou no chão, com céu livre acima          |
-| Gerador de oxigênio | 3 placas metálicas + 2 circuitos + 1 célula energética | Equipamento elétrico instalado dentro da casa            |
+| Peça                 | Custo                                                   | Uso                                                      |
+| -------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| Porta de madeira     | 4 madeiras + 1 ferro                                    | Ocupa 1 × 2 blocos; abre/fecha com E, INTERAGIR ou toque |
+| Placa solar          | 1 placa metálica + 2 cobres + 3 silícios                | Coloque no teto ou no chão, com céu livre acima          |
+| Bateria estacionária | 2 placas metálicas + 1 circuito + 2 células energéticas | Armazena até 1.200 de energia para uso noturno           |
+| Gerador de oxigênio  | 3 placas metálicas + 2 circuitos + 1 célula energética  | Equipamento elétrico instalado dentro da casa            |
 
-Os componentes são fabricados na estação da nave; a montagem final dessas peças pode ser feita na superfície. Portas, painéis e geradores precisam de piso firme. Uma porta fechada bloqueia o personagem e veda a passagem; não é possível fechá-la sobre o astronauta. Tocar a parte superior também interage com a porta inteira.
+Os componentes são fabricados na estação da nave; a montagem final dessas peças pode ser feita na superfície. Portas, painéis, baterias e geradores precisam de piso firme. Uma porta fechada bloqueia o personagem e veda a passagem; não é possível fechá-la sobre o astronauta. Tocar a parte superior também interage com a porta inteira.
 
 Para recarregar o traje:
 
 1. Feche o contorno do cômodo com blocos sólidos e/ou terreno: piso, teto e laterais. Deixe ao menos dois blocos livres de altura para o astronauta.
 2. Preencha todo o interior com **paredes de fundo**. Escadas e móveis não substituem as paredes ou os blocos que vedam o contorno.
 3. Instale o gerador dentro desse mesmo cômodo.
-4. Instale placas solares com céu livre, até **12 blocos** do gerador. Cada placa alimenta automaticamente o gerador mais próximo; não precisa de cabos. Blocos, terreno e outros painéis acima impedem a captação.
+4. Instale placas solares com céu livre, até **12 blocos** do gerador. Para guardar energia, instale uma bateria até **12 blocos** do gerador e as placas até **12 blocos** da bateria. Cada placa carrega a bateria mais próxima, e cada bateria alimenta um único gerador, o mais próximo. Sem bateria conectada, o gerador continua recebendo energia solar diretamente. Não precisa de cabos. Blocos, terreno e outros painéis acima impedem a captação.
 5. Entre e feche a porta. O traje recarrega automaticamente. Abra a porta ou remova uma parede/teto e a recarga será interrompida até a vedação ser restabelecida.
 
-Uma placa fornece até 8 unidades de energia por segundo de jogo, conforme a luz. Não produz durante a noite. Cada gerador armazena até 100 de energia e 100 de O₂, produzindo até 6 de O₂ por segundo e consumindo 1 de energia por 3 de O₂. As reservas permitem continuar operando no escuro. Oxigênio armazenado pode abastecer o traje mesmo sem captação naquele instante; sem reservas, o gerador para. O visor informa falta de energia, porta aberta, paredes incompletas ou cômodo fechado sem gerador.
+Uma placa fornece até 8 unidades de energia por segundo de jogo, conforme a luz. Não produz durante a noite. Cada gerador armazena até 100 de energia e 100 de O₂, produzindo até 6 de O₂ por segundo e consumindo 1 de energia por 3 de O₂. A bateria armazena até 1.200 de energia, permite continuar operando no escuro e só descarrega o necessário para produzir O₂. Sem bateria, as reservas internas do gerador mantêm o comportamento anterior. Oxigênio armazenado pode abastecer o traje mesmo sem captação naquele instante; sem reservas, o gerador para. O visor informa falta de energia, porta aberta, paredes incompletas ou cômodo fechado sem gerador.
 
-O HUD móvel mostra a recarga e a oficina exibe energia, reserva de O₂, luz e placas conectadas. E/toque no gerador informa suas reservas. O equipamento atende apenas o cômodo vedado que o contém, não outra sala do lado. Salas muito grandes podem precisar ser divididas; a busca de vedação é limitada a 1.024 células para manter o jogo responsivo.
+O HUD móvel mostra a recarga e a oficina exibe energia, reserva de O₂, luz e placas conectadas. E/toque no gerador informa suas reservas; na bateria informa carga e porcentagem. O painel da casa mostra as baterias conectadas e sua carga total. O equipamento atende apenas o cômodo vedado que o contém, não outra sala do lado. Salas muito grandes podem precisar ser divididas; a busca de vedação é limitada a 1.024 células para manter o jogo responsivo.
 
-Portas abertas/fechadas, peças, energia e O₂ são preservados no save. Ao voltar a um planeta, a produção é atualizada pelo **tempo de jogo** transcorrido, com integração da luz e limites dos tanques. Pausas e o tempo real com o jogo fechado não geram recursos adicionais. Desmontar recupera a peça, mas libera as reservas de energia/O₂ daquele gerador.
+Portas abertas/fechadas, peças, energia e O₂ são preservados no save. Ao voltar a um planeta, a produção é atualizada pelo **tempo de jogo** transcorrido, com integração da luz e limites dos tanques. Pausas e o tempo real com o jogo fechado não geram recursos adicionais. Desmontar recupera a peça, mas libera as reservas de energia/O₂ daquele equipamento. A carga de cada bateria também é salva por planeta, sem alterar a versão dos saves existentes.
 
 ### Testar suporte de vida
 
 `npm test` cobre vedação, colisão da porta, sombra/noite, compartilhamento de energia sem duplicação, reservas, recarga/limites do traje, perda da vedação, conservação de tempo e migração real de saves v2 para v3.
 
-Com Vite em execução, `npm run test:habitat` parte de uma casa e ingredientes de teste, fabrica/instala as três peças pela interface, verifica colisão, abre a porta por interação, entra, fecha, observa O₂ aumentar e faz reload para validar porta e reservas. Também verifica o menu móvel. Screenshots ficam em `/tmp/voidbound-habitat-qa`.
+Com Vite em execução, `npm run test:habitat` parte de uma casa e ingredientes de teste, fabrica/instala porta, placa, bateria e gerador pela interface, verifica colisão, abre a porta por interação, entra, fecha, observa O₂ aumentar e faz reload para validar porta e carga da bateria. Verifica também o gerador funcionando à noite com energia da bateria. Também verifica o menu móvel. Screenshots ficam em `/tmp/voidbound-habitat-qa`.
 
 ### Regressão do pulo no desktop
 

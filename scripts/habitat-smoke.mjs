@@ -20,10 +20,10 @@ const url = process.env.VOIDBOUND_URL || "http://127.0.0.1:5173";
 async function attach() {
   await page.evaluate(() => {
     const p = document.querySelector("#app").__vue_app__._context.provides;
-    window.__game =
-      p[Reflect.ownKeys(p).find((k) => String(k) === "Symbol(pinia)")]._s.get(
-        "game",
-      );
+    window.__game = Reflect.ownKeys(p)
+      .map((k) => p[k])
+      .find((v) => v?._s instanceof Map)
+      ._s.get("game");
   });
 }
 const state = () =>
@@ -100,11 +100,11 @@ try {
     g.state.inventory = {
       wood: 4,
       iron: 1,
-      plate: 4,
+      plate: 6,
       copper: 2,
       silicon: 3,
-      circuit: 2,
-      cell: 1,
+      circuit: 3,
+      cell: 3,
     };
     const data = {
       pieces: {},
@@ -125,7 +125,12 @@ try {
   });
   await page.waitForTimeout(850);
   await page.getByRole("button", { name: "Abrir construção" }).tap();
-  for (const name of ["Porta de madeira", "Placa solar", "Gerador de oxigênio"])
+  for (const name of [
+    "Porta de madeira",
+    "Placa solar",
+    "Bateria estacionária",
+    "Gerador de oxigênio",
+  ])
     await page
       .locator(".build-card")
       .filter({ has: page.getByRole("heading", { name, exact: true }) })
@@ -140,6 +145,8 @@ try {
   );
   await equip("Placa solar");
   await tapWorld(104, 392);
+  await equip("Bateria estacionária");
+  await tapWorld(120, 456);
   await equip("Gerador de oxigênio");
   await tapWorld(104, 456);
   await page.getByRole("button", { name: "Sair da construção" }).tap();
@@ -182,6 +189,32 @@ try {
   );
   await page.waitForTimeout(4100);
   await page.screenshot({ path: `${artifacts}/pressurized-house.png` });
+  await page.evaluate(() => {
+    const g = window.__game,
+      data = g.state.settlements[g.planet.id];
+    g.state.time = 450;
+    data.utilityTime = 450;
+    data.pieces["6,28"].oxygen = 0;
+  });
+  const nightCharge = await page.evaluate(
+    () =>
+      window.__game.state.settlements[window.__game.planet.id].pieces["7,28"]
+        .energy,
+  );
+  await page.waitForTimeout(600);
+  assert.ok(
+    await page.evaluate(() => window.__game.habitat.supplied),
+    "Battery supplies oxygen at night",
+  );
+  assert.ok(
+    await page.evaluate(
+      (before) =>
+        window.__game.state.settlements[window.__game.planet.id].pieces["7,28"]
+          .energy < before,
+      nightCharge,
+    ),
+    "Battery discharges at night",
+  );
   await manualSave();
   const snapshot = await state();
   await reload();
@@ -189,7 +222,12 @@ try {
     pieces = saved.settlements[Object.keys(saved.settlements)[0]].pieces;
   assert.equal(saved.version, 3);
   assert.equal(pieces["3,28"].open, false);
-  assert.ok(pieces["6,28"].energy > 0);
+  assert.ok(pieces["7,28"].energy > 0);
+  assert.ok(
+    pieces["7,28"].energy <=
+      snapshot.settlements[Object.keys(snapshot.settlements)[0]].pieces["7,28"]
+        .energy,
+  );
   assert.ok(saved.player.oxygen >= snapshot.player.oxygen);
   await tapWorld(56, 440);
   await page.waitForFunction(
@@ -208,7 +246,7 @@ try {
   await page.setViewportSize({ width: 390, height: 664 });
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Abrir construção" }).tap();
-  assert.equal(await page.locator(".build-card").count(), 7);
+  assert.equal(await page.locator(".build-card").count(), 8);
   assert.ok(
     await page.evaluate(
       () =>
@@ -219,7 +257,7 @@ try {
   await page.screenshot({ path: `${artifacts}/utilities-mobile.png` });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: fabricar/instalar porta, placa e gerador → colisão → abrir, entrar, fechar → recarregar O₂ → salvar/load porta e reservas → menu móvel.",
+    "PASS: fabricar/instalar porta, placa, bateria e gerador → colisão → abrir, entrar, fechar → recarregar O₂ → bateria alimenta O₂ à noite → salvar/load porta e carga → menu móvel.",
   );
 } finally {
   await browser.close();

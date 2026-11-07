@@ -17,9 +17,11 @@ const descriptions = {
   woodDoor:
     "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
   solarPanel:
-    "Coloque sobre piso ou teto, com céu livre acima. Alimenta o gerador mais próximo até 12 blocos.",
+    "Coloque sobre piso ou teto, com céu livre acima. Carrega a bateria mais próxima até 12 blocos; sem bateria, alimenta o gerador diretamente.",
+  battery:
+    "Armazena até 1.200 de energia solar e alimenta o gerador mais próximo até 12 blocos, inclusive à noite. E ou toque mostra a carga.",
   oxygenGenerator:
-    "Produz e armazena O₂ usando energia solar. Recarrega o traje em um cômodo vedado, com paredes de fundo.",
+    "Produz e armazena O₂ usando bateria ou energia solar direta. Recarrega o traje em um cômodo vedado, com paredes de fundo.",
 };
 const constructionRecipes = buildItems.map((id) =>
   recipes.find((r) => r.id === id)!,
@@ -62,8 +64,10 @@ function affordable(cost: Partial<Record<Item, number>>) {
       Para recarregar o traje: feche piso, teto e laterais com blocos, preencha
       o fundo com paredes e feche as portas. Deixe pelo menos dois blocos de
       altura no interior. Coloque o gerador dentro e as placas no teto, até 12
-      blocos do gerador. As reservas permitem operar durante a noite.
-      Componentes eletrônicos são fabricados na nave.
+      blocos da bateria, e a bateria até 12 blocos do gerador. A bateria
+      carregada mantém o gerador durante a noite; sem bateria, as placas
+      continuam alimentando o gerador diretamente. Componentes eletrônicos são
+      fabricados na nave.
     </p>
     <div class="build-recipes">
       <article v-for="r in constructionRecipes" :key="r.id" class="build-card">

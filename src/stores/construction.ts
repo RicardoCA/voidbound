@@ -25,6 +25,7 @@ import {
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
+import { BATTERY_CAP } from "../construction/habitat";
 import { pieceAt, footprint, overlapsActor } from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
@@ -126,7 +127,7 @@ export const useConstruction = defineStore("construction", () => {
     lastError.value = "";
     if (
       !removing.value &&
-      ["solarPanel", "oxygenGenerator"].includes(selected.value)
+      ["solarPanel", "battery", "oxygenGenerator"].includes(selected.value)
     )
       settlementFor(g.state, g.planet.id).utilityTime = g.state.time;
     g.worldChanged();
@@ -211,6 +212,16 @@ export const useConstruction = defineStore("construction", () => {
       return true;
     }
     if (
+      found.piece.kind === "battery" &&
+      inReach(g.state.player, found.x, found.y, 76)
+    ) {
+      g.refreshHabitat();
+      g.notify(
+        `Bateria: ${Math.floor(found.piece.energy ?? 0)}/${BATTERY_CAP} energia (${Math.floor((100 * (found.piece.energy ?? 0)) / BATTERY_CAP)}%).`,
+      );
+      return true;
+    }
+    if (
       found.piece.kind === "oxygenGenerator" &&
       inReach(g.state.player, found.x, found.y, 76)
     ) {
@@ -225,7 +236,11 @@ export const useConstruction = defineStore("construction", () => {
     let key: string | undefined,
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
-      if (!["cabinet", "woodDoor", "oxygenGenerator"].includes(piece.kind))
+      if (
+        !["cabinet", "woodDoor", "battery", "oxygenGenerator"].includes(
+          piece.kind,
+        )
+      )
         continue;
       const [x, y] = id.split(",").map(Number),
         d = Math.hypot(

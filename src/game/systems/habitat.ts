@@ -3,7 +3,8 @@ import { Terrain } from "../procedural/terrain";
 import { LRU } from "../procedural/random";
 import {
   analyzeRoom,
-  advanceGenerator,
+  advancePowerNetwork,
+  BATTERY_CAP,
   emptyHabitat,
   powerNetwork,
   REFILL_RATE,
@@ -50,20 +51,29 @@ export class HabitatSystem {
     const network = this.network!,
       now = state.time,
       from = Math.min(now, data.utilityTime ?? Math.max(0, now - dt));
-    for (const generator of network.generators)
-      advanceGenerator(
-        data.pieces[generator.key]!,
-        generator.panels,
-        from,
-        now,
-      );
-    if (network.generators.length) data.utilityTime = now;
+    advancePowerNetwork(data, network, from, now);
+    if (network.generators.length || network.batteries.length)
+      data.utilityTime = now;
     const report = {
       ...emptyHabitat(),
       panels: network.panels,
       exposedPanels: network.exposedPanels,
       generators: network.generators.length,
     };
+    function reportPower(generators: PowerNetwork["generators"]) {
+      const keys = new Set(generators.flatMap((g) => g.batteries));
+      report.batteries = keys.size;
+      report.batteryCapacity = keys.size * BATTERY_CAP;
+      report.batteryEnergy = [...keys].reduce(
+        (sum, key) => sum + (data!.pieces[key]!.energy ?? 0),
+        0,
+      );
+      report.connectedPanels =
+        generators.reduce((sum, g) => sum + g.panels, 0) +
+        network.batteries
+          .filter((b) => keys.has(b.key))
+          .reduce((sum, b) => sum + b.panels, 0);
+    }
     if (state.mode !== "surface") return report;
     const player = state.player,
       px = Math.floor(player.x / 16),
@@ -82,9 +92,9 @@ export class HabitatSystem {
       report.sealed = true;
       report.hasGenerator = true;
       report.reason = "no-power";
+      reportPower(inside);
       for (const generator of inside) {
         const piece = data.pieces[generator.key]!;
-        report.connectedPanels += generator.panels;
         report.energy += piece.energy ?? 0;
         const oxygen = piece.oxygen ?? 0;
         if (oxygen <= 0) continue;
@@ -113,7 +123,7 @@ export class HabitatSystem {
       const piece = data.pieces[nearest.key]!;
       report.hasGenerator = true;
       report.reason = nearest.room.sealed ? "outside" : nearest.room.reason;
-      report.connectedPanels = nearest.panels;
+      reportPower([nearest]);
       report.energy = piece.energy ?? 0;
       report.oxygen = piece.oxygen ?? 0;
     }

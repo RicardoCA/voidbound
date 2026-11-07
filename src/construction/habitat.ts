@@ -1,6 +1,7 @@
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
 import { blocksAir, keyAt, pieceAt } from "./pieces";
+export const BATTERY_CAP = 1200;
 export const ENERGY_CAP = 100,
   OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
@@ -100,12 +101,14 @@ export interface PowerNetwork {
     x: number;
     y: number;
     panels: number;
+    batteries: string[];
     room: Room;
   }[];
+  batteries: { key: string; x: number; y: number; panels: number }[];
   panels: number;
   exposedPanels: number;
 }
-/** One panel powers at most one generator: the nearest within twelve tiles. */
+/** Panels prefer the nearest battery; batteries feed one nearby generator. */
 export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
   const generators = Object.entries(data.pieces)
     .filter(([, p]) => p.kind === "oxygenGenerator")
@@ -116,10 +119,36 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
         x: x!,
         y: y!,
         panels: 0,
+        batteries: [] as string[],
         room: analyzeRoom(terrain, data, x!, y!),
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
+  const batteries = Object.entries(data.pieces)
+    .filter(([, p]) => p.kind === "battery")
+    .map(([key]) => {
+      const [x, y] = key.split(",").map(Number);
+      return { key, x: x!, y: y!, panels: 0 };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+  function nearest<T extends { x: number; y: number }>(
+    nodes: T[],
+    x: number,
+    y: number,
+  ) {
+    let result: T | undefined,
+      distance = POWER_RANGE + 0.00001;
+    for (const node of nodes) {
+      const d = Math.hypot(node.x - x, node.y - y);
+      if (d < distance) {
+        distance = d;
+        result = node;
+      }
+    }
+    return result;
+  }
+  for (const battery of batteries)
+    nearest(generators, battery.x, battery.y)?.batteries.push(battery.key);
   const panels = Object.entries(data.pieces).filter(
     ([, p]) => p.kind === "solarPanel",
   );
@@ -128,19 +157,57 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
     const [x, y] = key.split(",").map(Number);
     if (!exposedToSky(terrain, data, x!, y!)) continue;
     exposedPanels++;
-    let nearest: (typeof generators)[number] | undefined,
-      distance = POWER_RANGE + 0.00001;
-    for (const generator of generators) {
-      const d = Math.hypot(generator.x - x!, generator.y - y!);
-      if (d < distance) {
-        distance = d;
-        nearest = generator;
-      }
-    }
-    if (nearest) nearest.panels++;
+    const target =
+      nearest(batteries, x!, y!) ??
+      nearest(
+        generators.filter((g) => !g.batteries.length),
+        x!,
+        y!,
+      );
+    if (target) target.panels++;
   }
-  return { generators, panels: panels.length, exposedPanels };
+  return { generators, batteries, panels: panels.length, exposedPanels };
 }
+/** Each battery and panel has a single consumer, so power is never duplicated. */
+export function advancePowerNetwork(
+  data: Settlement,
+  network: PowerNetwork,
+  from: number,
+  to: number,
+) {
+  const sun = sunlightBetween(from, to),
+    elapsed = Math.max(0, to - from);
+  if (!elapsed) return;
+  for (const battery of network.batteries) {
+    const piece = data.pieces[battery.key]!;
+    piece.energy = Math.min(
+      BATTERY_CAP,
+      Math.max(0, piece.energy ?? 0) + battery.panels * SOLAR_RATE * sun,
+    );
+  }
+  for (const generator of network.generators) {
+    const piece = data.pieces[generator.key]!;
+    if (!generator.batteries.length) {
+      advanceGenerator(piece, generator.panels, from, to);
+      continue;
+    }
+    let needed = Math.max(
+      0,
+      Math.min(OXYGEN_CAP - (piece.oxygen ?? 0), GENERATOR_RATE * elapsed) / 3 -
+        (piece.energy ?? 0),
+    );
+    for (const key of generator.batteries) {
+      const battery = data.pieces[key]!,
+        supplied = Math.min(needed, battery.energy ?? 0);
+      battery.energy = Math.max(0, (battery.energy ?? 0) - supplied);
+      // Consume the transferred energy in this step, rather than filling an extra buffer.
+      piece.energy = (piece.energy ?? 0) + supplied;
+      needed -= supplied;
+    }
+    advanceGenerator(piece, 0, from, to);
+  }
+}
+
 export function advanceGenerator(
   piece: { energy?: number; oxygen?: number },
   panels: number,
@@ -171,6 +238,9 @@ export interface HabitatReport {
   generators: number;
   energy: number;
   oxygen: number;
+  batteries: number;
+  batteryEnergy: number;
+  batteryCapacity: number;
   gain: number;
 }
 export const emptyHabitat = (): HabitatReport => ({
@@ -184,6 +254,9 @@ export const emptyHabitat = (): HabitatReport => ({
   generators: 0,
   energy: 0,
   oxygen: 0,
+  batteries: 0,
+  batteryEnergy: 0,
+  batteryCapacity: 0,
   gain: 0,
 });
 export function habitatMessage(report: HabitatReport) {
@@ -194,7 +267,7 @@ export function habitatMessage(report: HabitatReport) {
   if (report.reason === "outside")
     return "Entre na casa pressurizada para recarregar";
   if (report.reason === "no-power")
-    return "Gerador sem reservas · Verifique as placas solares";
+    return "Gerador sem reservas · Verifique as placas solares e baterias";
   if (report.reason === "no-generator")
     return "Cômodo fechado · Instale um gerador de oxigênio";
   if (report.reason === "door") return "Porta aberta · Feche para pressurizar";

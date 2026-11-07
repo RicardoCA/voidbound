@@ -39,6 +39,12 @@ export const recipes: Recipe[] = [
     station: "hand",
   },
   {
+    id: "battery",
+    cost: { plate: 2, circuit: 1, cell: 2 },
+    unlock: 0,
+    station: "hand",
+  },
+  {
     id: "oxygenGenerator",
     cost: { plate: 3, circuit: 2, cell: 1 },
     unlock: 0,

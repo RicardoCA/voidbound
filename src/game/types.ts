@@ -29,6 +29,7 @@ export type Item =
   | "cabinet"
   | "woodDoor"
   | "solarPanel"
+  | "battery"
   | "oxygenGenerator";
 export type Inventory = Partial<Record<Item, number>>;
 export interface Planet {
@@ -57,6 +58,7 @@ export type BuildItem =
   | "cabinet"
   | "woodDoor"
   | "solarPanel"
+  | "battery"
   | "oxygenGenerator";
 export interface PlacedPiece {
   kind: Exclude<BuildItem, "woodWall">;
@@ -305,6 +307,13 @@ export const items: Record<
     name: "Placa solar",
     color: "#8ebfe9",
     icon: "▦",
+    rarity: "Construção",
+    stack: 99,
+  },
+  battery: {
+    name: "Bateria estacionária",
+    color: "#d6bd7e",
+    icon: "▣",
     rarity: "Construção",
     stack: 99,
   },

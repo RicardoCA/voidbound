@@ -16,6 +16,7 @@ export const buildItems: BuildItem[] = [
   "cabinet",
   "woodDoor",
   "solarPanel",
+  "battery",
   "oxygenGenerator",
 ];
 export const CABINET_SLOTS = 16,
@@ -122,7 +123,13 @@ export function placementError(
   if (!supported && !stairSupport)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
-    ["cabinet", "woodDoor", "solarPanel", "oxygenGenerator"].includes(kind) &&
+    [
+      "cabinet",
+      "woodDoor",
+      "solarPanel",
+      "battery",
+      "oxygenGenerator",
+    ].includes(kind) &&
     !(
       terrain.get(x, y + 1) ||
       settlement.pieces[keyAt(x, y + 1)]?.kind === "woodBlock"
@@ -150,6 +157,7 @@ export function placePiece(
       kind,
       facing,
       ...(kind === "woodDoor" ? { open: false } : {}),
+      ...(kind === "battery" ? { energy: 0 } : {}),
       ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
     };
     if (kind === "cabinet") ctx.settlement.cabinets[key] = {};

@@ -1,3 +1,4 @@
+import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
 import type { AlienTree } from "../procedural/trees";
@@ -171,6 +172,23 @@ export function drawPiece(
     g.lineBetween(x + 1, y + 7, x + 15, y + 7);
     g.fillStyle(0xc8e8ef, alpha * 0.55);
     g.fillRect(x + 1, y + 3, 3, 2);
+    return;
+  }
+  if (kind === "battery") {
+    g.fillStyle(0x50677b, alpha);
+    g.fillRect(x + 2, y + 3, 12, 13);
+    g.fillStyle(0xd6bd7e, alpha);
+    g.fillRect(x + 5, y + 1, 6, 2);
+    g.fillStyle(0x172c39, alpha);
+    g.fillRect(x + 4, y + 5, 8, 9);
+    const charge = Math.max(0, Math.min(1, (state?.energy ?? 0) / BATTERY_CAP));
+    g.fillStyle(charge > 0 ? 0x92d6c8 : 0x71574b, alpha);
+    g.fillRect(
+      x + 5,
+      y + 13 - Math.round(charge * 7),
+      6,
+      Math.max(1, Math.round(charge * 7)),
+    );
     return;
   }
   if (kind === "oxygenGenerator") {

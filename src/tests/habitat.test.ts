@@ -18,6 +18,8 @@ import {
   sunlightBetween,
   powerNetwork,
   advanceGenerator,
+  advancePowerNetwork,
+  BATTERY_CAP,
 } from "../construction/habitat";
 import { solidCell, stepSurface, type Actor } from "../game/physics/surface";
 import { SaveDatabase } from "../persistence/database";
@@ -341,5 +343,117 @@ describe("Conservação e alcance do suporte de vida", () => {
     g.tick(1);
     expect(data.pieces["6,28"]!.energy).toBeLessThan(8);
     expect(data.pieces["6,28"]!.oxygen).toBe(6);
+  });
+});
+
+describe("Baterias solares persistentes", () => {
+  it("carrega pelo sol e mantém o gerador de O₂ durante a noite", () => {
+    const { g, data } = fixture();
+    data.pieces["7,28"] = { kind: "battery", facing: 1, energy: 0 };
+    g.worldChanged();
+    g.tick(1);
+    const battery = data.pieces["7,28"]!;
+    expect(battery.energy).toBeGreaterThan(0);
+    expect(data.pieces["6,28"]!.energy).toBe(0);
+    expect(g.habitat.batteries).toBe(1);
+    expect(g.habitat.connectedPanels).toBe(1);
+    expect(g.habitat.batteryCapacity).toBe(BATTERY_CAP);
+    g.state.time = 450;
+    data.utilityTime = 450;
+    data.pieces["6,28"]!.oxygen = 0;
+    const before = battery.energy!;
+    g.tick(1);
+    expect(battery.energy).toBeCloseTo(before - 2);
+    expect(g.habitat.supplied).toBe(true);
+    expect(g.habitat.gain).toBeGreaterThan(0);
+    battery.energy = 0;
+    data.pieces["6,28"]!.oxygen = 0;
+    g.tick(1);
+    expect(g.habitat.supplied).toBe(false);
+  });
+  it("carrega sem gerador, limita a carga e não cria energia à noite ou na sombra", () => {
+    const { terrain, data } = fixture();
+    delete data.pieces["6,28"];
+    data.pieces["7,28"] = { kind: "battery", facing: 1, energy: 0 };
+    let network = powerNetwork(terrain, data);
+    advancePowerNetwork(data, network, 0, 300);
+    const battery = data.pieces["7,28"]!;
+    expect(battery.energy).toBe(BATTERY_CAP);
+    battery.energy = 0;
+    advancePowerNetwork(data, network, 400, 500);
+    expect(battery.energy).toBe(0);
+    data.pieces["6,23"] = { kind: "woodBlock", facing: 1 };
+    network = powerNetwork(terrain, data);
+    advancePowerNetwork(data, network, 0, 10);
+    expect(battery.energy).toBe(0);
+    advancePowerNetwork(data, network, 10, 10);
+    expect(battery.energy).toBe(0);
+  });
+  it("não duplica energia entre baterias e geradores e respeita o alcance", () => {
+    const { terrain, data } = fixture();
+    data.pieces["7,28"] = { kind: "battery", facing: 1, energy: 10 };
+    data.pieces["5,28"] = { kind: "battery", facing: 1, energy: 10 };
+    data.pieces["4,28"] = { kind: "oxygenGenerator", facing: 1 };
+    data.pieces["40,28"] = { kind: "battery", facing: 1, energy: 0 };
+    const network = powerNetwork(terrain, data);
+    expect(network.batteries.reduce((n, b) => n + b.panels, 0)).toBe(1);
+    expect(network.generators.reduce((n, g) => n + g.panels, 0)).toBe(0);
+    expect(network.generators.flatMap((g) => g.batteries).sort()).toEqual([
+      "5,28",
+      "7,28",
+    ]);
+    advancePowerNetwork(data, network, 450, 451);
+    expect(data.pieces["40,28"]!.energy).toBe(0);
+    const remaining = network.batteries.reduce(
+      (n, b) => n + (data.pieces[b.key]!.energy ?? 0),
+      0,
+    );
+    const oxygen = network.generators.reduce(
+      (n, g) => n + (data.pieces[g.key]!.oxygen ?? 0),
+      0,
+    );
+    expect(remaining + oxygen / 3).toBeCloseTo(20);
+  });
+  it("restaura alimentação solar direta após remover a bateria", () => {
+    const { g, data } = fixture();
+    data.pieces["7,28"] = { kind: "battery", facing: 1, energy: 0 };
+    g.worldChanged();
+    g.tick(1);
+    delete data.pieces["7,28"];
+    g.worldChanged();
+    g.tick(1);
+    expect(g.habitat.batteries).toBe(0);
+    expect(g.habitat.connectedPanels).toBe(1);
+    expect(data.pieces["6,28"]!.energy).toBeGreaterThan(0);
+  });
+  it("fabrica, instala vazia e salva a carga exata por planeta", async () => {
+    const { g, data } = fixture(),
+      b = useConstruction();
+    g.state.inventory = { plate: 2, circuit: 1, cell: 2 };
+    g.make("battery");
+    expect(g.state.inventory).toEqual({ battery: 1 });
+    g.state.player.x = 88;
+    b.equip("battery");
+    expect(b.apply(7, 28)).toBe(true);
+    expect(data.pieces["7,28"]!.energy).toBe(0);
+    g.tick(2);
+    const charge = data.pieces["7,28"]!.energy!;
+    expect(charge).toBeGreaterThan(0);
+    const db = new SaveDatabase(`battery-${crypto.randomUUID()}`);
+    await db.write(g.state);
+    const saved = await db.read();
+    expect(saved!.settlements[g.planet.id]!.pieces["7,28"]!.energy).toBe(
+      charge,
+    );
+    g.state = saved!;
+    g.state.time = 450;
+    g.state.settlements[g.planet.id]!.utilityTime = 450;
+    g.state.settlements[g.planet.id]!.pieces["6,28"]!.oxygen = 0;
+    g.tick(1);
+    expect(g.habitat.supplied).toBe(true);
+    expect(
+      g.state.settlements[g.planet.id]!.pieces["7,28"]!.energy,
+    ).toBeCloseTo(charge - 2);
+    await db.delete();
   });
 });
