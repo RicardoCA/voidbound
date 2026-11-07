@@ -28,7 +28,7 @@ A alpha é jogável; **não representa a conclusão da V1 solicitada**. O plano 
 
 ### Verificação executada nesta entrega
 
-- [x] Build de produção, incluindo verificação TypeScript; 69 testes automatizados passaram.
+- [x] Build de produção, incluindo verificação TypeScript; 73 testes automatizados passaram.
 - [x] ESLint.
 - [x] Testes de determinismo após expulsão do cache, seis biomas, limites de memória e terreno negativo.
 - [x] Testes de inventário e crafting com rollback por falta de materiais/capacidade.
@@ -127,5 +127,5 @@ Separar os dois inventários, integrar Arcade aos corpos, ampliar o teste de nav
 
 - Reproduzida a falha no navegador: o bloqueio de rolagem em captura marcava o evento como tratado antes de o KeyboardManager do Phaser recebê-lo.
 - O preventDefault agora ocorre depois da leitura do Phaser, mantendo a proteção contra rolagem e ativação involuntária de botões durante o jogo.
-- Pulos por teclado usam o mesmo mecanismo de pulsos do toque para reconhecer pressionamentos rápidos entre frames.
+- Pulos por teclado usam o mesmo mecanismo de pulsos do toque para reconhecer pressionamentos rápidos entre frames. Uma tolerância de 120 ms preserva o comando logo antes da aterrissagem, sem criar pulos automáticos depois de quedas longas.
 - `npm run test:jump` verifica pulo normal/rápido, repetição após aterrissar, foco no HUD e retomada do save. Sem alteração no schema ou no progresso salvo.

@@ -18,6 +18,7 @@ import {
   controls,
   takePulse,
   queuePulse,
+  JumpBuffer,
   releaseControls,
   isEditing,
 } from "../input";
@@ -62,6 +63,7 @@ export class WorldScene extends Phaser.Scene {
     { x: number; y: number; tx: number; ty: number; life: number } | undefined;
   private interactHeld = false;
   private jumpHeld = false;
+  private jumpBuffer = new JumpBuffer();
   constructor() {
     super("world");
   }
@@ -106,6 +108,7 @@ export class WorldScene extends Phaser.Scene {
     const focusInput = (event: FocusEvent) => {
       if (isEditing(event.target)) {
         this.input.keyboard!.resetKeys();
+        this.jumpBuffer.clear();
         releaseControls();
       }
     };
@@ -215,6 +218,8 @@ export class WorldScene extends Phaser.Scene {
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
     }
     if (this.lastMode !== s.mode) {
+      this.jumpBuffer.clear();
+      this.jumpHeld = false;
       if (s.mode === "surface") {
         this.vy = 0;
         if (s.player.y === 0) {
@@ -271,6 +276,7 @@ export class WorldScene extends Phaser.Scene {
       }
       this.interactHeld = interact;
     } else {
+      this.jumpBuffer.clear();
       this.surfaceTap = undefined;
       this.interactHeld = this.down("E") || controls.interact;
     }
@@ -385,7 +391,11 @@ export class WorldScene extends Phaser.Scene {
     if (direction) this.facing = direction;
     const pulse = takePulse("jump");
     const jumping = this.down("SPACE") || controls.jump;
-    const jump = pulse || (jumping && !this.jumpHeld);
+    const jump = this.jumpBuffer.take(
+      pulse || (jumping && !this.jumpHeld),
+      this.grounded,
+      dt,
+    );
     if (jump && this.grounded) audio.play(300);
     this.jumpHeld = jumping;
     const movement = stepSurface(

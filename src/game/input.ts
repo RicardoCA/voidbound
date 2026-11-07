@@ -33,3 +33,22 @@ export function isEditing(target: EventTarget | null) {
     (target.isContentEditable || !!target.closest("input, textarea, select"))
   );
 }
+
+/** Retain a jump briefly so a press just before floor contact is not lost. */
+export class JumpBuffer {
+  private remaining = 0;
+  constructor(private readonly duration = 0.12) {}
+  take(requested: boolean, grounded: boolean, dt: number) {
+    this.remaining = requested
+      ? this.duration
+      : Math.max(0, this.remaining - dt);
+    if (grounded && this.remaining > 0) {
+      this.remaining = 0;
+      return true;
+    }
+    return false;
+  }
+  clear() {
+    this.remaining = 0;
+  }
+}
