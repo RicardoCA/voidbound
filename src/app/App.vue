@@ -99,8 +99,17 @@ function newGame() {
     confirmNew.value = true;
     return;
   }
+  audio.unlock();
   g.newGame(seed.value);
   confirmNew.value = false;
+}
+function resumeGame() {
+  audio.unlock();
+  void g.resume();
+}
+function unpause() {
+  audio.unlock();
+  g.paused = false;
 }
 function orbitCancel() {
   g.state.mode = "space";
@@ -160,7 +169,11 @@ function minutes() {
             <button class="primary large" @click="newGame">
               {{ confirmNew ? "CONFIRMAR NOVA PARTIDA" : "INICIAR EXPEDIÇÃO" }}
               <span>↗</span></button
-            ><button v-if="g.hasSave" class="secondary large" @click="g.resume">
+            ><button
+              v-if="g.hasSave"
+              class="secondary large"
+              @click="resumeGame"
+            >
               CONTINUAR EXPEDIÇÃO <span>→</span></button
             ><button
               v-if="confirmNew"
@@ -404,8 +417,7 @@ function minutes() {
           <div class="eyebrow">TRANSMISSÃO EM ESPERA</div>
           <h2>Uma pausa entre estrelas.</h2>
           <p>A simulação está pausada.</p>
-          <button class="primary" @click="g.paused = false">
-            RETOMAR EXPEDIÇÃO →</button
+          <button class="primary" @click="unpause">RETOMAR EXPEDIÇÃO →</button
           ><button class="secondary" @click="saveManually">
             SALVAR PARTIDA</button
           ><button class="secondary" @click="showOptions = true">OPÇÕES</button
