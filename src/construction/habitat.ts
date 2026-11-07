@@ -2,8 +2,7 @@ import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
 import { blocksAir, keyAt, pieceAt } from "./pieces";
 export const BATTERY_CAP = 1200;
-export const ENERGY_CAP = 100,
-  OXYGEN_CAP = 100,
+export const OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
   GENERATOR_RATE = 6,
   REFILL_RATE = 8,
@@ -177,6 +176,8 @@ export function advancePowerNetwork(
 ) {
   const sun = sunlightBetween(from, to),
     elapsed = Math.max(0, to - from);
+  for (const generator of network.generators)
+    data.pieces[generator.key]!.energy = 0;
   if (!elapsed) return;
   for (const battery of network.batteries) {
     const piece = data.pieces[battery.key]!;
@@ -193,18 +194,17 @@ export function advancePowerNetwork(
     }
     let needed = Math.max(
       0,
-      Math.min(OXYGEN_CAP - (piece.oxygen ?? 0), GENERATOR_RATE * elapsed) / 3 -
-        (piece.energy ?? 0),
+      Math.min(OXYGEN_CAP - (piece.oxygen ?? 0), GENERATOR_RATE * elapsed) / 3,
     );
+    let suppliedEnergy = 0;
     for (const key of generator.batteries) {
       const battery = data.pieces[key]!,
         supplied = Math.min(needed, battery.energy ?? 0);
       battery.energy = Math.max(0, (battery.energy ?? 0) - supplied);
-      // Consume the transferred energy in this step, rather than filling an extra buffer.
-      piece.energy = (piece.energy ?? 0) + supplied;
+      suppliedEnergy += supplied;
       needed -= supplied;
     }
-    advanceGenerator(piece, 0, from, to);
+    advanceGenerator(piece, 0, from, to, suppliedEnergy);
   }
 }
 
@@ -213,10 +213,11 @@ export function advanceGenerator(
   panels: number,
   from: number,
   to: number,
+  suppliedEnergy = 0,
 ) {
   const elapsed = Math.max(0, to - from),
     available =
-      Math.max(0, Math.min(ENERGY_CAP, piece.energy ?? 0)) +
+      Math.max(0, suppliedEnergy) +
       panels * SOLAR_RATE * sunlightBetween(from, to);
   const stored = Math.max(0, Math.min(OXYGEN_CAP, piece.oxygen ?? 0)),
     produced = Math.min(
@@ -224,7 +225,8 @@ export function advanceGenerator(
       GENERATOR_RATE * elapsed,
       available * 3,
     );
-  piece.energy = Math.min(ENERGY_CAP, Math.max(0, available - produced / 3));
+  // Electricity is stored only in placed batteries, never inside the generator.
+  piece.energy = 0;
   piece.oxygen = Math.min(OXYGEN_CAP, stored + produced);
 }
 export interface HabitatReport {

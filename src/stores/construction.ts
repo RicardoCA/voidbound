@@ -226,7 +226,7 @@ export const useConstruction = defineStore("construction", () => {
       inReach(g.state.player, found.x, found.y, 76)
     ) {
       g.notify(
-        `Gerador: energia ${Math.floor(found.piece.energy ?? 0)}/100 · O₂ ${Math.floor(found.piece.oxygen ?? 0)}/100.`,
+        `Gerador sem bateria interna · O₂ ${Math.floor(found.piece.oxygen ?? 0)}/100.`,
       );
       return true;
     }

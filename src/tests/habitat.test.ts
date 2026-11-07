@@ -142,7 +142,7 @@ describe("Energia solar e reservas", () => {
     expect(sunlightBetween(400, 500)).toBe(0);
     const piece = { energy: 0, oxygen: 0 };
     advanceGenerator(piece, 1, 0, 1e8);
-    expect(piece.energy).toBe(100);
+    expect(piece.energy).toBe(0);
     expect(piece.oxygen).toBe(100);
   });
   it("liga uma placa só ao gerador mais próximo, sem duplicar a energia", () => {
@@ -170,9 +170,9 @@ describe("Energia solar e reservas", () => {
     const piece = { energy: 10, oxygen: 0 };
     advanceGenerator(piece, 0, 0, 100);
     expect(piece.energy).toBe(0);
-    expect(piece.oxygen).toBe(30);
+    expect(piece.oxygen).toBe(0);
     advanceGenerator(piece, 0, 100, 200);
-    expect(piece.oxygen).toBe(30);
+    expect(piece.oxygen).toBe(0);
     const empty = { energy: 0, oxygen: 0 };
     advanceGenerator(empty, 1, 400, 500);
     expect(empty).toEqual({ energy: 0, oxygen: 0 });
@@ -185,7 +185,7 @@ describe("Recarga do traje dentro da casa", () => {
     g.tick(1);
     expect(g.habitat.supplied).toBe(true);
     expect(g.state.player.oxygen).toBeGreaterThan(30);
-    expect(data.pieces["6,28"]!.energy).toBeGreaterThan(0);
+    expect(data.pieces["6,28"]!.energy).toBe(0);
     b.toggleDoor("3,28");
     const before = g.state.player.oxygen;
     g.tick(1);
@@ -223,7 +223,8 @@ describe("Recarga do traje dentro da casa", () => {
     const { g, data } = fixture();
     g.state.time = 450;
     data.utilityTime = 450;
-    data.pieces["6,28"]!.energy = 20;
+    data.pieces["7,28"] = { kind: "battery", facing: 1, energy: 20 };
+    g.worldChanged();
     g.state.player.oxygen = 99;
     g.tick(1);
     expect(g.state.player.oxygen).toBe(100);
@@ -238,13 +239,13 @@ describe("Recarga do traje dentro da casa", () => {
     const { g, data } = fixture();
     g.enter();
     g.tick(10);
-    const energy = data.pieces["6,28"]!.energy!;
+    const oxygen = data.pieces["6,28"]!.oxygen!;
     g.state.systemX = 10;
     g.tick(50);
-    expect(data.pieces["6,28"]!.energy).toBe(energy);
+    expect(data.pieces["6,28"]!.oxygen).toBe(oxygen);
     g.state.systemX = 0;
     g.tick(0.04);
-    expect(data.pieces["6,28"]!.energy).toBeGreaterThan(energy);
+    expect(data.pieces["6,28"]!.oxygen).toBeGreaterThan(oxygen);
     expect(data.pieces["6,28"]!.oxygen).toBe(100);
   });
 });
@@ -424,7 +425,7 @@ describe("Baterias solares persistentes", () => {
     g.tick(1);
     expect(g.habitat.batteries).toBe(0);
     expect(g.habitat.connectedPanels).toBe(1);
-    expect(data.pieces["6,28"]!.energy).toBeGreaterThan(0);
+    expect(data.pieces["6,28"]!.energy).toBe(0);
   });
   it("fabrica, instala vazia e salva a carga exata por planeta", async () => {
     const { g, data } = fixture(),
@@ -455,5 +456,35 @@ describe("Baterias solares persistentes", () => {
       g.state.settlements[g.planet.id]!.pieces["7,28"]!.energy,
     ).toBeCloseTo(charge - 2);
     await db.delete();
+  });
+});
+
+describe("Gerador sem armazenamento elétrico interno", () => {
+  it("descarta energia de saves antigos mesmo sem avançar o relógio", () => {
+    const { g, data } = fixture();
+    g.state.time = 450;
+    data.utilityTime = 450;
+    data.pieces["6,28"]!.energy = 95;
+    data.pieces["6,28"]!.oxygen = 0;
+    g.refreshHabitat();
+    expect(data.pieces["6,28"]!.energy).toBe(0);
+    expect(g.habitat.energy).toBe(0);
+    g.tick(1);
+    expect(data.pieces["6,28"]!.oxygen).toBe(0);
+    expect(g.habitat.supplied).toBe(false);
+  });
+  it("não guarda excedente solar e para de produzir ao perder a luz", () => {
+    const { g, data } = fixture();
+    g.enter();
+    g.tick(5);
+    expect(data.pieces["6,28"]!.oxygen).toBeGreaterThan(0);
+    expect(data.pieces["6,28"]!.energy).toBe(0);
+    g.state.time = 450;
+    data.utilityTime = 450;
+    const oxygen = data.pieces["6,28"]!.oxygen!;
+    g.enter();
+    g.tick(1);
+    expect(data.pieces["6,28"]!.oxygen).toBe(oxygen);
+    expect(data.pieces["6,28"]!.energy).toBe(0);
   });
 });
