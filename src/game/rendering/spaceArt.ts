@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { createNoise3D } from "simplex-noise";
+import { createNoise3D, createNoise4D } from "simplex-noise";
 import { hash, random } from "../procedural/random";
 import type { Planet } from "../types";
 
@@ -134,28 +134,72 @@ export class PlanetTextures {
   }
 }
 
-export function drawNebula(
+export function createSpaceBackdrop(scene: Phaser.Scene) {
+  const key = "deep-space-dust";
+  const width = 512,
+    height = 256;
+  const texture = scene.textures.createCanvas(key, width, height);
+  if (!texture) throw new Error("Não foi possível criar a textura do espaço.");
+  const context = texture.context;
+  const image = context.createImageData(width, height);
+  const noise = createNoise4D(random(4167));
+  const ring = (length: number) =>
+    Array.from({ length }, (_, i) => {
+      const angle = (i * Math.PI * 2) / length;
+      return [Math.cos(angle), Math.sin(angle)] as const;
+    });
+  const xs = ring(width),
+    ys = ring(height);
+  for (const [y, [cy, sy]] of ys.entries()) {
+    for (const [x, [cx, sx]] of xs.entries()) {
+      const broad = noise(cx * 0.92, sx * 0.92, cy * 0.72, sy * 0.72);
+      const cloud = noise(cx * 2.15 + 8, sx * 2.15, cy * 1.35, sy * 1.35);
+      const filaments = noise(cx * 5.1, sx * 5.1, cy * 3.3 + cloud, sy * 3.3);
+      const grain = noise(cx * 23, sx * 23, cy * 14, sy * 14);
+      const density = Math.max(0, broad * 0.62 + cloud * 0.45 + 0.26);
+      const dust =
+        Math.round(
+          clamp(density * (0.78 + filaments * 0.6) + grain * 0.06) * 24,
+        ) / 24;
+      const violet = clamp(0.52 + cloud * 0.82 + broad * 0.35);
+      const index = (y * width + x) * 4;
+      image.data[index] = 5 + dust * (23 + violet * 42);
+      image.data[index + 1] = 8 + dust * (62 - violet * 24);
+      image.data[index + 2] = 18 + dust * (78 + violet * 21);
+      image.data[index + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  texture.refresh();
+  scene.events.once("shutdown", () => scene.textures.remove(key));
+  return scene.add
+    .tileSprite(0, 0, width, height, key)
+    .setOrigin(0)
+    .setDepth(-3);
+}
+
+const starColors = [0xb4d9ff, 0xffdfa9, 0xb0f3de, 0xd3b9f6, 0xe6f1ff];
+
+export function drawSpaceStar(
   g: Phaser.GameObjects.Graphics,
-  width: number,
-  height: number,
-  cameraX: number,
+  x: number,
+  y: number,
+  size: number,
+  phase: number,
+  time: number,
 ) {
-  const shift = Math.sin(cameraX * 0.00018) * 32;
-  for (let band = 0; band < 12; band++) {
-    const center = Math.round(height * 0.26 + band * height * 0.04);
-    const opacity = 0.055 + 0.035 * Math.sin((band * Math.PI) / 12);
-    const edge = (x: number) =>
-      Math.round(
-        center + Math.sin((x + shift) / 110 + band * 0.12) * 28 + x * 0.11,
-      );
-    const points = [];
-    for (let x = -24; x < width + 25; x += 24) points.push({ x, y: edge(x) });
-    for (let x = points.at(-1)!.x; x >= -24; x -= 24)
-      points.push({ x, y: edge(x) + 26 });
-    g.fillStyle(band < 6 ? 0x334774 : 0x314d69, opacity).fillPoints(
-      points,
-      true,
-    );
+  const color = starColors[Math.floor(phase * 5) % starColors.length]!;
+  const pulse = 0.76 + Math.sin(time * 0.9 + phase * 3) * 0.22;
+  if (size === 2) {
+    g.fillStyle(color, pulse * 0.12).fillRect(x - 2, y - 2, 6, 6);
+    if (phase > 4) {
+      g.fillStyle(color, pulse * 0.43).fillRect(x - 3, y, 8, 1);
+      g.fillRect(x, y - 3, 1, 8);
+    }
+    g.fillStyle(color, pulse).fillRect(x, y, 2, 2);
+    g.fillStyle(0xffffff, pulse * 0.9).fillRect(x, y, 1, 1);
+  } else {
+    g.fillStyle(color, pulse * (0.36 + phase * 0.064)).fillRect(x, y, 1, 1);
   }
 }
 

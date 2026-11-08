@@ -1,6 +1,7 @@
 import {
   drawAsteroid,
-  drawNebula,
+  createSpaceBackdrop,
+  drawSpaceStar,
   drawSpaceWreck,
   PlanetTextures,
 } from "../rendering/spaceArt";
@@ -78,6 +79,7 @@ export class WorldScene extends Phaser.Scene {
     { x: number; y: number; wx: number; wy: number } | undefined;
   private gfx!: Phaser.GameObjects.Graphics;
   private backdrop!: Phaser.GameObjects.Graphics;
+  private spaceDust!: Phaser.GameObjects.TileSprite;
   private planetTextures = new PlanetTextures();
   private flightShipGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -147,6 +149,7 @@ export class WorldScene extends Phaser.Scene {
     });
     this.gfx = this.add.graphics();
     this.backdrop = this.add.graphics().setDepth(-2);
+    this.spaceDust = createSpaceBackdrop(this).setVisible(false);
     this.events.once("shutdown", () => this.planetTextures.clear(this));
     this.flightShipGfx = this.add.graphics().setDepth(2);
     this.keys = this.input.keyboard!.addKeys(
@@ -284,6 +287,7 @@ export class WorldScene extends Phaser.Scene {
     if (!g) return;
     this.flightShipGfx.clear();
     this.backdrop.clear();
+    this.spaceDust.setVisible(false);
     this.planetTextures.hide();
     const s = g.state;
     if (g.started && s.mode === "docked") {
@@ -1014,11 +1018,19 @@ export class WorldScene extends Phaser.Scene {
         )
       : 0x080f20;
     const backdrop = this.backdrop;
-    backdrop.fillStyle(sky);
-    backdrop.fillRect(0, 0, this.viewWidth, this.viewHeight);
-    if (!surface)
-      drawNebula(backdrop, this.viewWidth, this.viewHeight, this.camX);
-    else
+    if (!surface) {
+      if (
+        this.spaceDust.width !== this.viewWidth ||
+        this.spaceDust.height !== this.viewHeight
+      )
+        this.spaceDust.setSize(this.viewWidth, this.viewHeight);
+      this.spaceDust.setTilePosition(
+        this.camX * 0.065 + 32,
+        this.camY * 0.065 + 24,
+      );
+      this.spaceDust.setVisible(true);
+    } else {
+      backdrop.fillStyle(sky).fillRect(0, 0, this.viewWidth, this.viewHeight);
       for (let layer = 0; layer < 3; layer++) {
         backdrop.fillStyle(
           [0x15213a, 0x18283c, 0x1b2540][layer]!,
@@ -1031,6 +1043,7 @@ export class WorldScene extends Phaser.Scene {
           100,
         );
       }
+    }
     for (const star of this.stars) {
       const parallax = surface
         ? 0.025
@@ -1046,11 +1059,24 @@ export class WorldScene extends Phaser.Scene {
             this.viewHeight) +
             this.viewHeight) %
           this.viewHeight;
-      backdrop.fillStyle(
-        0xc7daeb,
-        (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) * (1 - light),
-      );
-      backdrop.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+      if (surface) {
+        backdrop
+          .fillStyle(
+            0xc7daeb,
+            (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) *
+              (1 - light),
+          )
+          .fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+      } else {
+        drawSpaceStar(
+          backdrop,
+          Math.floor(x),
+          Math.floor(y),
+          star.r,
+          star.phase,
+          this.elapsed,
+        );
+      }
     }
     if (surface) {
       if (light > 0) {
