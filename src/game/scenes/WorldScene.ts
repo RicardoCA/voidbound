@@ -50,6 +50,7 @@ import {
   isEditing,
 } from "../input";
 import { CabinInterior } from "../cabin/CabinInterior";
+import { drawStationHull } from "../station/stationArt";
 import { StationInterior } from "../station/StationInterior";
 import { audio } from "../systems/audio";
 const ATMOSPHERE_EXIT = 3.2;
@@ -1132,40 +1133,16 @@ export class WorldScene extends Phaser.Scene {
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
-      f.fillStyle(0x122438);
-      f.fillPoints(
-        [
-          { x: x - 40, y: y + 9 },
-          { x: x + 40, y: y + 9 },
-          { x: x + 45, y: y + 16 },
-          { x: x - 35, y: y + 16 },
-        ],
-        true,
-      );
-      f.fillStyle(0x30485e);
-      f.fillRect(x - 40, y - 9, 80, 18);
-      f.fillStyle(0x88a3af);
-      f.fillRect(x - 40, y - 9, 80, 2);
-      f.fillStyle(0x263a4d);
-      f.fillRect(x - 12, y - 12, 34, 36);
-      f.fillStyle(0x637f92);
-      f.fillRect(x - 17, y - 18, 34, 36);
-      f.fillStyle(0x9cb0b7);
-      f.fillRect(x - 17, y - 18, 34, 3);
-      f.fillStyle(0x172947);
-      f.fillRect(x - 37, y - 6, 20, 12);
-      f.fillRect(x + 17, y - 6, 20, 12);
-      f.fillStyle(0x92d6c8);
-      f.fillRect(x - 11, y - 10, 22, 5);
-      f.fillStyle(0xd4b079);
-      f.fillRect(x - 7, y + 7, 14, 4);
-      if (g.dockingSequence) {
-        const blink = Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0;
-        f.fillStyle(blink ? 0xffe2a0 : 0x92d6c8);
-        f.fillRect(x - 18, y - 17, 4, 3);
-        f.fillRect(x + 14, y - 17, 4, 3);
-        f.fillRect(x - 18, y + 14, 4, 3);
-        f.fillRect(x + 14, y + 14, 4, 3);
+      if (
+        x > -65 &&
+        x < this.viewWidth + 65 &&
+        y > -35 &&
+        y < this.viewHeight + 35
+      ) {
+        const beacon = g.dockingSequence
+          ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
+          : Math.floor(this.elapsed * 2) % 4 === 0;
+        drawStationHull(f, x, y, beacon);
       }
     }
     g.system.planets.forEach((p, i) => {
