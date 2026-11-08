@@ -114,6 +114,18 @@ a {
   font-size: 20px;
   color: #9aafb9;
 }
+.instagram-link {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  color: var(--mint);
+}
+.instagram-link:hover {
+  background: #243542;
+  border-color: var(--mint);
+}
 .flight-deck {
   position: relative;
   height: calc(100dvh - 174px);
