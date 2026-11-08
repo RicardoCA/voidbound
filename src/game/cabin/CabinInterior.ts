@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { drawCabinBulkhead, drawCabinDeck, drawCabinFixture } from "./cabinArt";
 
 export const cabinEquipment = {
   hatch: {
@@ -138,22 +139,7 @@ export class CabinInterior {
       0x253f52,
       hull.map(({ x, y }) => project(x * 0.97, y * 0.93)),
     );
-    for (let x = -175; x <= 175; x += 25) {
-      f.lineStyle(1, 0x192f42).lineBetween(
-        project(x, -41).x,
-        project(x, -41).y,
-        project(x, 44).x,
-        project(x, 44).y,
-      );
-    }
-    for (const y of [-43, -10, 16, 45]) {
-      f.lineStyle(1, y === -10 || y === 16 ? 0x587984 : 0x182d3d).lineBetween(
-        project(-188, y).x,
-        project(-188, y).y,
-        project(188, y).x,
-        project(188, y).y,
-      );
-    }
+    drawCabinDeck(f, project);
     const wall = hull.slice(0, 4);
     for (let i = 0; i < wall.length - 1; i++) {
       const a = wall[i]!,
@@ -171,11 +157,7 @@ export class CabinInterior {
         project(a.x, a.y, 43),
       ]);
     }
-    const window = project(54, -62, 30);
-    rect(0x496775, window.x - 58, window.y - 1, 116, 23);
-    rect(0x102738, window.x - 55, window.y + 2, 110, 17);
-    rect(0x7fabb6, window.x - 31, window.y + 10, 2, 2);
-    rect(0x638b99, window.x + 21, window.y + 7, 3, 1);
+    drawCabinBulkhead(f, project);
 
     const selected = this.nearby();
     let drewPlayer = false;
@@ -190,42 +172,7 @@ export class CabinInterior {
       const depth = item.y + (id === "map" ? 0 : back ? -23 : 23);
       if (!drewPlayer && this.y < depth) drawPlayer();
       const { x, y } = project(item.x, depth);
-      rect(0x152839, x - 23, y - 2, 46, 5);
-      if (id === "map") {
-        rect(0x142736, x - 21, y - 8, 42, 10);
-        f.lineStyle(1, item.color, 0.65).strokeEllipse(x, y - 12, 38, 13);
-        f.lineStyle(1, item.color, 0.4).strokeEllipse(x, y - 12, 22, 7);
-        rect(item.color, x - 1, y - 13, 3, 3);
-        rect(item.color, x + 8, y - 17, 2, 2);
-      } else if (id === "hatch" || id === "inventory") {
-        const h = id === "hatch" ? 34 : 24;
-        rect(0x142736, x - 19, y - h, 39, h);
-        rect(0x6b8690, x - 17, y - h, 32, h - 2);
-        rect(
-          id === "hatch" ? 0x294452 : 0x364d56,
-          x - 14,
-          y - h + 3,
-          26,
-          h - 6,
-        );
-        rect(item.color, x + 7, y - h + 10, 3, 7);
-      } else {
-        rect(0x162b3d, x - 19, y - 17, 38, 17);
-        polygon(0x526f7f, [
-          { x: x - 23, y: y - 19 },
-          { x: x + 14, y: y - 19 },
-          { x: x + 19, y: y - 14 },
-          { x: x - 18, y: y - 14 },
-        ]);
-        rect(item.color, x - 17, y - 14, 34, 2);
-        if (id === "pilot") {
-          rect(0x132535, x - 6, y - 10, 12, 11);
-          rect(item.color, x - 8, y - 8, 16, 4);
-        } else {
-          rect(0x233f50, x - 11, y - 11, 22, 7);
-          rect(item.color, x - 7, y - 9, 14, 2);
-        }
-      }
+      drawCabinFixture(f, id, x, y, item.color, selected === id);
       const label =
         this.labels.get(id) ??
         scene.add
@@ -239,7 +186,7 @@ export class CabinInterior {
       this.labels.set(id, label);
       label
         .setVisible(true)
-        .setPosition(x, y + (id === "map" ? -24 : back ? -42 : 13))
+        .setPosition(x, y + (id === "map" ? -42 : back ? -42 : 13))
         .setColor(id === selected ? "#a1f2db" : "#c2d5df");
     }
     if (!drewPlayer) drawPlayer();
