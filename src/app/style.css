@@ -1010,89 +1010,6 @@ kbd {
   color: #9ab9bf;
   padding: 8px 0;
 }
-.cockpit {
-  max-width: 570px;
-}
-.cockpit h2 {
-  margin-bottom: 10px;
-}
-.cabin-visual {
-  height: 100px;
-  background: #142331;
-  border: 5px solid #2d414e;
-  position: relative;
-  margin: 20px 0;
-  image-rendering: pixelated;
-  box-shadow: inset 0 0 0 3px #091321;
-}
-.cabin-window {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 8px;
-  bottom: 15px;
-  background: linear-gradient(20deg, #213a4f, #101b32);
-  border: 5px solid #3c5360;
-  text-align: center;
-  word-spacing: 30px;
-  color: #809bad;
-  padding: 8px;
-}
-.cabin-window span {
-  font-size: 7px;
-}
-.cabin-window b {
-  font-size: 40px;
-  color: #6f9f9b;
-  line-height: 20px;
-}
-.console-screen {
-  position: absolute;
-  bottom: -4px;
-  left: 30%;
-  width: 40%;
-  height: 30px;
-  border: 3px solid #3f5860;
-  background: #132d35;
-  color: var(--mint);
-  font-size: 9px;
-  text-align: center;
-  line-height: 10px;
-  padding: 4px;
-}
-.console-light {
-  position: absolute;
-  right: 8%;
-  bottom: 7px;
-  width: 3px;
-  height: 3px;
-  background: var(--gold);
-  box-shadow:
-    5px 0 var(--mint),
-    10px 0 var(--mint);
-}
-.cabin-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
-  margin-bottom: 18px;
-}
-.cabin-actions > button:first-child,
-.cabin-actions .launch {
-  grid-column: span 2;
-}
-.cabin-actions button {
-  font-size: 8px;
-}
-.launch {
-  margin-top: 8px;
-}
-.cockpit > small {
-  font-size: 9px;
-  line-height: 1.6;
-  color: #7d98a5;
-  display: block;
-}
 .mobile-controls {
   display: none;
   position: absolute;
@@ -1513,15 +1430,6 @@ kbd {
   .dialog {
     padding: 20px;
   }
-  .cabin-visual {
-    display: none;
-  }
-  .cockpit h2 {
-    margin: 8px 0;
-  }
-  .cabin-actions {
-    margin: 12px 0;
-  }
   .overlay {
     padding: 12px;
   }
@@ -1676,4 +1584,24 @@ kbd {
   background: #0d1927;
   border: 1px solid var(--line);
   pointer-events: none;
+}
+
+.overlay.orbit-overlay {
+  align-items: flex-end;
+  background: transparent;
+  backdrop-filter: none;
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+}
+
+.cabin-interaction {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 13%;
+  transform: translateX(-50%);
+  max-width: 84%;
+  min-height: 44px;
+}
+.cabin-interaction:active:not(:disabled) {
+  transform: translateX(-50%);
 }

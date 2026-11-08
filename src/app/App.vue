@@ -5,6 +5,7 @@ import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
+import { cabinEquipment } from "../game/cabin/CabinInterior";
 import { stationServices } from "../game/station/services";
 import JumpSequence from "../components/JumpSequence.vue";
 import GameCanvas from "../components/GameCanvas.vue";
@@ -18,14 +19,11 @@ import { useConstruction } from "../stores/construction";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
-import PlanetBaseSummary from "../components/PlanetBaseSummary.vue";
-import { useBases } from "../stores/bases";
-import { landingZones } from "../universe/landings";
+import OrbitConsole from "../components/OrbitConsole.vue";
 import { useGame } from "../stores/game";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
-const b = useConstruction(),
-  bases = useBases();
+const b = useConstruction();
 const g = useGame(),
   seed = ref("VOIDBOUND"),
   sound = ref(audio.enabled),
@@ -44,6 +42,12 @@ watch(
 );
 const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(() => g.state.mode === "interior");
+const cabinAction = computed(() =>
+  g.cabinContact ? cabinEquipment[g.cabinContact] : undefined,
+);
+const orbitConsole = computed(
+  () => g.state.mode === "orbit" && !g.panel && !g.paused && !g.inSequence,
+);
 const atStation = computed(() => g.state.mode === "docked");
 const stationWalkTipVisible = ref(false);
 let stationWalkTipTimer: ReturnType<typeof setTimeout> | undefined;
@@ -127,10 +131,6 @@ function unpause() {
   audio.unlock();
   g.paused = false;
 }
-function orbitCancel() {
-  g.state.mode = "space";
-  void g.save();
-}
 function minutes() {
   return `${Math.floor(g.state.time / 3600)
     .toString()
@@ -146,6 +146,7 @@ function minutes() {
       'is-playing': g.started,
       'is-building': b.enabled,
       'at-station': g.started && atStation,
+      'in-cabin': g.started && inShip,
     }"
   >
     <header class="topbar">
@@ -201,7 +202,7 @@ function minutes() {
     </header>
     <section class="flight-deck">
       <GameCanvas :playing="g.started" />
-      <MobileHud v-if="g.started" />
+      <MobileHud v-if="g.started && !orbitConsole" />
       <BuildToolbar v-if="g.started" />
       <div
         class="vignette"
@@ -260,7 +261,7 @@ function minutes() {
           ><small>Um sinal à espera de resposta.</small>
         </div>
       </template>
-      <template v-else>
+      <template v-else-if="!orbitConsole">
         <div class="location">
           <div class="eyebrow">
             <span class="little-line" />
@@ -268,7 +269,7 @@ function minutes() {
               surface
                 ? "EXPLORAÇÃO PLANETÁRIA"
                 : inShip
-                  ? "SISTEMAS INTERNOS"
+                  ? "CABINE PRESSURIZADA"
                   : atStation
                     ? "INTERIOR DA ESTAÇÃO"
                     : "ESPAÇO PROFUNDO"
@@ -278,9 +279,11 @@ function minutes() {
             {{
               atStation
                 ? g.system.station?.name
-                : surface || inShip
-                  ? g.planet.name
-                  : g.system.name
+                : inShip
+                  ? g.model.name
+                  : surface
+                    ? g.planet.name
+                    : g.system.name
             }}
             <span>↗</span>
           </h2>
@@ -290,6 +293,10 @@ function minutes() {
                 ? `${g.biome.name} · ${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
+          </p>
+          <p v-if="inShip">
+            O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
+            {{ Math.ceil(g.state.player.oxygen) }}%
           </p>
           <p class="station-credits">
             {{ g.state.credits.toLocaleString("pt-BR") }} CR
@@ -322,7 +329,10 @@ function minutes() {
           </p>
         </div>
         <HabitatStatus v-if="surface" class="desktop-habitat" />
-        <aside v-if="g.showMission && !atStation" class="mission-card">
+        <aside
+          v-if="g.showMission && !atStation && !inShip"
+          class="mission-card"
+        >
           <div class="eyebrow">
             <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
             <span class="muted"
@@ -394,7 +404,7 @@ function minutes() {
             !g.paused &&
             !g.busy &&
             !g.inSequence &&
-            (g.state.mode === 'space' || surface || atStation)
+            (g.state.mode === 'space' || surface || atStation || inShip)
           "
         />
         <p
@@ -413,7 +423,20 @@ function minutes() {
             >Aproxime-se de um atendente para conversar.</template
           >
         </p>
-        <div class="bottom-hud" v-if="!atStation">
+        <button
+          v-if="inShip && cabinAction && !g.inSequence && !g.panel && !g.paused"
+          class="secondary cabin-interaction"
+          @click="g.interactCabin"
+        >
+          <kbd aria-hidden="true">E</kbd> {{ cabinAction.action }}
+        </button>
+        <p
+          v-else-if="inShip && !g.inSequence && !g.panel && !g.paused"
+          class="station-walk-tip"
+        >
+          Aproxime-se de um equipamento para usar.
+        </p>
+        <div class="bottom-hud" v-if="!atStation && !inShip">
           <section class="ship-status">
             <div class="ship-icon">➤</div>
             <div class="status-data">
@@ -516,11 +539,12 @@ function minutes() {
         v-if="
           g.started &&
           !g.busy &&
-          (g.paused ||
-            (!g.inSequence && (g.panel || g.state.mode === 'orbit' || inShip)))
+          (g.paused || (!g.inSequence && (g.panel || g.state.mode === 'orbit')))
         "
         class="overlay"
-        :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
+        :class="{
+          'orbit-overlay': orbitConsole,
+        }"
       >
         <section v-if="g.paused && showOptions" class="dialog narrow">
           <h2>Opções</h2>
@@ -645,106 +669,31 @@ function minutes() {
           v-else-if="g.panel === 'map' || g.panel === 'bases'"
           :initial-tab="g.panel === 'bases' ? 'bases' : 'navigation'"
         />
+        <OrbitConsole v-else-if="g.state.mode === 'orbit'" />
         <section
-          v-else-if="g.state.mode === 'orbit'"
-          class="dialog orbit-dialog"
+          v-else-if="inShip && g.panel === 'takeoff'"
+          class="dialog narrow"
+          aria-label="Cadeira do piloto"
         >
-          <div class="eyebrow">ÓRBITA ESTÁVEL / ESCANEAMENTO CONCLUÍDO</div>
-          <h2>{{ g.planet.name }}</h2>
-          <p class="planet-type">
-            {{ g.biome.name }} · Raio
-            {{ g.planet.radius.toLocaleString("pt-BR") }} km
+          <div class="eyebrow">CONTROLE DE VOO · {{ g.model.name }}</div>
+          <h2>Quer decolar?</h2>
+          <p>Consumo de decolagem: 5 unidades de combustível.</p>
+          <p v-if="g.hullPercent < 70" class="warning">
+            Repare o casco até pelo menos 70% antes de decolar.
           </p>
-          <div class="planet-facts">
-            <div>
-              <span>GRAVIDADE</span><b>{{ g.planet.gravity.toFixed(2) }} g</b>
-            </div>
-            <div>
-              <span>ATMOSFERA</span
-              ><b>{{
-                g.planet.breathable ? "Respirável" : "Não respirável"
-              }}</b>
-            </div>
-            <div>
-              <span>TEMPERATURA</span><b>{{ g.planet.temperature }} °C</b>
-            </div>
-          </div>
-          <p>
-            RECURSOS <b>{{ g.biome.resources }}</b>
+          <p v-else-if="g.state.ship.fuel < 5" class="warning">
+            Combustível insuficiente. Use a refinaria ou a recuperação solar.
           </p>
-          <p class="warning">△ {{ g.biome.hazard }}</p>
-          <PlanetBaseSummary :planet-id="g.planet.id" />
-          <h3>Selecione a zona de pouso</h3>
-          <div class="landing-zones">
+          <div class="station-actions">
             <button
-              v-for="zone in landingZones"
-              :key="zone.id"
-              class="zone"
-              @click="g.beginLanding(zone.id)"
-            >
-              <span>0{{ zone.id + 1 }} / ZONA SEGURA</span><b>{{ zone.name }}</b
-              ><small
-                v-if="
-                  bases.currentPlanet?.cabinets.some(
-                    (c) => c.landing.id === zone.id,
-                  )
-                "
-                class="zone-storage"
-                >▤
-                {{
-                  bases.currentPlanet.cabinets
-                    .filter((c) => c.landing.id === zone.id)
-                    .reduce((n, c) => n + c.units, 0)
-                }}
-                unidades · zona mais próxima dos armários</small
-              ><small>INICIAR DESCIDA ↓</small>
-            </button>
-          </div>
-          <button class="text-button" @click="orbitCancel">
-            ← Retornar ao voo livre
-          </button>
-        </section>
-        <section v-else-if="inShip" class="dialog cockpit">
-          <div class="eyebrow">
-            <span class="gold-dot" /> {{ g.model.name }} / CABINE PRESSURIZADA
-          </div>
-          <h2>Lar, entre as estrelas.</h2>
-          <p>
-            {{
-              g.hullPercent < 70
-                ? "Casco danificado. Explore a superfície e fabrique um kit de reparo."
-                : "Sistemas prontos. A próxima fronteira está à sua espera."
-            }}
-          </p>
-          <div class="cabin-visual">
-            <div class="cabin-window">✧ <span>✦</span> · <b>◒</b></div>
-            <div class="console-screen">▰ ▰ ▰<br />▱ ▰ ▱</div>
-            <div class="console-light" />
-          </div>
-          <div class="cabin-actions">
-            <button class="primary" @click="g.beginDisembark">
-              EXPLORAR SUPERFÍCIE ↗</button
-            ><button class="secondary" @click="open('craft')">
-              ⌘ FABRICAÇÃO & REFINARIA</button
-            ><button class="secondary" @click="open('inventory')">
-              ▦ CARGA & MELHORIAS</button
-            ><button class="secondary" @click="g.recover">
-              ☼ RECUPERAÇÃO SOLAR (+60 s)</button
-            ><button class="secondary" @click="open('bases')">
-              ⌂ BASES E DEPÓSITOS</button
-            ><button
-              class="primary launch"
+              class="primary"
               :disabled="g.hullPercent < 70 || g.state.ship.fuel < 5"
-              @click="g.takeoff"
+              @click="g.beginTakeoff"
             >
-              DECOLAR · 5 COMBUSTÍVEL ↑
+              Sim, decolar
             </button>
+            <button class="secondary" @click="g.panel = ''">Não</button>
           </div>
-          <small
-            >Oxigênio da nave: {{ Math.ceil(g.state.ship.oxygen) }}% · Traje:
-            {{ Math.ceil(g.state.player.oxygen) }}% · Reabastecimento automático
-            enquanto estiver a bordo.</small
-          >
         </section>
       </div>
       <div
@@ -757,7 +706,9 @@ function minutes() {
             ? "Acoplando à " + g.system.station?.name
             : g.surfaceSequence?.kind === "landing"
               ? "Descida para " + g.planet.name
-              : "Desembarcando"
+              : g.surfaceSequence?.kind === "takeoff"
+                ? "Decolando para o espaço"
+                : "Desembarcando"
         }}
       </div>
       <JumpSequence v-if="g.busy" />
@@ -790,7 +741,7 @@ function minutes() {
       <span v-if="surface"
         ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
         <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
-      ><span v-else-if="atStation"
+      ><span v-else-if="atStation || inShip"
         ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para
         caminhar</span
       ><span v-else

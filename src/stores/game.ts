@@ -1,3 +1,4 @@
+import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
 import type { FlightContact } from "../combat/traffic";
 import {
@@ -44,6 +45,7 @@ export const DOCKING_DURATION = 1.8;
 export const SURFACE_SEQUENCE_DURATION = {
   landing: 2.3,
   disembark: 1.1,
+  takeoff: 5,
 } as const;
 type SurfaceSequence = {
   kind: keyof typeof SURFACE_SEQUENCE_DURATION;
@@ -168,6 +170,7 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     stationContact = ref<string>(),
+    cabinContact = ref<CabinEquipment>(),
     trading = ref(false);
   watch(
     started,
@@ -574,6 +577,26 @@ export const useGame = defineStore("game", () => {
       elapsed: 0,
     };
   }
+  function interactCabin() {
+    if (
+      !started.value ||
+      paused.value ||
+      panel.value ||
+      inSequence.value ||
+      state.value.mode !== "interior"
+    )
+      return;
+    const equipment = cabinContact.value;
+    if (!equipment) {
+      notify("Nenhum equipamento ao alcance.");
+      return;
+    }
+    releaseControls();
+    if (equipment === "hatch") beginDisembark();
+    else if (equipment === "solar") recover();
+    else if (equipment === "pilot") panel.value = "takeoff";
+    else panel.value = equipment;
+  }
   function beginDisembark() {
     if (
       state.value.mode !== "interior" ||
@@ -596,6 +619,7 @@ export const useGame = defineStore("game", () => {
     surfaceSequence.value = undefined;
     releaseControls();
     if (sequence.kind === "landing") land(sequence.landingX / 24);
+    else if (sequence.kind === "takeoff") takeoff();
     else exit();
   }
   function land(zone: number) {
@@ -621,17 +645,38 @@ export const useGame = defineStore("game", () => {
     notify("Pressurização concluída. Sistemas da nave disponíveis.");
     void save();
   }
-  function takeoff() {
+  function canTakeOff() {
     if (hullPercent.value < 70) {
       notify("Repare o casco até pelo menos 70% antes de decolar.");
-      return;
+      return false;
     }
     if (state.value.ship.fuel < 5) {
       notify(
         "Combustível insuficiente. Use a refinaria ou a recuperação solar.",
       );
-      return;
+      return false;
     }
+    return true;
+  }
+  function beginTakeoff() {
+    if (
+      state.value.mode !== "interior" ||
+      inSequence.value ||
+      paused.value ||
+      !canTakeOff()
+    )
+      return;
+    panel.value = "";
+    releaseControls();
+    surfaceSequence.value = {
+      kind: "takeoff",
+      landingX: state.value.landingX,
+      elapsed: 0,
+    };
+    audio.play(100, 0.5);
+  }
+  function takeoff() {
+    if (!canTakeOff()) return;
     state.value.ship.fuel -= 5;
     const pos = planetPosition(state.value.planetIndex);
     state.value.ship.x = pos.x - 210;
@@ -892,6 +937,8 @@ export const useGame = defineStore("game", () => {
     flightTarget,
     interactFlightTarget,
     stationContact,
+    cabinContact,
+    interactCabin,
     system,
     stationDistance,
     wanted,
@@ -932,6 +979,7 @@ export const useGame = defineStore("game", () => {
     exit,
     enter,
     takeoff,
+    beginTakeoff,
     jump,
     recover,
     tick,

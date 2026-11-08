@@ -129,8 +129,16 @@ try {
     await page.keyboard.up("a");
   }
   await page.keyboard.press("e", { delay: 100 });
-  await page.getByRole("button", { name: /FABRICAÇÃO & REFINARIA/ }).waitFor();
-  await page.getByRole("button", { name: /FABRICAÇÃO & REFINARIA/ }).click();
+  async function walkToEquipment(key, id) {
+    await page.keyboard.down(key);
+    try {
+      await page.waitForFunction((id) => window.__game.cabinContact === id, id);
+    } finally {
+      await page.keyboard.up(key);
+    }
+  }
+  await walkToEquipment("d", "craft");
+  await page.getByRole("button", { name: "Abrir fabricação" }).click();
   const make = async (name, n = 1) => {
     for (let i = 0; i < n; i++)
       await page
@@ -143,10 +151,28 @@ try {
   await make("Circuito básico", 2);
   await make("Kit de reparo");
   await page.getByRole("button", { name: "Fechar fabricação" }).click();
-  await page.getByRole("button", { name: /CARGA & MELHORIAS/ }).click();
+  await walkToEquipment("s", "inventory");
+  await page.getByRole("button", { name: "Abrir carga e melhorias" }).click();
   await page.getByRole("button", { name: /Kit de reparo/ }).click();
   await page.getByRole("button", { name: "Fechar inventário" }).click();
-  await page.getByRole("button", { name: /DECOLAR ·/ }).click();
+  await walkToEquipment("w", "craft");
+  await walkToEquipment("d", "pilot");
+  await page
+    .getByRole("button", { name: "Sentar na cadeira do piloto" })
+    .click();
+  await page.getByRole("button", { name: "Não", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Sentar na cadeira do piloto" })
+    .click();
+  const fuelBeforeTakeoff = (await state()).ship.fuel;
+  await page.getByRole("button", { name: "Sim, decolar" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Decolando para o espaço" })
+    .waitFor();
+  assert.equal((await state()).mode, "interior");
+  await page.waitForFunction(() => window.__game.state.mode === "space");
+  assert.equal((await state()).ship.fuel, fuelBeforeTakeoff - 5);
   s = await state();
   assert.equal(s.mode, "space");
   assert.equal(s.ship.hull, 100);

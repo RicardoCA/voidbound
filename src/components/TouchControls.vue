@@ -12,7 +12,9 @@ const b = useConstruction();
 const g = useGame(),
   surface = computed(() => g.state.mode === "surface");
 const station = computed(() => g.state.mode === "docked");
-const walking = computed(() => surface.value || station.value);
+const cabin = computed(() => g.state.mode === "interior");
+const indoors = computed(() => station.value || cabin.value);
+const walking = computed(() => surface.value || indoors.value);
 const x = ref(0),
   y = ref(0),
   active = ref(false);
@@ -101,7 +103,7 @@ onBeforeUnmount(reset);
     </div>
     <div
       class="touch-actions"
-      :class="{ 'space-actions': !walking, 'station-actions-only': station }"
+      :class="{ 'space-actions': !walking, 'station-actions-only': indoors }"
     >
       <button
         v-if="!walking"
@@ -126,7 +128,7 @@ onBeforeUnmount(reset);
         PULAR
       </button>
       <button
-        v-if="!station"
+        v-if="!indoors"
         class="touch-mine"
         :aria-label="
           b.enabled
@@ -167,19 +169,21 @@ onBeforeUnmount(reset);
         :aria-label="
           station
             ? 'Conversar com atendente'
-            : surface
-              ? 'Interagir com porta, nave ou armário'
-              : g.flightContact?.wreck && g.flightContact.distance <= 95
-                ? 'Saquear destroço'
-                : g.stationDistance <= 115
-                  ? 'Acoplar à estação'
-                  : g.flightTarget.action === 'planet'
-                    ? 'Escanear planeta'
-                    : g.flightTarget.action === 'anomaly'
-                      ? 'Escanear anomalia'
-                      : g.flightTarget.action === 'orbit'
-                        ? 'Entrar em órbita'
-                        : 'Interagir no espaço'
+            : cabin
+              ? 'Usar equipamento da nave'
+              : surface
+                ? 'Interagir com porta, nave ou armário'
+                : g.flightContact?.wreck && g.flightContact.distance <= 95
+                  ? 'Saquear destroço'
+                  : g.stationDistance <= 115
+                    ? 'Acoplar à estação'
+                    : g.flightTarget.action === 'planet'
+                      ? 'Escanear planeta'
+                      : g.flightTarget.action === 'anomaly'
+                        ? 'Escanear anomalia'
+                        : g.flightTarget.action === 'orbit'
+                          ? 'Entrar em órbita'
+                          : 'Interagir no espaço'
         "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"
@@ -189,7 +193,7 @@ onBeforeUnmount(reset);
         {{
           station
             ? "CONVERSAR"
-            : surface
+            : cabin || surface
               ? "INTERAGIR"
               : g.flightContact?.wreck && g.flightContact.distance <= 95
                 ? "SAQUEAR"

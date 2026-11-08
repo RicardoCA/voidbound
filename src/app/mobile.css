@@ -389,11 +389,6 @@
   .is-playing .tabs button {
     font-size: 11px;
   }
-  .is-playing .dialog .cabin-actions button {
-    font-size: 10px;
-    line-height: 1.5;
-    padding: 10px;
-  }
   .is-playing .save-tooltip {
     right: max(12px, env(safe-area-inset-right, 0px));
     top: calc(var(--mobile-hud-height) + env(safe-area-inset-top, 0px) + 8px);
@@ -529,9 +524,6 @@
   .is-playing .galaxy-map {
     height: 190px;
   }
-  .is-playing .cabin-visual {
-    display: none;
-  }
 }
 @media (max-width: 360px) {
   .mobile-hud {
@@ -552,5 +544,15 @@
     align-items: start;
     gap: 8px;
     flex-direction: column;
+  }
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .in-cabin .station-walk-tip,
+  .cabin-interaction {
+    bottom: 27%;
+  }
+  .cabin-interaction kbd {
+    display: none;
   }
 }

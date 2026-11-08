@@ -8,6 +8,7 @@ import { releaseControls } from "../game/input";
 const g = useGame(),
   b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
+const cabin = computed(() => g.state.mode === "interior");
 const station = computed(() => g.state.mode === "docked");
 const localTime = computed(() => planetClock(g.state.time));
 const location = computed(() =>
@@ -24,9 +25,10 @@ const meters = computed(() => [
     max: 100,
   },
   {
-    label: surface.value ? "O₂" : "COMB.",
-    value: surface.value ? g.state.player.oxygen : g.state.ship.fuel,
-    max: surface.value ? 100 : g.maxFuel,
+    label: surface.value || cabin.value ? "O₂" : "COMB.",
+    value:
+      surface.value || cabin.value ? g.state.player.oxygen : g.state.ship.fuel,
+    max: surface.value || cabin.value ? 100 : g.maxFuel,
   },
   {
     label: "ENERGIA",
@@ -76,9 +78,14 @@ function pause() {
         >{{
           station
             ? "Interior da estação"
-            : surface
-              ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
-              : `${g.model.name} · ${g.speed} km/s`
+            : cabin
+              ? g.model.name +
+                " · O₂ nave " +
+                Math.ceil(g.state.ship.oxygen) +
+                "%"
+              : surface
+                ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
+                : `${g.model.name} · ${g.speed} km/s`
         }}</small
       >
     </div>
@@ -114,10 +121,16 @@ function pause() {
       </button>
     </div>
     <nav class="mobile-tools" aria-label="Painéis do jogo">
-      <button aria-label="Abrir carga" title="Carga" @click="open('inventory')">
+      <button
+        v-if="!cabin"
+        aria-label="Abrir carga"
+        title="Carga"
+        @click="open('inventory')"
+      >
         ▦
       </button>
       <button
+        v-if="!cabin"
         :aria-label="surface ? 'Abrir construção' : 'Abrir fabricação'"
         :title="surface ? 'Construção' : 'Fabricação'"
         @click="surface ? b.openPalette() : open('craft')"
@@ -132,7 +145,7 @@ function pause() {
         ✧
       </button>
       <button
-        v-if="g.showMission && !station"
+        v-if="g.showMission && !station && !cabin"
         aria-label="Abrir diário de expedição"
         title="Missão"
         class="mission-toggle"
@@ -149,7 +162,7 @@ function pause() {
       !g.paused &&
       !b.enabled &&
       !g.inSequence &&
-      (!station || transient)
+      (!(station || cabin) || transient)
     "
     class="mobile-context"
     :class="{ notification: transient }"
