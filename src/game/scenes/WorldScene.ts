@@ -13,7 +13,7 @@ import {
   systemWrecks,
   type Wreck,
 } from "../../combat/traffic";
-import type { Save } from "../types";
+import type { Save, ShipModelId } from "../types";
 import { anomalyAt, ruinAt } from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
@@ -26,7 +26,7 @@ import {
 } from "../../survival/wildlife";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
-import { shipModels, shipPalette } from "../../fleet/models";
+import { shipArt } from "../../fleet/shipArt";
 import Phaser from "phaser";
 import {
   DOCKING_DURATION,
@@ -1249,13 +1249,7 @@ export class WorldScene extends Phaser.Scene {
           y > this.viewHeight + 35
         )
           continue;
-        this.drawShip(
-          x,
-          y,
-          npc.angle,
-          npc.engaged,
-          shipModels[npc.model].sprite,
-        );
+        this.drawShip(x, y, npc.angle, npc.engaged, npc.model);
         f.fillStyle(npc.engaged || npc.role === "pirate" ? 0xff8c78 : 0xe5bb77);
         f.fillRect(x - 11, y - 20, (22 * npc.hull) / npc.maxHull, 2);
         if (npc.shield > 0) {
@@ -1400,7 +1394,7 @@ export class WorldScene extends Phaser.Scene {
     y: number,
     angle: number,
     thrust = false,
-    sprite = this.store.model.sprite as readonly string[],
+    model: ShipModelId = this.store.state.activeShip.model,
     f = this.gfx,
     scale = 1,
     depth = this.store.state.mode === "space" ? 4 : 0,
@@ -1411,42 +1405,33 @@ export class WorldScene extends Phaser.Scene {
       x: Math.round(x + scale * (px * cosine - py * sine)),
       y: Math.round(y + scale * (px * sine + py * cosine)),
     });
-    const drawHull = (depth: number) => {
-      sprite.forEach((row, rowIndex) => {
-        let start = 0;
-        while (start < row.length) {
-          const pixel = row[start]!;
-          let end = start + 1;
-          while (end < row.length && row[end] === pixel) end++;
-          if (pixel !== ".") {
-            const left = start * 3 - 22,
-              right = end * 3 - 22,
-              top = rowIndex * 2.5 - 14;
-            f.fillStyle(
-              depth ? 0x162d43 : shipPalette[pixel as keyof typeof shipPalette],
-            );
-            f.fillPoints(
-              [
-                point(left, top),
-                point(right, top),
-                point(right, top + 2.5),
-                point(left, top + 2.5),
-              ].map((vertex) => ({
-                x: vertex.x + depth * 0.5,
-                y: vertex.y + depth,
-              })),
-              true,
-            );
+    const { hull, details } = shipArt(model);
+    const drawPlates = (plates: typeof hull, offset: number) => {
+      for (const plate of plates) {
+        const left = plate.x - 22,
+          right = left + plate.w;
+        const top = plate.y * (5 / 6) - 14,
+          bottom = top + plate.h * (5 / 6);
+        const points = [
+          point(left, top),
+          point(right, top),
+          point(right, bottom),
+          point(left, bottom),
+        ];
+        if (offset)
+          for (const vertex of points) {
+            vertex.x += offset * 0.5;
+            vertex.y += offset;
           }
-          start = end;
-        }
-      });
+        f.fillStyle(offset ? 0x162d43 : plate.color).fillPoints(points, true);
+      }
     };
     if (depth > 0) {
-      drawHull(depth);
-      drawHull(depth / 2);
+      drawPlates(hull, depth);
+      drawPlates(hull, depth / 2);
     }
-    drawHull(0);
+    drawPlates(hull, 0);
+    drawPlates(details, 0);
     if (thrust) {
       f.fillStyle(0x7de3ee, 0.8);
       f.fillPoints(
