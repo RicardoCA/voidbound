@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import { useBases } from "../stores/bases";
@@ -115,10 +116,10 @@ const entries = (inventory: BaseSummary["inventory"]) =>
         ><strong>{{ units(base.units) }}</strong>
       </div>
       <div v-if="base.units" class="base-items">
-        <span v-for="[id, n] in entries(base.inventory)" :key="id"
-          ><i :style="{ color: items[id].color }">{{ items[id].icon }}</i
-          >{{ items[id].name }} <b>×{{ n }}</b></span
-        >
+        <span v-for="[id, n] in entries(base.inventory)" :key="id">
+          <ItemIcon :item="id" />
+          {{ items[id].name }} <b>×{{ n }}</b>
+        </span>
       </div>
       <p v-else class="base-empty-stock">
         {{

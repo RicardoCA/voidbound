@@ -218,9 +218,9 @@
   align-items: center;
   gap: 6px;
 }
-.base-items i {
-  font-style: normal;
-  font-size: 14px;
+.base-items .item-art {
+  width: 18px;
+  height: 18px;
 }
 .base-items b {
   font-weight: 500;
