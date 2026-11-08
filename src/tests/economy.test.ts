@@ -13,6 +13,7 @@ import {
   transferShipCargo,
 } from "../fleet/hangar";
 import { database, SaveDatabase } from "../persistence/database";
+import { shipModels } from "../fleet/models";
 
 describe("mercado galáctico", () => {
   it("compra e vende usando o saldo e o estoque da estação", () => {
@@ -162,6 +163,26 @@ describe("frota e hangar", () => {
     expect(state.ship.fuel).toBe(37);
     expect(state.ship.hull).toBe(61);
     expect(state.parkedShips.map((ship) => ship.id)).toEqual([atlas]);
+  });
+
+  it("vende 20 modelos premium na concessionária e permite assumir a nave de 2 milhões", () => {
+    const g = docked();
+    expect(
+      Object.values(shipModels).filter(({ price }) => price > 2950),
+    ).toHaveLength(20);
+    expect(
+      Math.max(...Object.values(shipModels).map(({ price }) => price)),
+    ).toBe(2_000_000);
+    g.state.credits = 1_999_999;
+    expect(buyShip(g.state, "colossus")).toBeTruthy();
+    expect(g.state.parkedShips).toHaveLength(0);
+    expect(g.state.credits).toBe(1_999_999);
+    g.state.credits = 2_000_000;
+    expect(buyShip(g.state, "colossus")).toBeUndefined();
+    expect(g.state.credits).toBe(0);
+    expect(activateShip(g.state, g.state.parkedShips[0]!.id)).toBeUndefined();
+    expect(g.model.name).toBe("Colossus C-99");
+    expect(g.capacity).toBe(376);
   });
 
   it("exige o mesmo hangar, preserva carga se cheia e permite vender a nave vazia", () => {

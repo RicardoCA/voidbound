@@ -95,14 +95,7 @@ export interface Settlement {
   hunted?: Record<string, number>;
   utilityTime?: number;
 }
-export type ShipModelId =
-  | "sparrow"
-  | "atlas"
-  | "viper"
-  | "bastion"
-  | "prospector"
-  | "titan"
-  | "mammoth";
+export type ShipModelId = keyof typeof import("../fleet/models").shipModels;
 export interface ShipState {
   x: number;
   y: number;
