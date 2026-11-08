@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed } from "vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -23,7 +24,7 @@ const error = computed(
       aria-label="Escolher peça de construção"
       @click="b.openPalette"
     >
-      <span>{{ items[b.selected].icon }}</span>
+      <ItemIcon :item="b.selected" />
       <div>
         <b>{{ items[b.selected].name }}</b
         ><small>{{
