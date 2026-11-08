@@ -43,6 +43,12 @@ import {
   drawSettlement,
   drawPiece,
 } from "../rendering/settlements";
+import {
+  drawBoardingRamp,
+  drawDockingLane,
+  drawGroundWake,
+  drawLandingGear,
+} from "../rendering/flightEffects";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
 import { solidCell, stairFloor, stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
@@ -87,6 +93,7 @@ export class WorldScene extends Phaser.Scene {
   private spaceDust!: Phaser.GameObjects.TileSprite;
   private planetTextures = new PlanetTextures();
   private flightShipGfx!: Phaser.GameObjects.Graphics;
+  private atmosphereGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
   private lastMode: Mode | "none" = "none";
@@ -161,6 +168,7 @@ export class WorldScene extends Phaser.Scene {
     this.spaceDust = createSpaceBackdrop(this).setVisible(false);
     this.events.once("shutdown", () => this.planetTextures.clear(this));
     this.flightShipGfx = this.add.graphics().setDepth(2);
+    this.atmosphereGfx = this.add.graphics().setDepth(3);
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,LEFT,RIGHT,UP,DOWN,SPACE,E,F,M,I,C,ESC",
       false,
@@ -300,6 +308,7 @@ export class WorldScene extends Phaser.Scene {
       this.shipSprites[i]!.setVisible(false);
     this.usedShipSprites = 0;
     this.flightShipGfx.clear();
+    this.atmosphereGfx.clear();
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
     this.planetTextures.hide();
@@ -1118,13 +1127,15 @@ export class WorldScene extends Phaser.Scene {
     } else this.drawSpace(launch);
     if (launch !== undefined) {
       const fade = Math.max(0, 1 - Math.abs(launch - ATMOSPHERE_EXIT) / 0.48);
-      if (fade > 0)
-        f.fillStyle(0x080f20, fade).fillRect(
-          0,
-          0,
-          this.viewWidth,
-          this.viewHeight,
-        );
+      if (fade > 0) {
+        const veil = this.atmosphereGfx;
+        veil
+          .fillStyle(0x080f20, fade)
+          .fillRect(0, 0, this.viewWidth, this.viewHeight);
+        veil
+          .fillStyle(0x73bdd5, Math.sin(Math.PI * fade) * 0.24)
+          .fillRect(0, 0, this.viewWidth, this.viewHeight);
+      }
     }
     if (this.beam) {
       const b = this.beam;
@@ -1188,6 +1199,9 @@ export class WorldScene extends Phaser.Scene {
     }
     const inOrbit = g.state.mode === "orbit";
     const station = inOrbit ? undefined : g.system.station;
+    const docking = g.dockingSequence;
+    const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
+    const eased = t * t * (3 - 2 * t);
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
@@ -1200,7 +1214,26 @@ export class WorldScene extends Phaser.Scene {
         const beacon = g.dockingSequence
           ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
           : Math.floor(this.elapsed * 2) % 4 === 0;
-        drawStationHull(f, x, y, beacon);
+        const scale = 1 + eased * 0.65;
+        drawStationHull(f, x, y, beacon, scale);
+        if (docking)
+          drawDockingLane(
+            f,
+            x,
+            y,
+            Math.atan2(s.y - station.y, s.x - station.x),
+            t,
+            scale,
+          );
+        if (docking && t > 0.78) {
+          const glow = (t - 0.78) / 0.22;
+          f.fillStyle(0x7af0cb, glow * 0.28).fillEllipse(
+            x,
+            y,
+            35 * scale,
+            13 * scale,
+          );
+        }
       }
     }
     g.system.planets.forEach((p, i) => {
@@ -1302,15 +1335,12 @@ export class WorldScene extends Phaser.Scene {
         ship.remaining > 0.02,
         undefined,
         this.flightShipGfx,
-        1 - 0.25 * ship.remaining,
+        1 - 0.42 * ship.remaining,
         4,
       );
       return;
     }
     if (g.started && g.panel !== "route") {
-      const docking = g.dockingSequence;
-      const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
-      const eased = t * t * (3 - 2 * t);
       const x =
         docking && station ? Phaser.Math.Linear(s.x, station.x, eased) : s.x;
       const y =
@@ -1329,6 +1359,7 @@ export class WorldScene extends Phaser.Scene {
               (g.routeIndex !== undefined && g.speed > 5),
         undefined,
         this.flightShipGfx,
+        1 - 0.36 * eased,
       );
     }
   }
@@ -1442,7 +1473,25 @@ export class WorldScene extends Phaser.Scene {
       if (thrust) {
         const tail = -(width / scale) * 0.47;
         const amber = family === "atlas" || family === "bastion";
-        const length = 11 + Math.sin(this.elapsed * 55) * 4;
+        const cinematic = this.store.inSequence;
+        const length = (cinematic ? 23 : 11) + Math.sin(this.elapsed * 55) * 4;
+        if (cinematic) {
+          f.fillStyle(amber ? 0xf9a95e : 0x59dbc9, 0.14).fillPoints(
+            [
+              point(tail + 5, -7),
+              point(tail - length * 1.4, 0),
+              point(tail + 5, 8),
+            ],
+            true,
+          );
+          for (let i = 1; i <= 3; i++) {
+            const spark = point(
+              tail - length * (0.55 + i * 0.25),
+              Math.sin(this.elapsed * 36 + i) * i,
+            );
+            f.fillStyle(0xaef8e8, 0.36).fillRect(spark.x, spark.y, 2, 1);
+          }
+        }
         f.fillStyle(amber ? 0xf9a95e : 0x59dbc9, 0.48).fillPoints(
           [point(tail + 1, -4), point(tail - length, 1), point(tail + 1, 5)],
           true,
@@ -1719,25 +1768,20 @@ export class WorldScene extends Phaser.Scene {
         36 + 24 * lift,
         4,
       );
-      const dust = Phaser.Math.Clamp(elapsed / 1.35, 0, 1);
-      if (dust < 1) {
-        f.fillStyle(0xd6bfa1, 0.63 * Math.sin(Math.PI * dust));
-        for (let i = 0; i < 14; i++) {
-          const spread = 8 + (24 + (i % 7) * 6) * dust;
-          f.fillRect(
-            shipX + (i % 2 ? spread : -spread),
-            shipY + 11 - (i % 4) * dust * 4,
-            3,
-            2,
-          );
-        }
-      }
-      if (elapsed < 0.9) {
-        const gear = Math.ceil(4 * Math.min(1, (0.9 - elapsed) / 0.42));
-        f.fillStyle(0x7b8f9a);
-        f.fillRect(x - 15, y + 10, 4, gear);
-        f.fillRect(x + 8, y + 10, 4, gear);
-      }
+      drawGroundWake(
+        f,
+        shipX,
+        shipY + 12,
+        Math.min(1, elapsed / 1.65),
+        biome.ground,
+      );
+      drawLandingGear(
+        f,
+        x,
+        y,
+        scale,
+        Phaser.Math.Clamp((0.9 - elapsed) / 0.42, 0, 1),
+      );
       this.drawShip(
         x,
         y,
@@ -1765,22 +1809,13 @@ export class WorldScene extends Phaser.Scene {
         38 + altitude * 24,
         5 + altitude * 6,
       );
-      const gear = Phaser.Math.Clamp((descent - 0.58) / 0.24, 0, 1);
-      if (gear > 0) {
-        f.fillStyle(0x7b8f9a);
-        f.fillRect(
-          Math.round(x - 15 * scale),
-          Math.round(y + 10 * scale),
-          4,
-          Math.ceil(4 * gear),
-        );
-        f.fillRect(
-          Math.round(x + 8 * scale),
-          Math.round(y + 10 * scale),
-          4,
-          Math.ceil(4 * gear),
-        );
-      }
+      drawLandingGear(
+        f,
+        x,
+        y,
+        scale,
+        Phaser.Math.Clamp((descent - 0.58) / 0.24, 0, 1),
+      );
       this.drawShip(
         x,
         y,
@@ -1791,28 +1826,17 @@ export class WorldScene extends Phaser.Scene {
         scale,
         depth,
       );
-      const dust = Phaser.Math.Clamp((descent - 0.81) / 0.19, 0, 1);
-      if (dust > 0) {
-        f.fillStyle(0xd6bfa1, Math.sin(Math.PI * dust) * 0.65);
-        for (let i = 0; i < 12; i++) {
-          const side = i % 2 === 0 ? 1 : -1;
-          const spread = 8 + (22 + (i % 6) * 5) * dust;
-          f.fillRect(
-            Math.round(shipX + side * spread),
-            Math.round(
-              shipY + 10 - Math.sin(dust * Math.PI) * (3 + (i % 4)) - (i % 3),
-            ),
-            i % 3 === 0 ? 4 : 2,
-            2,
-          );
-        }
-      }
+      drawGroundWake(
+        f,
+        shipX,
+        shipY + 12,
+        Math.max(0, (descent - 0.77) / 0.23),
+        biome.ground,
+      );
     } else {
       contactShadow(landingX * 16, shipY - offsetY + 12, 36);
+      drawLandingGear(f, shipX, shipY, 1, 1);
       this.drawShip(shipX, shipY, 0, false, undefined, f, 1, 3);
-      f.fillStyle(0x7b8f9a);
-      f.fillRect(shipX - 15, shipY + 10, 4, 4);
-      f.fillRect(shipX + 8, shipY + 10, 4, 4);
       if (sequence?.kind === "disembark") {
         const progress = Math.min(
           1,
@@ -1821,9 +1845,16 @@ export class WorldScene extends Phaser.Scene {
         const step = Math.max(0, (progress - 0.18) / 0.82);
         const worldX = landingX * 16 + 12 + 28 * step;
         const ground = t.height(Math.floor(worldX / 16)) * 16;
-        f.fillStyle(0x657d90);
-        f.fillRect(shipX + 10, shipY + 4, 15, 3);
-        f.fillRect(shipX + 18, shipY + 7, 15, 3);
+        const ramp = Math.min(1, progress / 0.18);
+        f.fillStyle(0x71e3c7, ramp * 0.26).fillTriangle(
+          shipX + 11,
+          shipY,
+          shipX + 21,
+          shipY + 13,
+          shipX + 37,
+          shipY + 13,
+        );
+        drawBoardingRamp(f, shipX + 11, shipY + 4, ramp);
         if (progress >= 0.18)
           this.drawAstronaut(
             Math.round(worldX - this.camX + this.centerX),

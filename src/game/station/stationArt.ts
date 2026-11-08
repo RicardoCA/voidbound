@@ -8,6 +8,7 @@ export function drawStationHull(
   x: number,
   y: number,
   beacon: boolean,
+  scale = 1,
 ) {
   const rect = (
     color: number,
@@ -16,10 +17,13 @@ export function drawStationHull(
     w: number,
     h: number,
     alpha = 1,
-  ) => g.fillStyle(color, alpha).fillRect(x + dx, y + dy, w, h);
+  ) =>
+    g
+      .fillStyle(color, alpha)
+      .fillRect(x + dx * scale, y + dy * scale, w * scale, h * scale);
   const face = (color: number, points: Point[]) =>
     g.fillStyle(color).fillPoints(
-      points.map((p) => ({ x: p.x + x, y: p.y + y })),
+      points.map((p) => ({ x: p.x * scale + x, y: p.y * scale + y })),
       true,
     );
 

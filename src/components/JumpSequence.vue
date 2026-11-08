@@ -4,13 +4,14 @@ import { random } from "../game/procedural/random";
 import { JUMP_DURATION_MS } from "../stores/game";
 
 const r = random(940);
-const stars = Array.from({ length: 64 }, (_, i) => {
-  const angle = ((i + r()) * Math.PI * 2) / 64;
+const stars = Array.from({ length: 108 }, (_, i) => {
+  const angle = ((i + r()) * Math.PI * 2) / 108;
   const distance = 38 + r() * 205;
   const dx = Math.cos(angle),
     dy = Math.sin(angle);
   const trail = 30 + r() * 95;
   return {
+    flare: i % 12 === 0,
     x: 240 + dx * distance,
     y: 130 + dy * distance,
     tailX: 240 + dx * Math.max(2, distance - trail),
@@ -33,6 +34,31 @@ const stars = Array.from({ length: 64 }, (_, i) => {
       preserveAspectRatio="xMidYMid slice"
       aria-hidden="true"
     >
+      <defs>
+        <radialGradient id="jump-nebula">
+          <stop stop-color="#9af7ec" stop-opacity=".22" />
+          <stop offset=".55" stop-color="#5d64b0" stop-opacity=".18" />
+          <stop offset="1" stop-color="#252148" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <g class="jump-nebula">
+        <ellipse
+          cx="240"
+          cy="130"
+          rx="236"
+          ry="71"
+          fill="url(#jump-nebula)"
+          transform="rotate(-22 240 130)"
+        />
+        <ellipse
+          cx="248"
+          cy="126"
+          rx="161"
+          ry="45"
+          fill="url(#jump-nebula)"
+          transform="rotate(29 248 126)"
+        />
+      </g>
       <g class="jump-stars">
         <circle
           v-for="(star, i) in stars"
@@ -41,6 +67,13 @@ const stars = Array.from({ length: 64 }, (_, i) => {
           :cy="star.y"
           :r="star.width * 0.8"
           :fill="star.color"
+        />
+        <path
+          v-for="(star, i) in stars.filter((star) => star.flare)"
+          :key="'flare-' + i"
+          :d="`M${star.x - 4} ${star.y}h8M${star.x} ${star.y - 3}v6`"
+          :stroke="star.color"
+          stroke-width=".45"
         />
       </g>
       <g class="jump-trails">
@@ -59,7 +92,8 @@ const stars = Array.from({ length: 64 }, (_, i) => {
       </g>
     </svg>
     <div class="jump-glow" aria-hidden="true"></div>
-    <CockpitFrame class="jump-cockpit" />
+    <CockpitFrame jump class="jump-cockpit" />
+    <div class="jump-console" aria-hidden="true"></div>
     <div class="jump-caption">
       <strong>Salto interestelar</strong>
       <span>Vista da cabine</span>
@@ -87,6 +121,39 @@ const stars = Array.from({ length: 64 }, (_, i) => {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.jump-nebula {
+  transform-origin: center;
+  animation: jump-nebula var(--jump-duration) ease-in-out both;
+}
+.jump-console {
+  position: absolute;
+  bottom: 5.1%;
+  left: 44.4%;
+  width: 11.2%;
+  height: 1.15%;
+  background: repeating-linear-gradient(90deg, #b2fff0 0 17%, #36757c 17% 20%);
+  transform-origin: left;
+  animation: jump-charge var(--jump-duration) linear both;
+}
+@keyframes jump-charge {
+  from {
+    transform: scaleX(0.05);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes jump-nebula {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  54% {
+    transform: scale(1.8);
+    opacity: 1;
+  }
 }
 .jump-stars {
   animation: jump-stars var(--jump-duration) ease-in-out both;
@@ -170,6 +237,8 @@ const stars = Array.from({ length: 64 }, (_, i) => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .jump-nebula,
+  .jump-console,
   .jump-stars,
   .jump-trails,
   .jump-glow {
