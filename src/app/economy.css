@@ -143,3 +143,11 @@
   max-height: 113px;
   filter: drop-shadow(2px 4px 0 #050e1a);
 }
+
+img.ship-preview {
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.dealer-bay img.ship-preview {
+  height: clamp(85px, 13vw, 113px);
+}

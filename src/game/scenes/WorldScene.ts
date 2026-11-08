@@ -26,6 +26,8 @@ import {
 } from "../../survival/wildlife";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
+import { shipModels } from "../../fleet/models";
+import { shipTextures, shipTextureUrl } from "../../fleet/shipTextures";
 import { shipArt } from "../../fleet/shipArt";
 import Phaser from "phaser";
 import {
@@ -77,6 +79,8 @@ export class WorldScene extends Phaser.Scene {
   private fruit: Fruit[] = [];
   private surfaceTap:
     { x: number; y: number; wx: number; wy: number } | undefined;
+  private shipSprites: Phaser.GameObjects.Image[] = [];
+  private usedShipSprites = 0;
   private gfx!: Phaser.GameObjects.Graphics;
   private backdrop!: Phaser.GameObjects.Graphics;
   private spaceDust!: Phaser.GameObjects.TileSprite;
@@ -119,6 +123,10 @@ export class WorldScene extends Phaser.Scene {
   private jumpBuffer = new JumpBuffer();
   constructor() {
     super("world");
+  }
+  preload() {
+    for (const hull of shipTextures)
+      this.load.image("hull:" + hull, shipTextureUrl(hull));
   }
   create() {
     this.store = useGame();
@@ -285,6 +293,9 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    for (let i = 0; i < this.usedShipSprites; i++)
+      this.shipSprites[i]!.setVisible(false);
+    this.usedShipSprites = 0;
     this.flightShipGfx.clear();
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
@@ -1398,6 +1409,7 @@ export class WorldScene extends Phaser.Scene {
     f = this.gfx,
     scale = 1,
     depth = this.store.state.mode === "space" ? 4 : 0,
+    pirate = false,
   ) {
     const cosine = Math.cos(angle),
       sine = Math.sin(angle);
@@ -1405,6 +1417,42 @@ export class WorldScene extends Phaser.Scene {
       x: Math.round(x + scale * (px * cosine - py * sine)),
       y: Math.round(y + scale * (px * sine + py * cosine)),
     });
+    const family = pirate ? "raider" : shipModels[model].hullFamily;
+    const texture = "hull:" + family;
+    if (this.textures.exists(texture)) {
+      const i = this.usedShipSprites++;
+      const sprite = (this.shipSprites[i] ??= this.add.image(0, 0, texture));
+      sprite.setTexture(texture);
+      const width =
+        (family === "atlas" || family === "mammoth" || family === "bastion"
+          ? 64
+          : 54) * scale;
+      const height = (sprite.frame.height / sprite.frame.width) * width;
+      sprite
+        .setPosition(Math.round(x), Math.round(y))
+        .setRotation(angle)
+        .setDisplaySize(width, height)
+        .setDepth(f === this.flightShipGfx ? 2.1 : 0.5)
+        .setVisible(true);
+      if (thrust) {
+        const tail = -(width / scale) * 0.47;
+        const amber = family === "atlas" || family === "bastion";
+        const length = 11 + Math.sin(this.elapsed * 55) * 4;
+        f.fillStyle(amber ? 0xf9a95e : 0x59dbc9, 0.48).fillPoints(
+          [point(tail + 1, -4), point(tail - length, 1), point(tail + 1, 5)],
+          true,
+        );
+        f.fillStyle(amber ? 0xffedb5 : 0xc8fff0, 0.9).fillPoints(
+          [
+            point(tail + 2, -2),
+            point(tail - length * 0.68, 1),
+            point(tail + 2, 3),
+          ],
+          true,
+        );
+      }
+      return;
+    }
     const { hull, details } = shipArt(model);
     const drawPlates = (plates: typeof hull, offset: number) => {
       for (const plate of plates) {
