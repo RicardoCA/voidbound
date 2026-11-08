@@ -71,7 +71,7 @@ export const stationServices = [
     name: "Mira",
     color: 0xc591ad,
     dialogue:
-      "Quer experimentar um visual novo? Tenho bonés, camisetas e calças, até uma coleção corsária.",
+      "Quer experimentar um visual novo? Tenho bonés, camisetas, calças e viseiras. Dá uma olhada na coleção corsária.",
   },
   {
     id: "black-market",

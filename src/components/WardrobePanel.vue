@@ -11,7 +11,12 @@ import {
 } from "../wardrobe/clothing";
 
 const g = useGame();
-const slots = { hat: "Bonés", shirt: "Camisetas", pants: "Calças" };
+const slots = {
+  hat: "Bonés",
+  shirt: "Camisetas",
+  pants: "Calças",
+  visor: "Óculos",
+};
 const selectedSlot = ref<ClothingSlot>("hat");
 const catalog = Object.keys(clothing) as ClothingId[];
 const choices = computed(() =>
@@ -37,8 +42,8 @@ async function equip(id: ClothingId) {
 <template>
   <section class="station-form" aria-label="Loja de vestuário">
     <p>
-      Escolha uma peça, compre com créditos e equipe no guarda-roupa. Em
-      atmosferas hostis, o capacete assume as cores do boné.
+      Escolha uma peça, compre com créditos e equipe no guarda-roupa. O boné
+      fica sobre o capacete. A categoria Óculos troca a viseira.
     </p>
     <nav class="station-actions" aria-label="Tipos de roupa">
       <button
@@ -58,15 +63,15 @@ async function equip(id: ClothingId) {
         class="dealer-card wardrobe-card"
       >
         <svg
-          viewBox="-12 -18 25 33"
+          viewBox="-12 -23 25 38"
           aria-hidden="true"
           shape-rendering="crispEdges"
         >
           <rect
-            v-for="(pixel, index) in astronautArt(
-              { ...g.state.wardrobe?.equipped, [selectedSlot]: id },
-              false,
-            )"
+            v-for="(pixel, index) in astronautArt({
+              ...g.state.wardrobe?.equipped,
+              [selectedSlot]: id,
+            })"
             :key="index"
             :x="pixel.x"
             :y="pixel.y"

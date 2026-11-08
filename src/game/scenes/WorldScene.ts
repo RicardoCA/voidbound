@@ -332,7 +332,7 @@ export class WorldScene extends Phaser.Scene {
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
       this.station.draw(this, this.gfx, clandestine, (x, y, step, facing) =>
-        this.drawAstronaut(x, y, step, facing, false),
+        this.drawAstronaut(x, y, step, facing),
       );
       return;
     }
@@ -364,7 +364,7 @@ export class WorldScene extends Phaser.Scene {
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
       this.cabin.draw(this, this.gfx, (x, y, step, facing) =>
-        this.drawAstronaut(x, y, step, facing, false),
+        this.drawAstronaut(x, y, step, facing),
       );
       return;
     }
@@ -1873,17 +1873,10 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawAstronaut(
-    x: number,
-    y: number,
-    walk: number,
-    facing: number,
-    helmet = !this.store.planet.breathable,
-  ) {
+  private drawAstronaut(x: number, y: number, walk: number, facing: number) {
     const f = this.gfx;
     for (const pixel of astronautArt(
       this.store.state.wardrobe?.equipped,
-      helmet,
       walk,
     )) {
       const dx = facing < 0 ? -pixel.x - pixel.w : pixel.x;
