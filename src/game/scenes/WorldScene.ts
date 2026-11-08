@@ -238,6 +238,7 @@ export class WorldScene extends Phaser.Scene {
       if (e.code === "KeyR" && this.building.enabled) this.building.rotate();
       if (
         e.code === "KeyM" &&
+        this.store.state.mode !== "surface" &&
         this.store.state.mode !== "space" &&
         this.store.state.mode !== "interior"
       )
@@ -252,6 +253,7 @@ export class WorldScene extends Phaser.Scene {
         this.store.panel = this.store.panel === "inventory" ? "" : "inventory";
       if (
         e.code === "KeyC" &&
+        this.store.state.mode !== "surface" &&
         this.store.state.mode !== "interior" &&
         this.store.state.mode !== "space"
       )

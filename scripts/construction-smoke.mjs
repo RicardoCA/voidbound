@@ -176,9 +176,12 @@ try {
     .getByRole("button", { name: "Retirar Escada de madeira", exact: true })
     .click();
   assert.equal((await state()).inventory.woodStairs, beforeStairs - 1);
-  await page.getByRole("button", { name: "Fechar armário" }).click();
-  await page.keyboard.press("m", { delay: 80 });
-  await page.getByRole("tab", { name: /Bases e depósitos/ }).click();
+  await page.getByRole("button", { name: /Ver meus depósitos/ }).click();
+  await page.getByRole("heading", { name: "Suas bases e depósitos" }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: /Localizar .* no mapa/ }).count(),
+    0,
+  );
   assert.equal(await page.locator(".base-card").count(), 1);
   assert.ok(
     (await page.locator(".base-card").innerText()).includes("1 unidade"),
@@ -188,7 +191,7 @@ try {
       "Escada de madeira",
     ),
   );
-  await page.getByRole("button", { name: "Fechar mapa" }).click();
+  await page.getByRole("button", { name: "Fechar depósitos" }).click();
   await page.screenshot({ path: `${artifacts}/restored.png` });
   assert.deepEqual(errors, []);
   console.log(

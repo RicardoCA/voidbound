@@ -6,7 +6,10 @@ import { useBases } from "../stores/bases";
 import { items, biomes, type Item } from "../game/types";
 import { CABINET_SLOTS } from "../construction/building";
 import type { BaseSummary } from "../construction/catalog";
-const props = defineProps<{ focusPlanet?: string }>();
+const props = withDefaults(
+  defineProps<{ focusPlanet?: string; canLocate?: boolean }>(),
+  { canLocate: true },
+);
 const emit = defineEmits<{ locate: [base: BaseSummary]; clearFocus: [] }>();
 const g = useGame(),
   bases = useBases(),
@@ -95,6 +98,7 @@ const entries = (inventory: BaseSummary["inventory"]) =>
         </div>
         <button
           class="secondary"
+          v-if="canLocate"
           :aria-label="`Localizar ${base.planet.name} no mapa`"
           @click="emit('locate', base)"
         >

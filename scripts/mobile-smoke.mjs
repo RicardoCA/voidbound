@@ -266,8 +266,14 @@ try {
   await page.getByRole("button", { name: "Fechar inventário" }).tap();
   await page.getByRole("button", { name: "Abrir construção" }).tap();
   await page.getByRole("button", { name: "Fechar construção" }).tap();
-  await page.getByRole("button", { name: "Abrir mapa galáctico" }).tap();
-  await page.getByRole("button", { name: "Fechar mapa" }).tap();
+  assert.equal(
+    await page.getByRole("button", { name: "Abrir mapa galáctico" }).count(),
+    0,
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Abrir fabricação" }).count(),
+    0,
+  );
   await page.getByRole("button", { name: "Pausar jogo", exact: true }).tap();
   await page.getByRole("button", { name: "SALVAR PARTIDA", exact: true }).tap();
   await page.getByRole("status").waitFor();
