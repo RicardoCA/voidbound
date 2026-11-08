@@ -1,13 +1,6 @@
 .station-dialog {
   width: min(760px, 100%);
 }
-.station-banner svg {
-  width: 100%;
-  max-height: 120px;
-  display: block;
-  margin-bottom: 16px;
-  background: #172a42;
-}
 .station-credits {
   color: var(--mint);
   white-space: nowrap;

@@ -288,6 +288,16 @@
     gap: 9px;
     align-items: center;
   }
+  .touch-actions.station-actions-only {
+    grid-template-columns: minmax(96px, auto);
+    grid-template-areas: "interact";
+  }
+  .at-station .station-walk-tip {
+    bottom: 32%;
+  }
+  .at-station .station-walk-tip kbd {
+    display: none;
+  }
   .touch-actions.space-actions {
     grid-template-areas: "aux mine" "interact fire";
   }

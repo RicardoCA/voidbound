@@ -36,6 +36,10 @@ try {
   await page.waitForFunction(() => window.__game.state.ship.x > 340);
   await page.keyboard.up("w");
   await page.keyboard.press("e", { delay: 100 });
+  await page.waitForFunction(
+    () => window.__game.flightTarget.action === "orbit",
+  );
+  await page.keyboard.press("e", { delay: 100 });
   await page.getByRole("button", { name: /Planície de Aurora/ }).click();
   await page.getByRole("button", { name: "EXPLORAR SUPERFÍCIE" }).click();
   await page.waitForFunction(

@@ -11,6 +11,8 @@ import {
 const b = useConstruction();
 const g = useGame(),
   surface = computed(() => g.state.mode === "surface");
+const station = computed(() => g.state.mode === "docked");
+const walking = computed(() => surface.value || station.value);
 const x = ref(0),
   y = ref(0),
   active = ref(false);
@@ -77,7 +79,7 @@ onBeforeUnmount(reset);
         :class="{ active }"
         role="group"
         :aria-label="
-          surface ? 'Joystick de movimento' : 'Joystick de pilotagem'
+          walking ? 'Joystick de movimento' : 'Joystick de pilotagem'
         "
         @pointerdown="start"
         @pointermove="move"
@@ -95,11 +97,14 @@ onBeforeUnmount(reset);
           :style="{ transform: `translate(${x}px, ${y}px)` }"
         />
       </div>
-      <span v-if="!surface" class="touch-hint">GIRAR / ACELERAR</span>
+      <span v-if="!walking" class="touch-hint">GIRAR / ACELERAR</span>
     </div>
-    <div class="touch-actions" :class="{ 'space-actions': !surface }">
+    <div
+      class="touch-actions"
+      :class="{ 'space-actions': !walking, 'station-actions-only': station }"
+    >
       <button
-        v-if="!surface"
+        v-if="!walking"
         class="touch-brake"
         aria-label="Frear nave"
         @pointerdown="action('down', $event)"
@@ -110,7 +115,7 @@ onBeforeUnmount(reset);
         FREAR
       </button>
       <button
-        v-else
+        v-else-if="surface"
         class="touch-jump"
         aria-label="Pular"
         @pointerdown="action('jump', $event)"
@@ -121,6 +126,7 @@ onBeforeUnmount(reset);
         PULAR
       </button>
       <button
+        v-if="!station"
         class="touch-mine"
         :aria-label="
           b.enabled
@@ -146,7 +152,7 @@ onBeforeUnmount(reset);
         }}
       </button>
       <button
-        v-if="!surface"
+        v-if="!walking"
         class="touch-fire"
         aria-label="Disparar arma"
         @pointerdown="action('fire', $event)"
@@ -159,13 +165,21 @@ onBeforeUnmount(reset);
       <button
         class="touch-interact"
         :aria-label="
-          surface
-            ? 'Interagir com porta, nave ou armário'
-            : g.flightContact?.wreck && g.flightContact.distance <= 95
-              ? 'Saquear destroço'
-              : g.stationDistance <= 115
-                ? 'Acoplar à estação'
-                : 'Entrar em órbita'
+          station
+            ? 'Conversar com atendente'
+            : surface
+              ? 'Interagir com porta, nave ou armário'
+              : g.flightContact?.wreck && g.flightContact.distance <= 95
+                ? 'Saquear destroço'
+                : g.stationDistance <= 115
+                  ? 'Acoplar à estação'
+                  : g.flightTarget.action === 'planet'
+                    ? 'Escanear planeta'
+                    : g.flightTarget.action === 'anomaly'
+                      ? 'Escanear anomalia'
+                      : g.flightTarget.action === 'orbit'
+                        ? 'Entrar em órbita'
+                        : 'Interagir no espaço'
         "
         @pointerdown="action('interact', $event)"
         @pointerup="stop('interact', $event)"
@@ -173,13 +187,19 @@ onBeforeUnmount(reset);
         @lostpointercapture="stop('interact', $event)"
       >
         {{
-          surface
-            ? "INTERAGIR"
-            : g.flightContact?.wreck && g.flightContact.distance <= 95
-              ? "SAQUEAR"
-              : g.stationDistance <= 115
-                ? "ACOPLAR"
-                : "ÓRBITA"
+          station
+            ? "CONVERSAR"
+            : surface
+              ? "INTERAGIR"
+              : g.flightContact?.wreck && g.flightContact.distance <= 95
+                ? "SAQUEAR"
+                : g.stationDistance <= 115
+                  ? "ACOPLAR"
+                  : g.flightTarget.action && g.flightTarget.action !== "orbit"
+                    ? "ESCANEAR"
+                    : g.flightTarget.action === "orbit"
+                      ? "ÓRBITA"
+                      : "INTERAGIR"
         }}
       </button>
     </div>

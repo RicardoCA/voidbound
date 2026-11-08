@@ -4,14 +4,18 @@ import { useGame } from "../stores/game";
 import { weatherLabels } from "../game/procedural/weather";
 import { habitatMessage, planetClock } from "../construction/habitat";
 import { useConstruction } from "../stores/construction";
-import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
 const g = useGame(),
   b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
+const station = computed(() => g.state.mode === "docked");
 const localTime = computed(() => planetClock(g.state.time));
 const location = computed(() =>
-  surface.value || g.state.mode === "interior" ? g.planet.name : g.system.name,
+  station.value
+    ? g.system.station?.name
+    : surface.value || g.state.mode === "interior"
+      ? g.planet.name
+      : g.system.name,
 );
 const meters = computed(() => [
   {
@@ -33,20 +37,7 @@ const meters = computed(() => [
     ? [{ label: "FOME", value: g.state.player.hunger ?? 100, max: 100 }]
     : []),
 ]);
-const target = computed(() => {
-  const ship = g.state.ship;
-  let distance = Infinity,
-    name = "";
-  g.system.planets.forEach((planet, i) => {
-    const p = planetPosition(i),
-      d = Math.hypot(ship.x - p.x, ship.y - p.y);
-    if (d < distance) {
-      distance = d;
-      name = planet.name;
-    }
-  });
-  return { distance, name };
-});
+const target = computed(() => g.flightTarget);
 const transient = ref("");
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 watch(
@@ -83,9 +74,11 @@ function pause() {
           >
           · </template
         >{{
-          surface
-            ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
-            : `${g.model.name} · ${g.speed} km/s`
+          station
+            ? "Interior da estação"
+            : surface
+              ? `${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
+              : `${g.model.name} · ${g.speed} km/s`
         }}</small
       >
     </div>
@@ -139,7 +132,7 @@ function pause() {
         ✧
       </button>
       <button
-        v-if="g.showMission"
+        v-if="g.showMission && !station"
         aria-label="Abrir diário de expedição"
         title="Missão"
         class="mission-toggle"
@@ -151,7 +144,13 @@ function pause() {
     </nav>
   </div>
   <div
-    v-if="!g.panel && !g.paused && !b.enabled && !g.inSequence"
+    v-if="
+      !g.panel &&
+      !g.paused &&
+      !b.enabled &&
+      !g.inSequence &&
+      (!station || transient)
+    "
     class="mobile-context"
     :class="{ notification: transient }"
     aria-live="polite"
@@ -171,7 +170,7 @@ function pause() {
       v-else-if="
         g.state.mode === 'space' &&
         g.system.station &&
-        (g.stationDistance <= 115 || target.distance >= 210)
+        (g.stationDistance <= 115 || !target.action)
       "
     >
       {{ g.stationBearing }} {{ g.system.station.name }} ·
@@ -188,7 +187,14 @@ function pause() {
     </template>
     <template v-else-if="g.state.mode === 'space'"
       >⌖ {{ target.name }} · {{ Math.round(target.distance) }} km
-      <b v-if="target.distance < 210">· Órbita disponível</b></template
+      <b v-if="target.action"
+        >·
+        {{
+          target.action === "orbit"
+            ? "Órbita disponível"
+            : "No alcance do scanner"
+        }}</b
+      ></template
     >
     <template
       v-else-if="surface && (g.habitat.hasGenerator || g.habitat.sealed)"

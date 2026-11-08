@@ -3,6 +3,7 @@ import type { FlightContact } from "../combat/traffic";
 import {
   anomalyAt,
   cataloguePlanet,
+  explorationLevel,
   recordSystemSurvey,
   ruinAt,
   scanSite,
@@ -166,6 +167,7 @@ export const useGame = defineStore("game", () => {
     busy = ref(false),
     speed = ref(0),
     flightContact = ref<FlightContact>(),
+    stationContact = ref<string>(),
     trading = ref(false);
   watch(
     started,
@@ -683,6 +685,58 @@ export const useGame = defineStore("game", () => {
     notify(`Salto concluído. Sistema ${system.value.name}.`);
     await save();
   }
+  const flightTarget = computed(() => {
+    const s = state.value;
+    const planets = system.value.planets;
+    let index = 0;
+    let distance = Infinity;
+    for (const [i] of planets.entries()) {
+      const pos = planetPosition(i);
+      const d = Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y);
+      if (d < distance) {
+        index = i;
+        distance = d;
+      }
+    }
+    const target = planets[index]!;
+    const range = scannerRange(s);
+    const catalogued = Boolean(s.progression.cataloguedPlanets[target.id]);
+    const action = catalogued
+      ? distance < 210
+        ? "orbit"
+        : undefined
+      : distance <= range
+        ? "planet"
+        : undefined;
+    const anomaly = anomalyAt(system.value);
+    if (
+      anomaly &&
+      !s.progression.discoveries[anomaly.id] &&
+      explorationLevel(s) >= anomaly.level
+    ) {
+      const signalDistance = Math.hypot(
+        anomaly.x - s.ship.x,
+        anomaly.y - s.ship.y,
+      );
+      if (signalDistance <= range && (!action || signalDistance < distance)) {
+        return {
+          index,
+          name: anomaly.name,
+          distance: signalDistance,
+          action: "anomaly" as const,
+        };
+      }
+    }
+    return { index, name: target.name, distance, action };
+  });
+  function interactFlightTarget() {
+    const { action, index } = flightTarget.value;
+    if (action === "anomaly") scanSignal();
+    else if (action === "planet") scanPlanet(index);
+    else if (action === "orbit") orbit(index);
+    else
+      notify("Aproxime-se de um planeta, anomalia ou estação para interagir.");
+  }
   function scanPlanet(index: number) {
     const s = state.value;
     const target = system.value.planets[index];
@@ -835,6 +889,9 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     flightContact,
+    flightTarget,
+    interactFlightTarget,
+    stationContact,
     system,
     stationDistance,
     wanted,

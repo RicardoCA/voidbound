@@ -1,5 +1,6 @@
 import { SpaceCombat } from "../../combat/flight";
 import {
+  hasBlackMarket,
   salvage,
   SALVAGE_RANGE,
   systemWrecks,
@@ -47,6 +48,7 @@ import {
   releaseControls,
   isEditing,
 } from "../input";
+import { StationInterior } from "../station/StationInterior";
 import { audio } from "../systems/audio";
 interface Rock {
   id: string;
@@ -65,6 +67,7 @@ export class WorldScene extends Phaser.Scene {
   private surfaceTap:
     { x: number; y: number; wx: number; wy: number } | undefined;
   private gfx!: Phaser.GameObjects.Graphics;
+  private flightShipGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
   private lastMode: Mode | "none" = "none";
@@ -93,6 +96,8 @@ export class WorldScene extends Phaser.Scene {
   }[] = [];
   private beam:
     { x: number; y: number; tx: number; ty: number; life: number } | undefined;
+  private station = new StationInterior();
+  private wasAtStation = false;
   private interactHeld = false;
   private jumpHeld = false;
   private jumpBuffer = new JumpBuffer();
@@ -127,8 +132,9 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.flightShipGfx = this.add.graphics().setDepth(2);
     this.keys = this.input.keyboard!.addKeys(
-      "W,A,S,D,SPACE,E,F,M,I,C,ESC",
+      "W,A,S,D,LEFT,RIGHT,UP,DOWN,SPACE,E,F,M,I,C,ESC",
       false,
     ) as Record<string, Phaser.Input.Keyboard.Key>;
     const suppressScroll = (event: KeyboardEvent) => {
@@ -174,6 +180,14 @@ export class WorldScene extends Phaser.Scene {
         if (e.code === "Escape") this.store.paused = !this.store.paused;
         return;
       }
+      if (
+        e.code === "KeyE" &&
+        (this.store.state.mode === "docked" ||
+          this.store.state.mode === "space") &&
+        !this.store.panel &&
+        !this.store.paused
+      )
+        queuePulse("interact");
       if (
         e.code === "KeyF" &&
         this.store.state.mode === "space" &&
@@ -228,7 +242,48 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    this.flightShipGfx.clear();
     const s = g.state;
+    if (g.started && s.mode === "docked") {
+      if (!this.wasAtStation) {
+        this.station.reset();
+        this.wasAtStation = true;
+      }
+      const clandestine = hasBlackMarket(g.system);
+      if (!g.paused && !g.panel && !g.trading) {
+        const direction =
+          Number(this.down("D") || this.down("RIGHT") || controls.right) -
+          Number(this.down("A") || this.down("LEFT") || controls.left);
+        const depth =
+          Number(this.down("S") || this.down("DOWN") || controls.down) -
+          Number(this.down("W") || this.down("UP") || controls.up);
+        this.station.walk(direction, depth, dt, clandestine);
+        const npc = this.station.nearby(clandestine);
+        g.stationContact = npc?.label;
+        const pressed = takePulse("interact");
+        const held = this.down("E") || controls.interact;
+        if (pressed || (held && !this.interactHeld)) {
+          if (npc) {
+            releaseControls();
+            g.panel = "station:" + npc.id;
+          } else {
+            g.notify("Aproxime-se de um atendente para conversar.");
+          }
+        }
+        this.interactHeld = held;
+      } else {
+        this.interactHeld = this.down("E") || controls.interact;
+      }
+      for (const label of this.planetLabels.values()) label.setVisible(false);
+      this.gfx.clear();
+      this.station.draw(this, this.gfx, clandestine);
+      return;
+    }
+    if (this.wasAtStation) {
+      this.station.hide();
+      g.stationContact = undefined;
+      this.wasAtStation = false;
+    }
     this.mineTime -= dt;
     if (this.beam) {
       this.beam.life -= dt;
@@ -319,27 +374,13 @@ export class WorldScene extends Phaser.Scene {
       g.tick(dt);
       if (s.mode === "space") this.spacePhysics(dt);
       if (s.mode === "surface") this.surfacePhysics(dt);
-      const interact =
-        takePulse("interact") ||
-        Phaser.Input.Keyboard.JustDown(this.keys.E!) ||
-        controls.interact;
-      if (interact && !this.interactHeld) {
+      const pressed = takePulse("interact");
+      const held = this.down("E") || controls.interact;
+      const surfacePress =
+        s.mode === "surface" && Phaser.Input.Keyboard.JustDown(this.keys.E!);
+      if (pressed || surfacePress || (held && !this.interactHeld)) {
         if (s.mode === "space") {
-          if (!this.recoverWreck() && !g.dock()) {
-            let nearest = 0,
-              distance = Infinity;
-            g.system.planets.forEach((_, i) => {
-              const p = planetPosition(i),
-                d = Math.hypot(s.ship.x - p.x, s.ship.y - p.y);
-              if (d < distance) {
-                distance = d;
-                nearest = i;
-              }
-            });
-            if (distance < 210) g.orbit(nearest);
-            else
-              g.notify("Aproxime-se de um planeta ou estação para interagir.");
-          }
+          if (!this.recoverWreck() && !g.dock()) g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
           if (
@@ -368,7 +409,7 @@ export class WorldScene extends Phaser.Scene {
           }
         }
       }
-      this.interactHeld = interact;
+      this.interactHeld = held;
     } else {
       this.jumpBuffer.clear();
       this.surfaceTap = undefined;
@@ -819,12 +860,18 @@ export class WorldScene extends Phaser.Scene {
       );
     }
     for (const star of this.stars) {
+      const parallax = surface
+        ? 0.025
+        : star.r === 2
+          ? 0.18
+          : 0.035 + star.phase * 0.012;
       const x =
-          (((star.x * this.viewWidth - this.camX * 0.025) % this.viewWidth) +
+          (((star.x * this.viewWidth - this.camX * parallax) % this.viewWidth) +
             this.viewWidth) %
           this.viewWidth,
         y =
-          (((star.y * this.viewHeight - this.camY * 0.025) % this.viewHeight) +
+          (((star.y * this.viewHeight - this.camY * parallax) %
+            this.viewHeight) +
             this.viewHeight) %
           this.viewHeight;
       f.fillStyle(
@@ -890,14 +937,55 @@ export class WorldScene extends Phaser.Scene {
     const f = this.gfx,
       g = this.store,
       s = g.state.ship;
+    // Small silhouettes behind the flight plane carry parallax without
+    // introducing targets that can be mined or collided with.
+    const distant = random(hash(g.system.id + ":depth"));
+    for (let i = 0; i < 14; i++) {
+      const x = Phaser.Math.Wrap(
+        distant() * this.viewWidth - this.camX * 0.34,
+        -20,
+        this.viewWidth + 20,
+      );
+      const y = Phaser.Math.Wrap(
+        distant() * this.viewHeight - this.camY * 0.34,
+        -20,
+        this.viewHeight + 20,
+      );
+      const radius = 2 + distant() * 7;
+      f.fillStyle(0x26374c, 0.55);
+      f.fillTriangle(
+        x - radius,
+        y,
+        x + radius * 0.45,
+        y - radius,
+        x + radius,
+        y + radius * 0.7,
+      );
+    }
     const station = g.system.station;
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
+      f.fillStyle(0x122438);
+      f.fillPoints(
+        [
+          { x: x - 40, y: y + 9 },
+          { x: x + 40, y: y + 9 },
+          { x: x + 45, y: y + 16 },
+          { x: x - 35, y: y + 16 },
+        ],
+        true,
+      );
       f.fillStyle(0x30485e);
       f.fillRect(x - 40, y - 9, 80, 18);
+      f.fillStyle(0x88a3af);
+      f.fillRect(x - 40, y - 9, 80, 2);
+      f.fillStyle(0x263a4d);
+      f.fillRect(x - 12, y - 12, 34, 36);
       f.fillStyle(0x637f92);
       f.fillRect(x - 17, y - 18, 34, 36);
+      f.fillStyle(0x9cb0b7);
+      f.fillRect(x - 17, y - 18, 34, 3);
       f.fillStyle(0x172947);
       f.fillRect(x - 37, y - 6, 20, 12);
       f.fillRect(x + 17, y - 6, 20, 12);
@@ -969,20 +1057,30 @@ export class WorldScene extends Phaser.Scene {
         y > this.viewHeight + 30
       )
         continue;
-      f.fillStyle(0x635e68);
-      f.fillPoints(
-        [
-          { x: x - rock.r, y: y - 3 },
-          { x: x - rock.r * 0.5, y: y - rock.r },
-          { x: x + rock.r * 0.6, y: y - rock.r * 0.7 },
-          { x: x + rock.r, y: y + rock.r * 0.4 },
-          { x: x + rock.r * 0.3, y: y + rock.r },
-          { x: x - rock.r * 0.7, y: y + rock.r * 0.7 },
-        ],
-        true,
-      );
-      f.fillStyle(0x8b8189);
-      f.fillRect(x - 5, y - 5, 6, 4);
+      const r = rock.r;
+      const rim = [
+        { x: x - r, y: y - 3 },
+        { x: x - r * 0.5, y: y - r },
+        { x: x + r * 0.6, y: y - r * 0.7 },
+        { x: x + r, y: y + r * 0.4 },
+        { x: x + r * 0.3, y: y + r },
+        { x: x - r * 0.7, y: y + r * 0.7 },
+      ];
+      const facets = [
+        0x998c8b, 0x827981, 0x605967, 0x393c50, 0x474657, 0x716872,
+      ];
+      for (const [i, edge] of rim.entries()) {
+        const next = rim[(i + 1) % rim.length]!;
+        f.fillStyle(facets[i]!);
+        f.fillTriangle(
+          x - r * 0.2,
+          y - r * 0.13,
+          edge.x,
+          edge.y,
+          next.x,
+          next.y,
+        );
+      }
       f.fillStyle(
         rock.ore === "crystal"
           ? 0xb794e8
@@ -1055,6 +1153,8 @@ export class WorldScene extends Phaser.Scene {
         y - this.camY + this.centerY,
         angle,
         docking ? t < 0.78 : this.down("W") || controls.up,
+        undefined,
+        this.flightShipGfx,
       );
     }
   }
@@ -1137,36 +1237,50 @@ export class WorldScene extends Phaser.Scene {
     angle: number,
     thrust = false,
     sprite = this.store.model.sprite as readonly string[],
+    f = this.gfx,
   ) {
-    const f = this.gfx;
+    const cosine = Math.cos(angle),
+      sine = Math.sin(angle);
     const point = (px: number, py: number) => ({
-      x: Math.round(x + px * Math.cos(angle) - py * Math.sin(angle)),
-      y: Math.round(y + px * Math.sin(angle) + py * Math.cos(angle)),
+      x: Math.round(x + px * cosine - py * sine),
+      y: Math.round(y + px * sine + py * cosine),
     });
-    sprite.forEach((row, rowIndex) => {
-      let start = 0;
-      while (start < row.length) {
-        const pixel = row[start]!;
-        let end = start + 1;
-        while (end < row.length && row[end] === pixel) end++;
-        if (pixel !== ".") {
-          const left = start * 3 - 22,
-            right = end * 3 - 22;
-          const top = rowIndex * 2.5 - 14;
-          f.fillStyle(shipPalette[pixel as keyof typeof shipPalette]);
-          f.fillPoints(
-            [
-              point(left, top),
-              point(right, top),
-              point(right, top + 2.5),
-              point(left, top + 2.5),
-            ],
-            true,
-          );
+    const drawHull = (depth: number) => {
+      sprite.forEach((row, rowIndex) => {
+        let start = 0;
+        while (start < row.length) {
+          const pixel = row[start]!;
+          let end = start + 1;
+          while (end < row.length && row[end] === pixel) end++;
+          if (pixel !== ".") {
+            const left = start * 3 - 22,
+              right = end * 3 - 22,
+              top = rowIndex * 2.5 - 14;
+            f.fillStyle(
+              depth ? 0x162d43 : shipPalette[pixel as keyof typeof shipPalette],
+            );
+            f.fillPoints(
+              [
+                point(left, top),
+                point(right, top),
+                point(right, top + 2.5),
+                point(left, top + 2.5),
+              ].map((vertex) => ({
+                x: vertex.x + depth * 0.5,
+                y: vertex.y + depth,
+              })),
+              true,
+            );
+          }
+          start = end;
         }
-        start = end;
-      }
-    });
+      });
+    };
+    if (this.store.state.mode === "space") {
+      drawHull(4);
+      drawHull(2);
+    }
+    drawHull(0);
     if (thrust) {
       f.fillStyle(0x7de3ee, 0.8);
       f.fillPoints(

@@ -1659,3 +1659,21 @@ kbd {
   font-size: 12px;
   pointer-events: none;
 }
+
+.station-walk-tip {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 80%;
+  margin: 0;
+  padding: 7px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #b6ced5;
+  background: #0d1927;
+  border: 1px solid var(--line);
+  pointer-events: none;
+}

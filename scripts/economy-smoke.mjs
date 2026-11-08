@@ -40,6 +40,37 @@ try {
             ._s.get("game");
         });
       }
+      async function talk(label, direction) {
+        if (direction) {
+          const stick = mobile
+            ? await page
+                .getByRole("group", { name: "Joystick de movimento" })
+                .boundingBox()
+            : null;
+          if (stick) {
+            const x = stick.x + stick.width * (direction === "d" ? 0.85 : 0.15);
+            await page.mouse.move(x, stick.y + stick.height / 2);
+            await page.mouse.down();
+          } else {
+            await page.keyboard.down(direction);
+          }
+          try {
+            await page.waitForFunction(
+              (target) => window.game.stationContact === target,
+              label,
+            );
+          } finally {
+            if (stick) await page.mouse.up();
+            else await page.keyboard.up(direction);
+          }
+        }
+        if (mobile) await click("Conversar com atendente");
+        else await page.keyboard.press("e");
+        await station
+          .getByRole("heading", { name: label, exact: true })
+          .first()
+          .waitFor();
+      }
       await click(/INICIAR EXPEDIÇÃO/);
       await attach();
       await page.evaluate(() => {
@@ -63,7 +94,18 @@ try {
         .waitFor();
       assert.equal((await snapshot()).mode, "space");
       assert.equal(await station.count(), 0);
-      await station.waitFor();
+      await page.waitForFunction(
+        () => window.game.stationContact === "Embarque",
+      );
+      assert.equal(await station.count(), 0);
+      await talk("Mercado", "d");
+      await station
+        .getByText("Ei, amigo! Quer comprar ou vender seus itens?")
+        .waitFor();
+      await click("Não", station);
+      await station.waitFor({ state: "detached" });
+      await talk("Mercado");
+      await click("Sim", station);
       assert.equal((await snapshot()).credits, 500);
       await page.getByLabel("Quantidade", { exact: true }).fill("50");
       await click("Vender · 450 CR", station);
@@ -72,14 +114,18 @@ try {
       await page.getByLabel("Quantidade", { exact: true }).fill("30");
       await click("Vender · 360 CR", station);
       await station.getByText("1.310 CR", { exact: true }).waitFor();
-      await click("Concessionária", station);
+      await click("Encerrar conversa", station);
+      await talk("Concessionária", "d");
+      await click("Sim", station);
       const atlas = station.locator(".dealer-card").filter({
         has: page.getByRole("heading", { name: "Atlas C-2", exact: true }),
       });
       await click("Comprar · 1.100 CR", atlas);
       await click("Confirmar · 1.100 CR", atlas);
       await station.getByText("210 CR", { exact: true }).waitFor();
-      await click("Hangar", station);
+      await click("Encerrar conversa", station);
+      await talk("Hangar", "d");
+      await click("Sim", station);
       await page.getByLabel("Quantidade a transferir").fill("4");
       await click("Transferir carga", station);
       await station.getByText("Carga transferida.", { exact: true }).waitFor();
@@ -94,12 +140,15 @@ try {
       await page.reload();
       await click(/CONTINUAR EXPEDIÇÃO/);
       await attach();
-      await station.waitFor();
+      await page.waitForFunction(
+        () => window.game.stationContact === "Embarque",
+      );
       state = await snapshot();
       assert.equal(state.credits, 210);
       assert.equal(state.activeShip.model, "atlas");
       assert.equal(state.parkedShips[0].model, "sparrow");
-      await click("Hangar", station);
+      await talk("Hangar", "d");
+      await click("Sim", station);
       if (mobile) {
         for (const [width, height] of [
           [390, 780],
@@ -115,7 +164,9 @@ try {
           );
         }
       }
-      await click("Desacoplar", station);
+      await click("Encerrar conversa", station);
+      await talk("Embarque", "a");
+      await click("Sim", station);
       await station.waitFor({ state: "detached" });
       assert.equal((await snapshot()).mode, "space");
       if (!mobile) {

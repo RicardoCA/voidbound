@@ -5,6 +5,7 @@ import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
+import { stationServices } from "../game/station/services";
 import JumpSequence from "../components/JumpSequence.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
@@ -21,7 +22,6 @@ import PlanetBaseSummary from "../components/PlanetBaseSummary.vue";
 import { useBases } from "../stores/bases";
 import { landingZones } from "../universe/landings";
 import { useGame } from "../stores/game";
-import { planetPosition } from "../universe/generator";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
 const b = useConstruction(),
@@ -44,20 +44,13 @@ watch(
 );
 const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(() => g.state.mode === "interior");
+const atStation = computed(() => g.state.mode === "docked");
+const stationNpc = computed(() =>
+  atStation.value
+    ? stationServices.find((npc) => g.panel === "station:" + npc.id)
+    : undefined,
+);
 const localTime = computed(() => planetClock(g.state.time));
-const closest = computed(() => {
-  let d = Infinity,
-    index = 0;
-  g.system.planets.forEach((_, i) => {
-    const p = planetPosition(i),
-      dist = Math.hypot(g.state.ship.x - p.x, g.state.ship.y - p.y);
-    if (dist < d) {
-      d = dist;
-      index = i;
-    }
-  });
-  return { planet: g.system.planets[index]!, distance: d, index };
-});
 const nav = computed(() => [
   { id: "inventory", icon: "▦", label: "Carga", key: "I" },
   { id: "craft", icon: "⌘", label: "Fabricação", key: "C" },
@@ -134,7 +127,11 @@ function minutes() {
 <template>
   <main
     class="app-shell"
-    :class="{ 'is-playing': g.started, 'is-building': b.enabled }"
+    :class="{
+      'is-playing': g.started,
+      'is-building': b.enabled,
+      'at-station': g.started && atStation,
+    }"
   >
     <header class="topbar">
       <a
@@ -176,7 +173,13 @@ function minutes() {
           >
             <rect x="3" y="3" width="18" height="18" rx="5" />
             <circle cx="12" cy="12" r="4" />
-            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+            <circle
+              cx="17.5"
+              cy="6.5"
+              r="1"
+              fill="currentColor"
+              stroke="none"
+            />
           </svg>
         </a>
       </div>
@@ -251,11 +254,19 @@ function minutes() {
                 ? "EXPLORAÇÃO PLANETÁRIA"
                 : inShip
                   ? "SISTEMAS INTERNOS"
-                  : "ESPAÇO PROFUNDO"
+                  : atStation
+                    ? "INTERIOR DA ESTAÇÃO"
+                    : "ESPAÇO PROFUNDO"
             }}
           </div>
           <h2>
-            {{ surface || inShip ? g.planet.name : g.system.name }}
+            {{
+              atStation
+                ? g.system.station?.name
+                : surface || inShip
+                  ? g.planet.name
+                  : g.system.name
+            }}
             <span>↗</span>
           </h2>
           <p>
@@ -296,7 +307,7 @@ function minutes() {
           </p>
         </div>
         <HabitatStatus v-if="surface" class="desktop-habitat" />
-        <aside v-if="g.showMission" class="mission-card">
+        <aside v-if="g.showMission && !atStation" class="mission-card">
           <div class="eyebrow">
             <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
             <span class="muted"
@@ -319,11 +330,26 @@ function minutes() {
         <div v-if="g.state.mode === 'space'" class="target-label">
           <span class="target-bracket">⌖</span>
           <div>
-            <span>PLANETA MAIS PRÓXIMO</span><b>{{ closest.planet.name }}</b
+            <span>{{
+              g.flightTarget.action === "anomaly"
+                ? "SINAL DETECTADO"
+                : "PLANETA MAIS PRÓXIMO"
+            }}</span
+            ><b>{{ g.flightTarget.name }}</b
             ><small
-              >{{ Math.round(closest.distance) }} km
-              <span v-if="closest.distance < 210"
-                >· [E] ENTRAR EM ÓRBITA</span
+              >{{ Math.round(g.flightTarget.distance) }} km
+              <span
+                v-if="
+                  g.flightTarget.action &&
+                  g.stationDistance > 115 &&
+                  !(g.flightContact?.wreck && g.flightContact.distance <= 95)
+                "
+                >· [E]
+                {{
+                  g.flightTarget.action === "orbit"
+                    ? "ENTRAR EM ÓRBITA"
+                    : "ESCANEAR"
+                }}</span
               ></small
             >
           </div>
@@ -353,10 +379,18 @@ function minutes() {
             !g.paused &&
             !g.busy &&
             !g.inSequence &&
-            (g.state.mode === 'space' || surface)
+            (g.state.mode === 'space' || surface || atStation)
           "
         />
-        <div class="bottom-hud">
+        <p v-if="atStation && !g.panel && !g.paused" class="station-walk-tip">
+          <template v-if="g.stationContact">
+            <kbd>E</kbd> Conversar · {{ g.stationContact }}
+          </template>
+          <template v-else
+            >Aproxime-se de um atendente para conversar.</template
+          >
+        </p>
+        <div class="bottom-hud" v-if="!atStation">
           <section class="ship-status">
             <div class="ship-icon">➤</div>
             <div class="status-data">
@@ -460,11 +494,7 @@ function minutes() {
           g.started &&
           !g.busy &&
           (g.paused ||
-            (!g.inSequence &&
-              (g.panel ||
-                g.state.mode === 'orbit' ||
-                g.state.mode === 'docked' ||
-                inShip)))
+            (!g.inSequence && (g.panel || g.state.mode === 'orbit' || inShip)))
         "
         class="overlay"
         :class="{ 'ship-overlay': inShip && !g.panel && !g.paused }"
@@ -524,7 +554,11 @@ function minutes() {
             pausa
           </div>
         </section>
-        <StationPanel v-else-if="g.state.mode === 'docked' && !g.panel" />
+        <StationPanel
+          v-else-if="stationNpc"
+          :key="stationNpc.id"
+          :npc="stationNpc"
+        />
         <section
           v-else-if="g.panel === 'mission'"
           class="dialog mission-dialog"
@@ -733,6 +767,9 @@ function minutes() {
       <span v-if="surface"
         ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
         <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
+      ><span v-else-if="atStation"
+        ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para
+        caminhar</span
       ><span v-else
         ><kbd>W</kbd> PROPULSÃO <kbd>A</kbd><kbd>D</kbd> ROTACIONAR
         <kbd>S</kbd> FREAR <kbd>ESPAÇO</kbd> MINERAR <kbd>F</kbd> ATIRAR</span

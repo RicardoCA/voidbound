@@ -137,6 +137,10 @@ try {
     timeout: 15000,
   });
   await touch("touchEnd", []);
+  await page.getByRole("button", { name: "Escanear planeta" }).tap();
+  await page.waitForFunction(
+    () => window.__game.flightTarget.action === "orbit",
+  );
   await page
     .getByRole("button", { name: "Entrar em órbita", exact: true })
     .tap();
