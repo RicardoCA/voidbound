@@ -98,6 +98,22 @@ try {
         () => window.game.stationContact === "Embarque",
       );
       assert.equal(await station.count(), 0);
+      // Leave before walking through the hall, while some labels are uncreated.
+      await talk("Embarque");
+      await click("Sim", station);
+      await page.waitForFunction(
+        () =>
+          window.game.state.mode === "space" &&
+          window.game.stationContact === undefined,
+        null,
+        { timeout: 5000 },
+      );
+      assert.deepEqual(errors, []);
+      if (mobile) await click("Acoplar à estação");
+      else await page.keyboard.press("e");
+      await page.waitForFunction(
+        () => window.game.stationContact === "Embarque",
+      );
       await talk("Mercado", "d");
       await station
         .getByText("Ei, amigo! Quer comprar ou vender seus itens?")

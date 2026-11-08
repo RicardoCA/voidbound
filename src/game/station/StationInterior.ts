@@ -41,7 +41,7 @@ export class StationInterior {
   }
 
   hide() {
-    for (const label of this.labels) label.setVisible(false);
+    this.labels.forEach((label) => label.setVisible(false));
   }
 
   private available(clandestine: boolean) {
