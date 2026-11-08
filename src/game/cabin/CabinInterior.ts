@@ -43,6 +43,13 @@ export const cabinEquipment = {
     action: "Abrir bases e depósitos",
     color: 0xb3a1da,
   },
+  map: {
+    x: 0,
+    y: 5,
+    label: "Mapa galáctico",
+    action: "Abrir mapa galáctico",
+    color: 0x88d9e4,
+  },
 } as const;
 
 export type CabinEquipment = keyof typeof cabinEquipment;
@@ -50,6 +57,7 @@ const fixtures = Object.entries(cabinEquipment) as [
   CabinEquipment,
   (typeof cabinEquipment)[CabinEquipment],
 ][];
+const fixturesByDepth = [...fixtures].sort(([, a], [, b]) => a.y - b.y);
 const hull = [
   { x: -204, y: -35 },
   { x: -184, y: -62 },
@@ -68,9 +76,10 @@ export class CabinInterior {
   private stride = 0;
   private labels = new Map<CabinEquipment, Phaser.GameObjects.Text>();
 
-  reset() {
-    this.x = cabinEquipment.hatch.x;
-    this.y = cabinEquipment.hatch.y;
+  reset(atPilot = false) {
+    const start = atPilot ? cabinEquipment.pilot : cabinEquipment.hatch;
+    this.x = start.x;
+    this.y = start.y;
     this.facing = 1;
     this.stride = 0;
   }
@@ -90,9 +99,16 @@ export class CabinInterior {
   }
 
   nearby() {
-    return fixtures.find(
-      ([, item]) => Math.hypot(this.x - item.x, this.y - item.y) <= 25,
-    )?.[0];
+    let closest: CabinEquipment | undefined;
+    let range = 25;
+    for (const [id, item] of fixtures) {
+      const distance = Math.hypot(this.x - item.x, this.y - item.y);
+      if (distance <= range) {
+        closest = id;
+        range = distance;
+      }
+    }
+    return closest;
   }
 
   draw(
@@ -169,13 +185,19 @@ export class CabinInterior {
       drawAstronaut(p.x, p.y - 12, Math.sin(this.stride) * 2, this.facing);
       drewPlayer = true;
     };
-    for (const [id, item] of fixtures) {
+    for (const [id, item] of fixturesByDepth) {
       const back = item.y < 0;
-      const depth = item.y + (back ? -23 : 23);
+      const depth = item.y + (id === "map" ? 0 : back ? -23 : 23);
       if (!drewPlayer && this.y < depth) drawPlayer();
       const { x, y } = project(item.x, depth);
       rect(0x152839, x - 23, y - 2, 46, 5);
-      if (id === "hatch" || id === "inventory") {
+      if (id === "map") {
+        rect(0x142736, x - 21, y - 8, 42, 10);
+        f.lineStyle(1, item.color, 0.65).strokeEllipse(x, y - 12, 38, 13);
+        f.lineStyle(1, item.color, 0.4).strokeEllipse(x, y - 12, 22, 7);
+        rect(item.color, x - 1, y - 13, 3, 3);
+        rect(item.color, x + 8, y - 17, 2, 2);
+      } else if (id === "hatch" || id === "inventory") {
         const h = id === "hatch" ? 34 : 24;
         rect(0x142736, x - 19, y - h, 39, h);
         rect(0x6b8690, x - 17, y - h, 32, h - 2);
@@ -217,7 +239,7 @@ export class CabinInterior {
       this.labels.set(id, label);
       label
         .setVisible(true)
-        .setPosition(x, y + (back ? -42 : 13))
+        .setPosition(x, y + (id === "map" ? -24 : back ? -42 : 13))
         .setColor(id === selected ? "#a1f2db" : "#c2d5df");
     }
     if (!drewPlayer) drawPlayer();

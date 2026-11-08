@@ -182,6 +182,62 @@ export const useGame = defineStore("game", () => {
     },
     { flush: "sync" },
   );
+  const standingInFlight = ref(false);
+  const flightCabin = computed(
+    () => state.value.mode === "space" && standingInFlight.value,
+  );
+  const routeIndex = ref<number>();
+  const routePlanet = computed(() =>
+    routeIndex.value === undefined
+      ? undefined
+      : system.value.planets[routeIndex.value],
+  );
+  watch(
+    () => [
+      started.value,
+      state.value.mode,
+      state.value.seed,
+      state.value.systemX,
+      state.value.systemY,
+    ],
+    () => {
+      routeIndex.value = undefined;
+      standingInFlight.value = false;
+    },
+    { flush: "sync" },
+  );
+  function standInFlight() {
+    if (
+      state.value.mode !== "space" ||
+      paused.value ||
+      busy.value ||
+      inSequence.value ||
+      panel.value
+    )
+      return;
+    releaseControls();
+    standingInFlight.value = true;
+  }
+  function setRoute(index: number) {
+    const planet = system.value.planets[index];
+    if (
+      !planet ||
+      state.value.mode !== "space" ||
+      flightCabin.value ||
+      inSequence.value ||
+      paused.value ||
+      busy.value
+    )
+      return;
+    routeIndex.value = index;
+    panel.value = "";
+    releaseControls();
+    notify("Piloto automático a caminho de " + planet.name + ".");
+  }
+  function clearRoute(message?: string) {
+    routeIndex.value = undefined;
+    if (message) notify(message);
+  }
   const inSequence = computed(() =>
     Boolean(surfaceSequence.value || dockingSequence.value),
   );
@@ -461,6 +517,7 @@ export const useGame = defineStore("game", () => {
     if (trading.value) return;
     if (
       state.value.mode !== "interior" &&
+      !flightCabin.value &&
       state.value.mode !== "docked" &&
       !(state.value.mode === "surface" && recipe?.station === "hand")
     ) {
@@ -526,7 +583,12 @@ export const useGame = defineStore("game", () => {
       void save();
       return;
     }
-    if (upgrades.includes(id) && s.mode !== "interior" && s.mode !== "docked") {
+    if (
+      upgrades.includes(id) &&
+      s.mode !== "interior" &&
+      !flightCabin.value &&
+      s.mode !== "docked"
+    ) {
       notify("Instale melhorias dentro da nave.");
       return;
     }
@@ -583,7 +645,7 @@ export const useGame = defineStore("game", () => {
       paused.value ||
       panel.value ||
       inSequence.value ||
-      state.value.mode !== "interior"
+      (state.value.mode !== "interior" && !flightCabin.value)
     )
       return;
     const equipment = cabinContact.value;
@@ -592,10 +654,14 @@ export const useGame = defineStore("game", () => {
       return;
     }
     releaseControls();
-    if (equipment === "hatch") beginDisembark();
-    else if (equipment === "solar") recover();
-    else if (equipment === "pilot") panel.value = "takeoff";
-    else panel.value = equipment;
+    if (equipment === "hatch") {
+      if (flightCabin.value) notify("A escotilha só abre após pousar.");
+      else beginDisembark();
+    } else if (equipment === "solar") recover();
+    else if (equipment === "pilot") {
+      if (flightCabin.value) standingInFlight.value = false;
+      else panel.value = "takeoff";
+    } else panel.value = equipment;
   }
   function beginDisembark() {
     if (
@@ -890,7 +956,7 @@ export const useGame = defineStore("game", () => {
         !s.upgrades.includes("shield")
       )
         s.player.health -= dt * 0.5;
-    } else if (s.mode === "interior") {
+    } else if (s.mode === "interior" || flightCabin.value) {
       const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
       s.ship.oxygen -= amount;
       s.player.oxygen += amount;
@@ -938,6 +1004,12 @@ export const useGame = defineStore("game", () => {
     interactFlightTarget,
     stationContact,
     cabinContact,
+    flightCabin,
+    routeIndex,
+    routePlanet,
+    standInFlight,
+    setRoute,
+    clearRoute,
     interactCabin,
     system,
     stationDistance,

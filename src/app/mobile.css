@@ -556,3 +556,11 @@
     display: none;
   }
 }
+
+.mobile-tools .flight-action {
+  width: auto;
+  min-width: 50px;
+  padding: 0 5px;
+  font: 600 10px system-ui, sans-serif;
+  white-space: nowrap;
+}

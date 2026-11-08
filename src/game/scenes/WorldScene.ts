@@ -196,6 +196,7 @@ export class WorldScene extends Phaser.Scene {
         queuePulse("interact");
       if (
         e.code === "KeyF" &&
+        !this.store.flightCabin &&
         this.store.state.mode === "space" &&
         !this.store.panel &&
         !this.store.paused
@@ -213,13 +214,25 @@ export class WorldScene extends Phaser.Scene {
         else this.building.openPalette();
       }
       if (e.code === "KeyR" && this.building.enabled) this.building.rotate();
-      if (e.code === "KeyM")
+      if (
+        e.code === "KeyM" &&
+        this.store.state.mode !== "space" &&
+        this.store.state.mode !== "interior"
+      )
         this.store.panel = ["map", "bases"].includes(this.store.panel)
           ? ""
           : "map";
-      if (e.code === "KeyI" && this.store.state.mode !== "interior")
+      if (
+        e.code === "KeyI" &&
+        this.store.state.mode !== "interior" &&
+        this.store.state.mode !== "space"
+      )
         this.store.panel = this.store.panel === "inventory" ? "" : "inventory";
-      if (e.code === "KeyC" && this.store.state.mode !== "interior")
+      if (
+        e.code === "KeyC" &&
+        this.store.state.mode !== "interior" &&
+        this.store.state.mode !== "space"
+      )
         this.store.panel = this.store.panel === "craft" ? "" : "craft";
       if (e.code === "Escape") {
         if (this.store.panel) this.store.panel = "";
@@ -295,14 +308,19 @@ export class WorldScene extends Phaser.Scene {
       g.stationContact = undefined;
       this.wasAtStation = false;
     }
-    if (g.started && s.mode === "interior" && !g.surfaceSequence) {
+    if (
+      g.started &&
+      (s.mode === "interior" || g.flightCabin) &&
+      !g.surfaceSequence
+    ) {
       if (!this.wasInCabin) {
-        this.cabin.reset();
+        this.cabin.reset(g.flightCabin);
         this.wasInCabin = true;
       }
       const held = this.down("E") || controls.interact;
-      if (!g.paused && !g.panel) {
+      if (!g.paused && !g.panel && !g.busy) {
         g.tick(dt);
+        if (g.flightCabin) this.spacePhysics(dt, false);
         const { x, y } = this.walkingDirection();
         this.cabin.walk(x, y, dt);
         g.cabinContact = this.cabin.nearby();
@@ -482,15 +500,62 @@ export class WorldScene extends Phaser.Scene {
     }
     this.draw(dt);
   }
-  private spacePhysics(dt: number) {
+  private followRoute(dt: number, index: number) {
+    const g = this.store,
+      ship = g.state.ship;
+    const target = planetPosition(index);
+    const dx = target.x - ship.x,
+      dy = target.y - ship.y;
+    const distance = Math.hypot(dx, dy);
+    const speed = Math.hypot(ship.vx, ship.vy);
+    if (distance <= 148 && speed < 5) {
+      ship.vx = 0;
+      ship.vy = 0;
+      g.clearRoute("Destino alcançado: " + g.routePlanet?.name + ".");
+      return;
+    }
+    if (ship.fuel <= 0) {
+      g.clearRoute("Rota interrompida por falta de combustível.");
+      return;
+    }
+    const acceleration =
+      g.model.acceleration *
+      (g.state.upgrades.includes("engine") ? 105 / 65 : 1);
+    const cruise = Math.min(
+      g.model.speed,
+      Math.sqrt(1.5 * acceleration * Math.max(0, distance - 135)),
+    );
+    const vx = (dx / Math.max(1, distance)) * cruise;
+    const vy = (dy / Math.max(1, distance)) * cruise;
+    const changeX = vx - ship.vx,
+      changeY = vy - ship.vy;
+    const change = Math.hypot(changeX, changeY);
+    const fraction = Math.min(1, (acceleration * dt) / Math.max(0.001, change));
+    ship.vx += changeX * fraction;
+    ship.vy += changeY * fraction;
+    if (distance > 1) {
+      const turn = Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - ship.angle);
+      ship.angle += Phaser.Math.Clamp(turn, -2.5 * dt, 2.5 * dt);
+    }
+    ship.fuel = Math.max(
+      0,
+      ship.fuel - dt * g.model.consumption * Math.min(1, change / acceleration),
+    );
+  }
+  private spacePhysics(dt: number, piloting = true) {
     const g = this.store,
       s = g.state.ship;
-    const rotate =
-      (this.down("D") || controls.right ? 1 : 0) -
-      (this.down("A") || controls.left ? 1 : 0);
+    const rotate = piloting
+      ? Number(this.down("D") || controls.right) -
+        Number(this.down("A") || controls.left)
+      : 0;
+    const thrust = piloting && (this.down("W") || controls.up);
+    const brake = piloting && (this.down("S") || controls.down);
+    if (g.routeIndex !== undefined && (rotate || thrust || brake)) {
+      g.clearRoute("Piloto automático desativado. Controle manual.");
+    }
+    if (g.routeIndex !== undefined) this.followRoute(dt, g.routeIndex);
     s.angle += rotate * 2.5 * dt;
-    const thrust = this.down("W") || controls.up,
-      brake = this.down("S") || controls.down;
     if (thrust && s.fuel > 0) {
       const acceleration =
         g.model.acceleration *
@@ -546,6 +611,7 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     if (
+      piloting &&
       (takePulse("fire") || this.down("F") || controls.fire) &&
       this.combat.fire(g.state)
     )
@@ -572,6 +638,7 @@ export class WorldScene extends Phaser.Scene {
       this.contactAt = this.elapsed + 0.12;
     }
     if (
+      piloting &&
       (takePulse("mine") || this.down("SPACE") || controls.mine) &&
       this.mineTime <= 0 &&
       s.energy >= 2
@@ -1147,6 +1214,15 @@ export class WorldScene extends Phaser.Scene {
         this.drawPlanetLabel(p, x, y, radius);
     });
     if (inOrbit) return;
+    if (g.routeIndex !== undefined && launch === undefined) {
+      const destination = planetPosition(g.routeIndex);
+      const x = destination.x - this.camX + this.centerX;
+      const y = destination.y - this.camY + this.centerY;
+      const sx = s.x - this.camX + this.centerX;
+      const sy = s.y - this.camY + this.centerY;
+      f.lineStyle(1, 0x88ded8, 0.48).lineBetween(sx, sy, x, y);
+      f.lineStyle(1, 0x88ded8, 0.75).strokeCircle(x, y, 9);
+    }
     const anomaly = anomalyAt(g.system);
     if (anomaly) this.drawScienceSignal(anomaly.x, anomaly.y, 0x9ac9ee);
     for (const rock of this.rocks) {
@@ -1254,7 +1330,7 @@ export class WorldScene extends Phaser.Scene {
       );
       return;
     }
-    if (g.started) {
+    if (g.started && g.panel !== "route") {
       const docking = g.dockingSequence;
       const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
       const eased = t * t * (3 - 2 * t);
@@ -1269,7 +1345,11 @@ export class WorldScene extends Phaser.Scene {
         x - this.camX + this.centerX,
         y - this.camY + this.centerY,
         angle,
-        docking ? t < 0.78 : this.down("W") || controls.up,
+        docking
+          ? t < 0.78
+          : this.down("W") ||
+              controls.up ||
+              (g.routeIndex !== undefined && g.speed > 5),
         undefined,
         this.flightShipGfx,
       );

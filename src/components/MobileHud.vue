@@ -8,7 +8,8 @@ import { releaseControls } from "../game/input";
 const g = useGame(),
   b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
-const cabin = computed(() => g.state.mode === "interior");
+const cabin = computed(() => g.state.mode === "interior" || g.flightCabin);
+const piloting = computed(() => g.state.mode === "space" && !g.flightCabin);
 const station = computed(() => g.state.mode === "docked");
 const localTime = computed(() => planetClock(g.state.time));
 const location = computed(() =>
@@ -121,8 +122,14 @@ function pause() {
       </button>
     </div>
     <nav class="mobile-tools" aria-label="Painéis do jogo">
+      <template v-if="piloting">
+        <button class="flight-action" @click="g.standInFlight">Levantar</button>
+        <button class="flight-action" @click="open('route')">
+          Traçar rota
+        </button>
+      </template>
       <button
-        v-if="!cabin"
+        v-if="!cabin && !piloting"
         aria-label="Abrir carga"
         title="Carga"
         @click="open('inventory')"
@@ -130,7 +137,7 @@ function pause() {
         ▦
       </button>
       <button
-        v-if="!cabin"
+        v-if="!cabin && !piloting"
         :aria-label="surface ? 'Abrir construção' : 'Abrir fabricação'"
         :title="surface ? 'Construção' : 'Fabricação'"
         @click="surface ? b.openPalette() : open('craft')"
@@ -138,6 +145,7 @@ function pause() {
         {{ surface ? "⌂" : "⌘" }}
       </button>
       <button
+        v-if="!cabin && !piloting"
         aria-label="Abrir mapa galáctico"
         title="Mapa"
         @click="open('map')"
@@ -162,7 +170,7 @@ function pause() {
       !g.paused &&
       !b.enabled &&
       !g.inSequence &&
-      (!(station || cabin) || transient)
+      (!(station || cabin) || transient || g.routePlanet)
     "
     class="mobile-context"
     :class="{ notification: transient }"
@@ -175,6 +183,9 @@ function pause() {
       >Chuva ácida · Procure abrigo</template
     >
     <template v-else-if="transient">{{ transient }}</template>
+    <template v-else-if="g.routePlanet"
+      >Rota ativa · {{ g.routePlanet.name }}</template
+    >
     <template v-else-if="g.state.mode === 'space' && g.flightContact?.wreck">
       {{ g.flightContact.bearing }} Destroço · {{ g.flightContact.distance }} km
       <b v-if="g.flightContact.distance <= 95"> · Toque em Saquear</b>

@@ -12,7 +12,7 @@ const b = useConstruction();
 const g = useGame(),
   surface = computed(() => g.state.mode === "surface");
 const station = computed(() => g.state.mode === "docked");
-const cabin = computed(() => g.state.mode === "interior");
+const cabin = computed(() => g.state.mode === "interior" || g.flightCabin);
 const indoors = computed(() => station.value || cabin.value);
 const walking = computed(() => surface.value || indoors.value);
 const x = ref(0),

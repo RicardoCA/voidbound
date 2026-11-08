@@ -20,6 +20,7 @@ import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
 import OrbitConsole from "../components/OrbitConsole.vue";
+import FlightRouteConsole from "../components/FlightRouteConsole.vue";
 import { useGame } from "../stores/game";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
@@ -41,9 +42,17 @@ watch(
   },
 );
 const surface = computed(() => g.state.mode === "surface"),
-  inShip = computed(() => g.state.mode === "interior");
+  inShip = computed(() => g.state.mode === "interior" || g.flightCabin);
+const piloting = computed(() => g.state.mode === "space" && !g.flightCabin);
+const routeConsole = computed(
+  () => piloting.value && g.panel === "route" && !g.paused,
+);
 const cabinAction = computed(() =>
-  g.cabinContact ? cabinEquipment[g.cabinContact] : undefined,
+  g.cabinContact === "pilot" && g.flightCabin
+    ? { action: "Voltar a pilotar" }
+    : g.cabinContact
+      ? cabinEquipment[g.cabinContact]
+      : undefined,
 );
 const orbitConsole = computed(
   () => g.state.mode === "orbit" && !g.panel && !g.paused && !g.inSequence,
@@ -202,7 +211,7 @@ function minutes() {
     </header>
     <section class="flight-deck">
       <GameCanvas :playing="g.started" />
-      <MobileHud v-if="g.started && !orbitConsole" />
+      <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
       <div
         class="vignette"
@@ -261,7 +270,7 @@ function minutes() {
           ><small>Um sinal à espera de resposta.</small>
         </div>
       </template>
-      <template v-else-if="!orbitConsole">
+      <template v-else-if="!orbitConsole && !routeConsole">
         <div class="location">
           <div class="eyebrow">
             <span class="little-line" />
@@ -294,6 +303,7 @@ function minutes() {
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
           </p>
+          <p v-if="g.routePlanet">Rota ativa · {{ g.routePlanet.name }}</p>
           <p v-if="inShip">
             O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
             {{ Math.ceil(g.state.player.oxygen) }}%
@@ -352,7 +362,7 @@ function minutes() {
             />
           </div>
         </aside>
-        <div v-if="g.state.mode === 'space'" class="target-label">
+        <div v-if="piloting" class="target-label">
           <span class="target-bracket">⌖</span>
           <div>
             <span>{{
@@ -379,10 +389,7 @@ function minutes() {
             >
           </div>
         </div>
-        <div
-          v-if="g.state.mode === 'space' && g.flightContact"
-          class="surface-tip"
-        >
+        <div v-if="piloting && g.flightContact" class="surface-tip">
           {{ g.flightContact.bearing }}
           {{ g.flightContact.wreck ? "Destroço" : g.flightContact.name }} ·
           {{ g.flightContact.distance }} km
@@ -520,7 +527,11 @@ function minutes() {
             >
             <div class="speed-ticks">▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏</div>
           </div>
-          <nav>
+          <nav v-if="piloting" aria-label="Controles da cabine">
+            <button @click="g.standInFlight">Levantar</button>
+            <button @click="open('route')">Traçar rota</button>
+          </nav>
+          <nav v-else>
             <button
               v-for="n in nav"
               :key="n.id"
@@ -543,7 +554,7 @@ function minutes() {
         "
         class="overlay"
         :class="{
-          'orbit-overlay': orbitConsole,
+          'orbit-overlay': orbitConsole || routeConsole,
         }"
       >
         <section v-if="g.paused && showOptions" class="dialog narrow">
@@ -669,6 +680,7 @@ function minutes() {
           v-else-if="g.panel === 'map' || g.panel === 'bases'"
           :initial-tab="g.panel === 'bases' ? 'bases' : 'navigation'"
         />
+        <FlightRouteConsole v-else-if="routeConsole" />
         <OrbitConsole v-else-if="g.state.mode === 'orbit'" />
         <section
           v-else-if="inShip && g.panel === 'takeoff'"
