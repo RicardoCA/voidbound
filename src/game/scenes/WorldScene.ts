@@ -1,3 +1,9 @@
+import {
+  drawAsteroid,
+  drawNebula,
+  drawSpaceWreck,
+  PlanetTextures,
+} from "../rendering/spaceArt";
 import { SpaceCombat } from "../../combat/flight";
 import {
   hasBlackMarket,
@@ -71,6 +77,8 @@ export class WorldScene extends Phaser.Scene {
   private surfaceTap:
     { x: number; y: number; wx: number; wy: number } | undefined;
   private gfx!: Phaser.GameObjects.Graphics;
+  private backdrop!: Phaser.GameObjects.Graphics;
+  private planetTextures = new PlanetTextures();
   private flightShipGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
@@ -138,6 +146,8 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.backdrop = this.add.graphics().setDepth(-2);
+    this.events.once("shutdown", () => this.planetTextures.clear(this));
     this.flightShipGfx = this.add.graphics().setDepth(2);
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,LEFT,RIGHT,UP,DOWN,SPACE,E,F,M,I,C,ESC",
@@ -273,6 +283,8 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store;
     if (!g) return;
     this.flightShipGfx.clear();
+    this.backdrop.clear();
+    this.planetTextures.hide();
     const s = g.state;
     if (g.started && s.mode === "docked") {
       if (!this.wasAtStation) {
@@ -348,6 +360,7 @@ export class WorldScene extends Phaser.Scene {
     }
     if (this.lastSystem !== g.system.id || this.combatState !== s) {
       if (this.lastSystem !== g.system.id) {
+        this.planetTextures.clear(this);
         for (const label of this.planetLabels.values()) label.destroy();
         this.planetLabels.clear();
       }
@@ -1000,21 +1013,24 @@ export class WorldScene extends Phaser.Scene {
           ),
         )
       : 0x080f20;
-    f.fillStyle(sky);
-    f.fillRect(0, 0, this.viewWidth, this.viewHeight);
-    // Original procedural nebulae and layered starlight.
-    for (let layer = 0; layer < 3; layer++) {
-      f.fillStyle(
-        [0x15213a, 0x18283c, 0x1b2540][layer]!,
-        surface ? 0.13 * (1 - light) : 0.23,
-      );
-      f.fillEllipse(
-        100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
-        70 + layer * 35,
-        300,
-        100,
-      );
-    }
+    const backdrop = this.backdrop;
+    backdrop.fillStyle(sky);
+    backdrop.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    if (!surface)
+      drawNebula(backdrop, this.viewWidth, this.viewHeight, this.camX);
+    else
+      for (let layer = 0; layer < 3; layer++) {
+        backdrop.fillStyle(
+          [0x15213a, 0x18283c, 0x1b2540][layer]!,
+          0.13 * (1 - light),
+        );
+        backdrop.fillEllipse(
+          100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
+          70 + layer * 35,
+          300,
+          100,
+        );
+      }
     for (const star of this.stars) {
       const parallax = surface
         ? 0.025
@@ -1030,11 +1046,11 @@ export class WorldScene extends Phaser.Scene {
             this.viewHeight) +
             this.viewHeight) %
           this.viewHeight;
-      f.fillStyle(
+      backdrop.fillStyle(
         0xc7daeb,
         (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) * (1 - light),
       );
-      f.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+      backdrop.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
     }
     if (surface) {
       if (light > 0) {
@@ -1118,8 +1134,8 @@ export class WorldScene extends Phaser.Scene {
         this.viewHeight + 20,
       );
       const radius = 2 + distant() * 7;
-      f.fillStyle(0x26374c, 0.55);
-      f.fillTriangle(
+      this.backdrop.fillStyle(0x26374c, 0.55);
+      this.backdrop.fillTriangle(
         x - radius,
         y,
         x + radius * 0.45,
@@ -1160,27 +1176,7 @@ export class WorldScene extends Phaser.Scene {
       const radius = inOrbit
         ? Math.round(Math.min(this.viewWidth * 0.16, this.viewHeight * 0.215))
         : 57 + (i % 3) * 8;
-      f.fillStyle(p.color, 0.035);
-      f.fillCircle(x, y, radius + 14);
-      f.fillStyle(p.color, 0.12);
-      f.fillCircle(x, y, radius + 4);
-      f.fillStyle(p.color);
-      f.fillCircle(x, y, radius);
-      const r = random(p.seed);
-      for (let row = -radius; row < radius; row += 4) {
-        const half = Math.sqrt(radius * radius - row * row);
-        f.fillStyle([0x18243e, 0xbcd1bb, 0x43435c][Math.floor(r() * 3)]!, 0.22);
-        f.fillRect(
-          Math.floor(x - half + 3),
-          y + row,
-          Math.max(1, Math.floor(half * 2 - 6)),
-          2 + r() * 4,
-        );
-      }
-      f.fillStyle(0x061125, 0.5);
-      f.fillEllipse(x + radius * 0.35, y + 4, radius * 1.2, radius * 1.7);
-      f.lineStyle(1, 0xb8e1da, 0.17);
-      f.strokeCircle(x, y, radius + 7);
+      this.planetTextures.draw(this, p, x, y, radius);
       if (
         g.started &&
         g.state.mode === "space" &&
@@ -1213,39 +1209,7 @@ export class WorldScene extends Phaser.Scene {
         y > this.viewHeight + 30
       )
         continue;
-      const r = rock.r;
-      const rim = [
-        { x: x - r, y: y - 3 },
-        { x: x - r * 0.5, y: y - r },
-        { x: x + r * 0.6, y: y - r * 0.7 },
-        { x: x + r, y: y + r * 0.4 },
-        { x: x + r * 0.3, y: y + r },
-        { x: x - r * 0.7, y: y + r * 0.7 },
-      ];
-      const facets = [
-        0x998c8b, 0x827981, 0x605967, 0x393c50, 0x474657, 0x716872,
-      ];
-      for (const [i, edge] of rim.entries()) {
-        const next = rim[(i + 1) % rim.length]!;
-        f.fillStyle(facets[i]!);
-        f.fillTriangle(
-          x - r * 0.2,
-          y - r * 0.13,
-          edge.x,
-          edge.y,
-          next.x,
-          next.y,
-        );
-      }
-      f.fillStyle(
-        rock.ore === "crystal"
-          ? 0xb794e8
-          : rock.ore === "copper"
-            ? 0xd79d7d
-            : 0x91b8bf,
-      );
-      f.fillRect(x + 3, y + 1, 3, 3);
-      f.fillRect(x - 4, y + 4, 2, 2);
+      drawAsteroid(f, x, y, rock.r, rock.id, rock.ore);
     }
     if (g.started && g.state.mode === "space") {
       for (const npc of this.combat.npcs) {
@@ -1276,13 +1240,13 @@ export class WorldScene extends Phaser.Scene {
       for (const wreck of this.nearbyWrecks()) {
         const x = Math.round(wreck.x - this.camX + this.centerX);
         const y = Math.round(wreck.y - this.camY + this.centerY);
-        f.fillStyle(0x687783);
-        f.fillRect(x - 15, y - 4, 11, 7);
-        f.fillRect(x + 9, y + 3, 8, 5);
-        f.fillStyle(0xc39cf6);
-        f.fillRect(x - 5, y - 5, 10, 10);
-        f.fillStyle(0x6c4f91);
-        f.fillRect(x - 2, y - 2, 4, 4);
+        if (
+          x >= -24 &&
+          x <= this.viewWidth + 24 &&
+          y >= -16 &&
+          y <= this.viewHeight + 16
+        )
+          drawSpaceWreck(f, x, y);
       }
       for (const bolt of this.combat.bolts) {
         f.fillStyle(bolt.hostile ? 0xff8874 : 0xe0f8be);
