@@ -1418,7 +1418,7 @@ export class WorldScene extends Phaser.Scene {
       y: Math.round(y + scale * (px * sine + py * cosine)),
     });
     const family = pirate ? "raider" : shipModels[model].hullFamily;
-    const texture = "hull:" + family;
+    const texture = "hull:" + (pirate ? "raider" : model);
     if (this.textures.exists(texture)) {
       const i = this.usedShipSprites++;
       const sprite = (this.shipSprites[i] ??= this.add.image(0, 0, texture));

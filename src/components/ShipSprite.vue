@@ -7,7 +7,7 @@ defineProps<{ model: ShipModelId }>();
 <template>
   <img
     class="ship-preview"
-    :src="shipTextureUrl(shipModels[model].hullFamily)"
+    :src="shipTextureUrl(model)"
     :alt="shipModels[model].name"
     loading="lazy"
     decoding="async"
