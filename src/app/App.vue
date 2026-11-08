@@ -45,6 +45,20 @@ watch(
 const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(() => g.state.mode === "interior");
 const atStation = computed(() => g.state.mode === "docked");
+const stationWalkTipVisible = ref(false);
+let stationWalkTipTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => g.started && atStation.value && !g.stationContact,
+  (show) => {
+    clearTimeout(stationWalkTipTimer);
+    stationWalkTipVisible.value = show;
+    if (show) {
+      stationWalkTipTimer = setTimeout(() => {
+        stationWalkTipVisible.value = false;
+      }, 3000);
+    }
+  },
+);
 const stationNpc = computed(() =>
   atStation.value
     ? stationServices.find((npc) => g.panel === "station:" + npc.id)
@@ -79,6 +93,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(timer);
   clearTimeout(saveTooltipTimer);
+  clearTimeout(stationWalkTipTimer);
   window.removeEventListener("blur", blur);
   document.removeEventListener("visibilitychange", visibility);
 });
@@ -382,7 +397,15 @@ function minutes() {
             (g.state.mode === 'space' || surface || atStation)
           "
         />
-        <p v-if="atStation && !g.panel && !g.paused" class="station-walk-tip">
+        <p
+          v-if="
+            atStation &&
+            !g.panel &&
+            !g.paused &&
+            (g.stationContact || stationWalkTipVisible)
+          "
+          class="station-walk-tip"
+        >
           <template v-if="g.stationContact">
             <kbd>E</kbd> Conversar · {{ g.stationContact }}
           </template>

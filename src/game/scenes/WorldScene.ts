@@ -267,7 +267,7 @@ export class WorldScene extends Phaser.Scene {
             releaseControls();
             g.panel = "station:" + npc.id;
           } else {
-            g.notify("Aproxime-se de um atendente para conversar.");
+            g.notify("Nenhum atendente ao alcance.");
           }
         }
         this.interactHeld = held;
