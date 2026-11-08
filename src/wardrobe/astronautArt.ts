@@ -2,6 +2,8 @@ import { clothing, type Outfit } from "./clothing";
 
 export function astronautArt(outfit: Outfit | undefined, stride = 0) {
   const hat = outfit?.hat ? clothing[outfit.hat] : undefined;
+  const helmet = outfit?.helmet ? clothing[outfit.helmet] : undefined;
+  const shell = helmet && "shell" in helmet ? helmet.shell : undefined;
   const visor = outfit?.visor ? clothing[outfit.visor] : undefined;
   const shirt = outfit?.shirt ? clothing[outfit.shirt] : undefined;
   const pants = outfit?.pants ? clothing[outfit.pants] : undefined;
@@ -45,8 +47,19 @@ export function astronautArt(outfit: Outfit | undefined, stride = 0) {
     rect(shirt?.trim ?? 0x68b8b6, 1, -2, 3, 2);
   }
   rect(0x142537, -4, -15, 12, 10);
-  rect(0xa4b6bd, -3, -15, 9, 9);
-  rect(0xd4ddd2, -2, -15, 7, 1);
+  rect(helmet?.color ?? 0xa4b6bd, -3, -15, 9, 9);
+  rect(helmet?.trim ?? 0xd4ddd2, -2, -15, 7, 1);
+  if (shell === "scout") {
+    rect(helmet!.trim, -4, -13, 2, 5);
+  } else if (shell === "armored") {
+    rect(helmet!.color, -6, -13, 3, 7);
+    rect(helmet!.trim, -6, -12, 1, 4);
+    rect(helmet!.color, 3, -7, 5, 2);
+  } else if (shell === "industrial") {
+    rect(0x142537, -6, -11, 4, 5);
+    rect(helmet!.trim, -5, -10, 2, 2);
+    rect(helmet!.color, 5, -8, 4, 3);
+  }
   rect(0x244353, 0, -13, 8, 6);
   rect(visor?.color ?? 0x429d9e, 1, -12, 6, 4);
   rect(visor?.trim ?? 0xadede1, 1, -12, 4, 1);

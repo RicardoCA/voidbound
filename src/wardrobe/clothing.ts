@@ -1,6 +1,6 @@
 import type { Save } from "../game/types";
 
-export type ClothingSlot = "hat" | "shirt" | "pants" | "visor";
+export type ClothingSlot = "hat" | "shirt" | "pants" | "visor" | "helmet";
 
 interface Clothing {
   name: string;
@@ -9,6 +9,7 @@ interface Clothing {
   color: number;
   trim: number;
   skull?: boolean;
+  shell?: "scout" | "armored" | "industrial";
 }
 
 export const clothing = {
@@ -223,6 +224,138 @@ export const clothing = {
     price: 205,
     color: 0x373f69,
     trim: 0xb5c4f8,
+  },
+  graphiteCap: {
+    name: "Boné Preto Grafite",
+    slot: "hat",
+    price: 135,
+    color: 0x242a34,
+    trim: 0x8b97a7,
+  },
+  eclipseCap: {
+    name: "Boné Preto Eclipse",
+    slot: "hat",
+    price: 175,
+    color: 0x151b28,
+    trim: 0x8f70b5,
+  },
+  blacklineCap: {
+    name: "Boné Preto Faixa Rubra",
+    slot: "hat",
+    price: 185,
+    color: 0x202330,
+    trim: 0xe7756d,
+  },
+  graphiteShirt: {
+    name: "Camiseta Preta Grafite",
+    slot: "shirt",
+    price: 150,
+    color: 0x252a33,
+    trim: 0x8793a5,
+  },
+  eclipseShirt: {
+    name: "Camiseta Preta Eclipse",
+    slot: "shirt",
+    price: 195,
+    color: 0x181d2b,
+    trim: 0x8870b3,
+  },
+  blacklineShirt: {
+    name: "Camiseta Preta Faixa Rubra",
+    slot: "shirt",
+    price: 205,
+    color: 0x202430,
+    trim: 0xcc635f,
+  },
+  graphitePants: {
+    name: "Calça Preta Grafite",
+    slot: "pants",
+    price: 140,
+    color: 0x252b35,
+    trim: 0x77889e,
+  },
+  eclipsePants: {
+    name: "Calça Preta Eclipse",
+    slot: "pants",
+    price: 185,
+    color: 0x181e2b,
+    trim: 0x75629b,
+  },
+  blacklinePants: {
+    name: "Calça Preta Faixa Rubra",
+    slot: "pants",
+    price: 195,
+    color: 0x202631,
+    trim: 0xbd5959,
+  },
+  graphiteVisor: {
+    name: "Viseira Preta Grafite",
+    slot: "visor",
+    price: 155,
+    color: 0x212934,
+    trim: 0x7f90a1,
+  },
+  eclipseVisor: {
+    name: "Viseira Preta Eclipse",
+    slot: "visor",
+    price: 195,
+    color: 0x17182c,
+    trim: 0x9e83d9,
+  },
+  blacklineVisor: {
+    name: "Viseira Preta Faixa Rubra",
+    slot: "visor",
+    price: 220,
+    color: 0x231d29,
+    trim: 0xf07c71,
+  },
+  auroraHelmet: {
+    name: "Capacete Aurora",
+    slot: "helmet",
+    price: 180,
+    color: 0x509287,
+    trim: 0xb2e5ca,
+    shell: "scout",
+  },
+  polarHelmet: {
+    name: "Capacete Polar",
+    slot: "helmet",
+    price: 210,
+    color: 0x9caecb,
+    trim: 0xedf7ff,
+    shell: "scout",
+  },
+  foundryHelmet: {
+    name: "Capacete Forja",
+    slot: "helmet",
+    price: 240,
+    color: 0x935e37,
+    trim: 0xffc483,
+    shell: "industrial",
+  },
+  patrolHelmet: {
+    name: "Capacete Patrulha",
+    slot: "helmet",
+    price: 260,
+    color: 0x415f8b,
+    trim: 0xa6c8ef,
+    shell: "armored",
+  },
+  corsairHelmet: {
+    name: "Capacete Corsário",
+    slot: "helmet",
+    price: 295,
+    color: 0x332936,
+    trim: 0xdf7771,
+    shell: "armored",
+  },
+  eclipseHelmet: {
+    name: "Capacete Preto Eclipse",
+    slot: "helmet",
+    price: 320,
+    color: 0x202431,
+    trim: 0x8e78b5,
+    shell: "industrial",
   },
 } satisfies Record<string, Clothing>;
 

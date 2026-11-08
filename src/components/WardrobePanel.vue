@@ -16,6 +16,7 @@ const slots = {
   shirt: "Camisetas",
   pants: "Calças",
   visor: "Óculos",
+  helmet: "Capacetes",
 };
 const selectedSlot = ref<ClothingSlot>("hat");
 const catalog = Object.keys(clothing) as ClothingId[];
