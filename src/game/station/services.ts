@@ -66,6 +66,14 @@ export const stationServices = [
       "Piloto, quer consultar seu registro e verificar se há multas pendentes?",
   },
   {
+    id: "clothing",
+    label: "Vestuário",
+    name: "Mira",
+    color: 0xc591ad,
+    dialogue:
+      "Quer experimentar um visual novo? Tenho bonés, camisetas e calças, até uma coleção corsária.",
+  },
+  {
     id: "black-market",
     label: "Mercado clandestino",
     name: "Sombra",

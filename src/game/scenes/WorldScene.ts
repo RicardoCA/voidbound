@@ -1,3 +1,4 @@
+import { astronautArt } from "../../wardrobe/astronautArt";
 import {
   drawAsteroid,
   createSpaceBackdrop,
@@ -330,7 +331,9 @@ export class WorldScene extends Phaser.Scene {
       }
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
-      this.station.draw(this, this.gfx, clandestine);
+      this.station.draw(this, this.gfx, clandestine, (x, y, step, facing) =>
+        this.drawAstronaut(x, y, step, facing, false),
+      );
       return;
     }
     if (this.wasAtStation) {
@@ -361,7 +364,7 @@ export class WorldScene extends Phaser.Scene {
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
       this.cabin.draw(this, this.gfx, (x, y, step, facing) =>
-        this.drawAstronaut(x, y, step, facing),
+        this.drawAstronaut(x, y, step, facing, false),
       );
       return;
     }
@@ -1870,26 +1873,21 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawAstronaut(x: number, y: number, walk: number, facing: number) {
+  private drawAstronaut(
+    x: number,
+    y: number,
+    walk: number,
+    facing: number,
+    helmet = !this.store.planet.breathable,
+  ) {
     const f = this.gfx;
-    f.fillStyle(0x3b5164);
-    f.fillRect(x - 6, y - 4, 4, 11);
-    f.fillStyle(0xc0c9c8);
-    f.fillRect(x - 4, y - 4, 9, 12);
-    f.fillRect(x - 3, y - 12, 9, 9);
-    f.fillStyle(0x8d9fa4);
-    f.fillRect(x + 3, y - 4, 2, 12);
-    f.fillRect(x + 4, y - 11, 2, 8);
-    f.fillStyle(0xdce4d9);
-    f.fillRect(x - 3, y - 12, 8, 1);
-    f.fillStyle(0x5de3da);
-    f.fillRect(x - 1 + (facing < 0 ? -2 : 0), y - 10, 6, 4);
-    f.fillStyle(0x67858e);
-    f.fillRect(x - 3, y + 7, 3, 5 + walk);
-    f.fillRect(x + 2, y + 7, 3, 5 - walk);
-    f.fillStyle(0xe4ad71);
-    f.fillRect(x - 4, y + 1, 9, 2);
-    f.fillStyle(0xbfcbd2);
-    f.fillRect(x + (facing > 0 ? 5 : -9), y - 1, 5, 3);
+    for (const pixel of astronautArt(
+      this.store.state.wardrobe?.equipped,
+      helmet,
+      walk,
+    )) {
+      const dx = facing < 0 ? -pixel.x - pixel.w : pixel.x;
+      f.fillStyle(pixel.color).fillRect(x + dx, y + pixel.y, pixel.w, pixel.h);
+    }
   }
 }

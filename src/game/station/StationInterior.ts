@@ -19,6 +19,7 @@ const counters = [
   { x: 124, y: 125 },
   { x: -13, y: 139 },
   { x: -146, y: 121 },
+  { x: -146, y: 34 },
   { x: -263, y: 78 },
 ] as const;
 const spawn = counters[0];
@@ -88,6 +89,7 @@ export class StationInterior {
     scene: Phaser.Scene,
     f: Phaser.GameObjects.Graphics,
     clandestine: boolean,
+    drawAstronaut: (x: number, y: number, walk: number, facing: number) => void,
   ) {
     const { width, height } = scene.scale;
     const extent = Math.hypot(radiusX, radiusY * skew) + 12;
@@ -212,11 +214,16 @@ export class StationInterior {
       .slice(0, count)
       .map((counter, i) => ({ ...counter, i }))
       .sort((a, b) => a.y - b.y);
+    const drawPlayer = () => {
+      const p = project(this.x, this.depth);
+      fill(0x101c28, p.x - 8, p.y - 2, 16, 3);
+      drawAstronaut(p.x, p.y - 12, Math.sin(this.stride) * 2, this.facing);
+    };
     let drawnPlayer = false;
     this.labels[count]?.setVisible(false);
     for (const counter of order) {
       if (!drawnPlayer && this.depth < counter.y - 15) {
-        this.drawPlayer(fill, project(this.x, this.depth));
+        drawPlayer();
         drawnPlayer = true;
       }
       const npc = stationServices[counter.i]!;
@@ -255,21 +262,6 @@ export class StationInterior {
         .setText(nearest === npc ? npc.label + "\n◆ " + npc.name : npc.label)
         .setColor(nearest === npc ? "#a1f2db" : "#d5e5eb");
     }
-    if (!drawnPlayer) this.drawPlayer(fill, project(this.x, this.depth));
-  }
-
-  private drawPlayer(
-    fill: (color: number, x: number, y: number, w: number, h: number) => void,
-    { x, y }: { x: number; y: number },
-  ) {
-    const step = this.stride ? Math.round(Math.sin(this.stride) * 2) : 0;
-    fill(0x101c28, x - 8, y - 2, 16, 3);
-    fill(0x597584, x - 6, y - 19, 4, 12);
-    fill(0xc2d3dc, x - 4, y - 27, 9, 10);
-    fill(0x88ded8, x - 1 + this.facing * 2, y - 25, 4, 4);
-    fill(0x91aebc, x - 4, y - 17, 9, 10);
-    fill(0xe1b77b, x - 4, y - 11, 9, 2);
-    fill(0x7493a4, x - 3, y - 7, 3, 6 - step);
-    fill(0x7493a4, x + 2, y - 7, 3, 6 + step);
+    if (!drawnPlayer) drawPlayer();
   }
 }

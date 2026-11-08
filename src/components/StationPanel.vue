@@ -8,6 +8,7 @@ import BlackMarket from "./BlackMarket.vue";
 import type { StationService } from "../game/station/services";
 import ContractsBoard from "./ContractsBoard.vue";
 import ScienceJournal from "./ScienceJournal.vue";
+import WardrobePanel from "./WardrobePanel.vue";
 import MarketPanel from "./MarketPanel.vue";
 const g = useGame();
 const props = defineProps<{ npc: StationService }>();
@@ -64,6 +65,7 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
       <MarketPanel v-else-if="section === 'market'" />
       <DealershipPanel v-else-if="section === 'dealer'" />
       <HangarPanel v-else-if="section === 'hangar'" />
+      <WardrobePanel v-else-if="section === 'clothing'" />
       <div v-else-if="section === 'workshop'" class="station-form">
         <p>
           Casco: {{ Math.floor(g.state.ship.hull) }}/{{ g.model.hull }}. Reparo
