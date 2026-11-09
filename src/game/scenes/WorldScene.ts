@@ -744,6 +744,19 @@ export class WorldScene extends Phaser.Scene {
     )
       audio.play(260, 0.08);
     const encounter = this.combat.update(g.state, g.system, dt);
+    if (encounter.impacts.length) {
+      for (const { x, y } of encounter.impacts) {
+        this.burst(x, y, 0xffbf66);
+        this.burst(x, y, 0xffeee0);
+      }
+      this.cameras.main.shake(125, 0.004);
+      audio.play(72, 0.16, "triangle");
+      audio.play(165, 0.045);
+      g.speed = Math.round(Math.hypot(s.vx, s.vy));
+      if (!encounter.destroyed && !encounter.playerDisabled)
+        g.notify("Colisão entre naves. Ambos os cascos sofreram danos.");
+      if (!encounter.playerDisabled) void g.save();
+    }
     if (encounter.crimeReported && !encounter.destroyed) {
       g.notify(
         `Ataque comunicado às autoridades. Procurado ${g.wanted.level}/5.`,
@@ -754,7 +767,7 @@ export class WorldScene extends Phaser.Scene {
       g.notify(
         "Nave destruída. Aproxime-se do destroço e interaja para recolher a carga.",
       );
-      void g.save();
+      if (!encounter.impacts.length) void g.save();
     }
     if (encounter.playerDisabled) {
       if (

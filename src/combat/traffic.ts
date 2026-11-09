@@ -239,7 +239,22 @@ export function hitNpc(
   npc.engaged = true;
   const absorbed = Math.min(npc.shield, damage * shieldMultiplier);
   npc.shield -= absorbed;
-  npc.hull = Math.max(0, npc.hull - (damage - absorbed / shieldMultiplier));
+  return damageNpcHull(
+    state,
+    system,
+    npc,
+    damage - absorbed / shieldMultiplier,
+  );
+}
+
+export function damageNpcHull(
+  state: Save,
+  system: StarSystem,
+  npc: SpaceNpc,
+  damage: number,
+) {
+  const piracy = state.progression.piracy;
+  npc.hull = Math.max(0, npc.hull - damage);
   if (npc.hull > 0) return;
   const wreck: Wreck = {
     id: npc.id,

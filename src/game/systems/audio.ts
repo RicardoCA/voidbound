@@ -14,14 +14,14 @@ export const audio = {
       // Audio is optional on unsupported devices.
     }
   },
-  play(frequency = 220, duration = 0.07) {
+  play(frequency = 220, duration = 0.07, waveform: OscillatorType = "square") {
     if (!this.enabled || this.volume <= 0) return;
     this.unlock();
     if (!context) return;
     try {
       const osc = context.createOscillator(),
         gain = context.createGain();
-      osc.type = "square";
+      osc.type = waveform;
       osc.frequency.setValueAtTime(frequency, context.currentTime);
       gain.gain.setValueAtTime(0.025 * this.volume, context.currentTime);
       gain.gain.exponentialRampToValueAtTime(

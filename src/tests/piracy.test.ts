@@ -39,6 +39,42 @@ describe("pirataria espacial", () => {
     ).toBe(false);
   });
 
+  it("separa as naves, danifica ambos os cascos e registra destroço no impacto fatal", () => {
+    setActivePinia(createPinia());
+    const g = useGame();
+    const s = g.state;
+    const flight = new SpaceCombat();
+    flight.reset(s, g.system);
+    const npc = flight.npcs.find((ship) => ship.role === "freighter")!;
+    const originalHull = npc.hull;
+    Object.assign(s.ship, {
+      x: npc.x - 35,
+      y: npc.y,
+      angle: 0,
+      vx: 120,
+      vy: 0,
+    });
+
+    const first = flight.update(s, g.system, 0.016);
+    expect(first.impacts).toHaveLength(1);
+    expect(first.crimeReported).toBe(false);
+    expect(s.ship.hull).toBeLessThan(100);
+    expect(npc.hull).toBeLessThan(originalHull);
+    expect(npc.shield).toBe(12);
+    expect(npc.vx).toBeGreaterThan(s.ship.vx);
+    expect(flight.update(s, g.system, 0.016).impacts).toHaveLength(0);
+
+    s.time += 1;
+    s.ship.hull = npc.hull = 1;
+    Object.assign(s.ship, { x: npc.x - 35, y: npc.y, vx: 120, vy: 0 });
+    expect(flight.update(s, g.system, 0.016)).toMatchObject({
+      destroyed: true,
+      playerDisabled: true,
+    });
+    expect(s.progression.piracy.wrecks[npc.id]).toBeDefined();
+    expect(s.ship.hull).toBe(0);
+  });
+
   it("exige proximidade, espaço e frenagem para saquear e não duplica após reload", async () => {
     setActivePinia(createPinia());
     const g = useGame(),
