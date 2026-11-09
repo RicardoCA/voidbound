@@ -145,6 +145,7 @@ export class WorldScene extends Phaser.Scene {
       this.load.image("hull:" + hull, shipTextureUrl(hull));
   }
   create() {
+    this.surfaceArt.prepareDoor(this);
     this.store = useGame();
     this.building = useConstruction();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -1753,7 +1754,7 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       "pieces",
       material,
-      (kind, x, y) => this.surfaceArt.prop(this, kind, x, y, 1),
+      (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
     const ruin = ruinAt(g.planet, t);
     if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);

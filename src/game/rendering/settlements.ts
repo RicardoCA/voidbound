@@ -278,7 +278,12 @@ export function drawSettlement(
   height: number,
   layer: "walls" | "pieces",
   material: SurfaceMaterial,
-  drawProp?: (kind: BuildItem, x: number, y: number) => boolean,
+  drawProp?: (
+    kind: BuildItem,
+    x: number,
+    y: number,
+    state?: PlacedPiece,
+  ) => boolean,
 ) {
   const minX = Math.floor((camX - width / 2) / 16) - 1,
     maxX = Math.ceil((camX + width / 2) / 16) + 1;
@@ -296,10 +301,8 @@ export function drawSettlement(
       if (!piece) continue;
       const x = Math.round(tx * 16 - camX + width / 2);
       const y = Math.round(ty * 16 - camY + height / 2);
-      if (
-        !(piece.kind === "woodDoor" && piece.open) &&
-        drawProp?.(piece.kind, x, y)
-      ) {
+      const state = piece.kind === "woodWall" ? undefined : piece;
+      if (drawProp?.(piece.kind, x, y, state)) {
         if (piece.kind === "battery" || piece.kind === "oxygenGenerator") {
           const level =
             piece.kind === "battery"
@@ -315,15 +318,6 @@ export function drawSettlement(
         }
         continue;
       }
-      drawPiece(
-        g,
-        piece.kind,
-        x,
-        y,
-        material,
-        piece.facing,
-        1,
-        piece.kind === "woodWall" ? undefined : piece,
-      );
+      drawPiece(g, piece.kind, x, y, material, piece.facing, 1, state);
     }
 }

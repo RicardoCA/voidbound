@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import type { BuildItem } from "../types";
+import type { BuildItem, PlacedPiece } from "../types";
 
 const sprites = "surface-sprites";
 const materials = "surface-wood-and-deposits";
@@ -29,6 +29,22 @@ export class SurfaceArt {
       });
       scene.load.image(horizon(kind), path + "horizon-" + kind + ".webp");
     }
+  }
+
+  prepareDoor(scene: Phaser.Scene) {
+    if (!scene.textures.exists(sprites)) return;
+    const atlas = scene.textures.get(sprites);
+    if (!atlas.has("woodDoor") || atlas.has("doorHeader")) return;
+    const door = atlas.get("woodDoor");
+    const jamb = Math.round(door.cutWidth * 0.16);
+    const header = Math.round(door.cutHeight * 0.19);
+    const height = door.cutHeight - header;
+    const add = (name: string, x: number, y: number, w: number, h: number) =>
+      atlas.add(name, door.sourceIndex, door.cutX + x, door.cutY + y, w, h);
+    add("doorHeader", 0, 0, door.cutWidth, header);
+    add("doorLeft", 0, header, jamb, height);
+    add("doorRight", door.cutWidth - jamb, header, jamb, height);
+    add("doorLeaf", jamb, header, door.cutWidth - 2 * jamb, height);
   }
 
   reset() {
@@ -153,12 +169,58 @@ export class SurfaceArt {
     );
   }
 
+  private openDoor(scene: Phaser.Scene, x: number, y: number, facing: 1 | -1) {
+    if (
+      !scene.textures.exists(sprites) ||
+      !scene.textures.get(sprites).has("doorHeader")
+    )
+      return false;
+    const bottom = y + 16;
+    const pieces = [
+      {
+        frame: "doorHeader",
+        center: 8,
+        bottom: bottom - 26,
+        width: 16,
+        height: 6,
+      },
+      { frame: "doorLeft", center: 1, bottom, width: 2, height: 26 },
+      { frame: "doorRight", center: 15, bottom, width: 2, height: 26 },
+      {
+        frame: "doorLeaf",
+        center: facing === 1 ? 3 : 13,
+        bottom,
+        width: 4,
+        height: 26,
+      },
+    ];
+    for (const piece of pieces) {
+      this.sprite(
+        scene,
+        piece.frame,
+        x + piece.center,
+        piece.bottom,
+        piece.width,
+        piece.height,
+        false,
+        1,
+        -0.02,
+      );
+      this.actors[this.actorCount - 1]!.setDisplaySize(
+        piece.width,
+        piece.height,
+      );
+    }
+    return true;
+  }
+
   prop(
     scene: Phaser.Scene,
     kind: BuildItem,
     x: number,
     y: number,
     alpha: number,
+    state?: PlacedPiece,
   ) {
     if (kind === "woodBlock" || kind === "woodWall") {
       const depth = alpha < 1 ? -0.01 : kind === "woodWall" ? -0.4 : -0.02;
@@ -176,6 +238,7 @@ export class SurfaceArt {
       );
     }
     const door = kind === "woodDoor";
+    if (door && state?.open) return this.openDoor(scene, x, y, state.facing);
     const drawn = this.sprite(
       scene,
       kind,
