@@ -52,7 +52,11 @@ export class HabitatSystem {
       now = state.time,
       from = Math.min(now, data.utilityTime ?? Math.max(0, now - dt));
     advancePowerNetwork(data, network, from, now);
-    if (network.generators.length || network.batteries.length)
+    if (
+      network.generators.length ||
+      network.batteries.length ||
+      network.fridges.length
+    )
       data.utilityTime = now;
     const report = {
       ...emptyHabitat(),

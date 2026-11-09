@@ -1,32 +1,38 @@
 <script setup lang="ts">
+import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
+import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
-import { useGame } from "../stores/game";
+import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { items, type Item, type Inventory } from "../game/types";
-import { slots } from "../inventory/inventory";
-import { CABINET_SLOTS } from "../construction/building";
+import { items, type Inventory } from "../game/types";
+import { inventoryEntries, slots } from "../inventory/inventory";
 const g = useGame(),
   b = useConstruction(),
   amount = ref<"1" | "10" | "all">("1");
 const lists = computed(() => [
   {
     id: "deposit" as const,
-    title: "Sua carga",
-    data: g.state.inventory,
-    capacity: g.capacity,
+    title: "Sua mochila",
+    data: g.state.backpack,
+    capacity: BACKPACK_SLOTS,
     action: "Guardar",
   },
   {
     id: "withdraw" as const,
-    title: "Armário no planeta",
+    title:
+      b.containerKind === "fridge"
+        ? "Geladeira no planeta"
+        : "Armário no planeta",
     data: b.container ?? {},
-    capacity: CABINET_SLOTS,
+    capacity: b.containerCapacity,
     action: "Retirar",
   },
 ]);
-const entries = (inventory: Inventory) =>
-  Object.entries(inventory).filter(([, n]) => n! > 0) as [Item, number][];
+const entries = (inventory: Inventory, meatOnly: boolean) =>
+  inventoryEntries(inventory).filter(
+    ([id, n]) => n > 0 && (!meatOnly || id === "rawMeat"),
+  );
 function quantity(available: number) {
   return amount.value === "all"
     ? available
@@ -38,46 +44,49 @@ function quantity(available: number) {
     <div class="dialog-heading">
       <div>
         <div class="eyebrow">ARMAZENAMENTO LOCAL / {{ g.planet.name }}</div>
-        <h2>Armário planetário</h2>
+        <h2>{{ items[b.containerKind ?? "cabinet"].name }}</h2>
       </div>
       <button class="close" aria-label="Fechar armário" @click="g.panel = ''">
         ×
       </button>
     </div>
-    <p>
+    <p v-if="b.containerKind === 'fridge'">
+      {{
+        b.fridgePowered
+          ? "Geladeira ligada. A validade da carne está pausada."
+          : "Geladeira desligada. A carne continua envelhecendo. Verifique as placas solares e baterias próximas."
+      }}
+    </p>
+    <p v-else>
       Os itens ficam neste armário, neste planeta, mesmo quando você decola ou
       fecha o jogo.
     </p>
     <button class="text-button" @click="g.panel = 'bases'">
       Ver meus depósitos em todos os planetas →
     </button>
-    <div
-      class="storage-amount"
-      role="group"
-      aria-label="Quantidade por transferência"
-    >
-      <span>TRANSFERIR</span
-      ><button
-        v-for="n in ['1', '10', 'all'] as const"
-        :key="n"
-        :aria-pressed="amount === n"
-        :class="{ active: amount === n }"
-        @click="amount = n"
-      >
-        {{ n === "all" ? "Todos" : n }}
-      </button>
-    </div>
+    <TransferAmount v-model="amount" />
     <div v-if="b.container" class="storage-columns">
       <section v-for="list in lists" :key="list.id" class="storage-column">
         <div class="storage-heading">
           <h3>{{ list.title }}</h3>
           <span>{{ slots(list.data) }} / {{ list.capacity }} slots</span>
         </div>
-        <p v-if="!entries(list.data).length" class="storage-empty">
+        <p
+          v-if="
+            !entries(
+              list.data,
+              b.containerKind === 'fridge' && list.id === 'deposit',
+            ).length
+          "
+          class="storage-empty"
+        >
           Nenhum item guardado aqui.
         </p>
         <div
-          v-for="[id, n] in entries(list.data)"
+          v-for="[id, n] in entries(
+            list.data,
+            b.containerKind === 'fridge' && list.id === 'deposit',
+          )"
           :key="id"
           class="storage-row"
         >
@@ -85,6 +94,15 @@ function quantity(available: number) {
           <div>
             <b>{{ items[id].name }}</b
             ><small>{{ n }} unidades</small>
+            <MeatShelfLife
+              v-if="id === 'rawMeat'"
+              :inventory="list.data"
+              :time="g.state.time"
+              :in-fridge="
+                list.id === 'withdraw' && b.containerKind === 'fridge'
+              "
+              :paused="list.id === 'withdraw' && b.fridgePowered"
+            />
           </div>
           <button
             class="secondary"

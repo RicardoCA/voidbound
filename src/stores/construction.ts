@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
 import { COOKING_TIME_MS, cookedMeatRecipe } from "../survival/food";
-import { useGame } from "./game";
+import { BACKPACK_SLOTS, useGame } from "./game";
 import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
 import { Terrain } from "../game/procedural/terrain";
@@ -19,16 +19,23 @@ import {
   placementError,
   placePiece,
   removePiece,
-  keyAt,
   inReach,
   transfer,
   addBatch,
-  CABINET_SLOTS,
+  cabinetCapacity,
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
 import { BATTERY_CAP } from "../construction/habitat";
-import { pieceAt, footprint, overlapsActor } from "../construction/pieces";
+import {
+  pieceAt,
+  footprint,
+  overlapsActor,
+  isCabinet,
+  isOpening,
+  isWall,
+  cabinetWidths,
+} from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
     enabled = ref(false),
@@ -36,28 +43,53 @@ export const useConstruction = defineStore("construction", () => {
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
     facing = ref<1 | -1>(1),
+    climbingColumn = ref<number>(),
     cursor = ref<{ x: number; y: number } | null>(null),
     activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
       null,
     ),
+    activeBed = ref<{ planetId: string; x: number; y: number }>(),
     activeCabinet = ref<{ planetId: string; key: string } | null>(null);
   const blank = emptySettlement();
   const settlement = computed(() => g.state.settlements[g.planet.id] ?? blank);
   const terrain = computed(
     () => new Terrain(g.planet, g.state.changes[g.planet.id] ?? {}),
   );
+  const containerKind = computed(() => {
+    const cabinet = activeCabinet.value;
+    if (cabinet?.planetId !== g.planet.id) return undefined;
+    const kind = settlement.value.pieces[cabinet.key]?.kind;
+    return isCabinet(kind) ? kind : undefined;
+  });
+  const fridgePowered = computed(() => {
+    const cabinet = activeCabinet.value;
+    return (
+      containerKind.value === "fridge" &&
+      cabinet !== null &&
+      settlement.value.pieces[cabinet.key]?.powered === true
+    );
+  });
+  const containerCapacity = computed(() =>
+    containerKind.value ? cabinetCapacity(containerKind.value) : 0,
+  );
+  function cabinetInReach(key: string) {
+    const kind = settlement.value.pieces[key]?.kind;
+    if (!isCabinet(kind)) return false;
+    const [x, y] = key.split(",").map(Number);
+    return inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
+  }
   const container = computed(() =>
     activeCabinet.value?.planetId === g.planet.id
       ? settlement.value.cabinets[activeCabinet.value.key]
       : undefined,
   );
-  const selectedCount = computed(() => g.state.inventory[selected.value] ?? 0);
+  const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
   function context() {
     return {
       terrain: terrain.value,
       settlement: settlementFor(g.state, g.planet.id),
-      inventory: g.state.inventory,
-      capacity: g.capacity,
+      inventory: g.state.backpack,
+      capacity: BACKPACK_SLOTS,
       player: g.state.player,
       landingX: g.state.landingX,
     };
@@ -96,16 +128,17 @@ export const useConstruction = defineStore("construction", () => {
     const ctx = context(),
       error = placementError(ctx, selected.value, x, y, facing.value);
     if (error) return error;
+    const cells = footprint(selected.value, x, y);
     if (
-      selected.value !== "woodWall" &&
+      !isWall(selected.value) &&
       treesInRange(
         g.planet,
         terrain.value,
         x - 1,
-        x + 1,
+        Math.max(...cells.map((cell) => cell.x)) + 1,
         settlement.value.cutTrees,
       ).some((tree) =>
-        footprint(selected.value, x, y).some((cell) =>
+        cells.some((cell) =>
           treeContains(tree, cell.x * 16 + 8, cell.y * 16 + 8),
         ),
       )
@@ -118,7 +151,7 @@ export const useConstruction = defineStore("construction", () => {
     g.refreshHabitat();
     let error: string | undefined;
     if (removing.value)
-      error = removePiece(context(), x, y, selected.value === "woodWall");
+      error = removePiece(context(), x, y, isWall(selected.value));
     else {
       error = errorAt(x, y);
       if (!error)
@@ -132,7 +165,9 @@ export const useConstruction = defineStore("construction", () => {
     lastError.value = "";
     if (
       !removing.value &&
-      ["solarPanel", "battery", "oxygenGenerator"].includes(selected.value)
+      ["solarPanel", "battery", "oxygenGenerator", "fridge"].includes(
+        selected.value,
+      )
     )
       settlementFor(g.state, g.planet.id).utilityTime = g.state.time;
     g.worldChanged();
@@ -158,8 +193,8 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     const data = settlementFor(g.state, g.planet.id);
     if (data.cutTrees.includes(current.id)) return false;
-    if (!addBatch(g.state.inventory, { wood: current.wood }, g.capacity)) {
-      g.notify("Carga cheia. Libere espaço antes de cortar a árvore.");
+    if (!addBatch(g.state.backpack, { wood: current.wood }, BACKPACK_SLOTS)) {
+      g.notify("Mochila cheia. Libere espaço antes de cortar a árvore.");
       return false;
     }
     data.cutTrees.push(current.id);
@@ -172,14 +207,14 @@ export const useConstruction = defineStore("construction", () => {
   function openCabinet(key: string) {
     if (
       g.state.mode !== "surface" ||
-      settlement.value.pieces[key]?.kind !== "cabinet"
+      !isCabinet(settlement.value.pieces[key]?.kind)
     )
       return false;
-    const [x, y] = key.split(",").map(Number);
-    if (!inReach(g.state.player, x!, y!, 76)) {
+    if (!cabinetInReach(key)) {
       g.notify("Aproxime-se do armário para abri-lo.");
       return false;
     }
+    g.refreshFood();
     activeCabinet.value = { planetId: g.planet.id, key };
     releaseControls();
     g.panel = "storage";
@@ -187,13 +222,14 @@ export const useConstruction = defineStore("construction", () => {
   }
   function toggleDoor(key: string) {
     const piece = settlement.value.pieces[key];
-    if (g.state.mode !== "surface" || piece?.kind !== "woodDoor") return false;
+    if (g.state.mode !== "surface" || !piece || !isOpening(piece.kind))
+      return false;
     const [x, y] = key.split(",").map(Number);
     if (!inReach(g.state.player, x!, y!, 76)) {
       g.notify("Aproxime-se da porta para interagir.");
       return false;
     }
-    if (piece.open && overlapsActor("woodDoor", x!, y!, g.state.player)) {
+    if (piece.open && overlapsActor(piece.kind, x!, y!, g.state.player)) {
       g.notify("Afaste-se do vão antes de fechar a porta.");
       return false;
     }
@@ -201,13 +237,50 @@ export const useConstruction = defineStore("construction", () => {
     piece.open = !piece.open;
     g.worldChanged();
     audio.play(piece.open ? 310 : 220, 0.12);
-    g.notify(piece.open ? "Porta aberta." : "Porta fechada.");
+    const hatch = piece.kind === "woodHatch";
+    g.notify(
+      hatch
+        ? piece.open
+          ? "Alçapão aberto."
+          : "Alçapão fechado."
+        : piece.open
+          ? "Porta aberta."
+          : "Porta fechada.",
+    );
+
     void g.save();
+    return true;
+  }
+  function sleep() {
+    const bed = activeBed.value;
+    if (
+      !bed ||
+      g.panel !== "sleep" ||
+      g.paused ||
+      g.state.mode !== "surface" ||
+      bed.planetId !== g.planet.id ||
+      !inReach(g.state.player, bed.x, bed.y, 76) ||
+      pieceAt(settlement.value, bed.x, bed.y)?.piece.kind !== "bed"
+    )
+      return false;
+    activeBed.value = undefined;
+    g.sleepInBed();
     return true;
   }
   function interactAt(x: number, y: number) {
     const found = pieceAt(settlement.value, x, y);
     if (!found) return false;
+    if (found.piece.kind === "bed") {
+      if (
+        g.state.mode === "surface" &&
+        inReach(g.state.player, found.x, found.y, 76)
+      ) {
+        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y };
+        releaseControls();
+        g.panel = "sleep";
+      } else g.notify("Aproxime-se da cama para dormir.");
+      return true;
+    }
     if (found.piece.kind === "campfire") {
       if (
         g.state.mode === "surface" &&
@@ -223,11 +296,25 @@ export const useConstruction = defineStore("construction", () => {
       } else g.notify("Aproxime-se da fogueira para cozinhar.");
       return true;
     }
-    if (found.piece.kind === "woodDoor") {
+    if (found.piece.kind === "stickLadder") {
+      if (
+        g.state.mode === "surface" &&
+        inReach(g.state.player, found.x, found.y, 28)
+      ) {
+        climbingColumn.value =
+          climbingColumn.value === found.x ? undefined : found.x;
+        if (climbingColumn.value !== undefined)
+          g.notify(
+            "Escada: use W/S, setas ou o controle vertical para subir e descer.",
+          );
+      }
+      return true;
+    }
+    if (isOpening(found.piece.kind)) {
       toggleDoor(found.key);
       return true;
     }
-    if (found.piece.kind === "cabinet") {
+    if (isCabinet(found.piece.kind)) {
       openCabinet(found.key);
       return true;
     }
@@ -281,7 +368,8 @@ export const useConstruction = defineStore("construction", () => {
       g.notify("Aproxime-se de uma fogueira instalada.");
       return;
     }
-    if (!g.state.inventory.rawMeat) {
+    g.refreshFood();
+    if (!g.state.backpack.rawMeat) {
       g.notify("Você precisa de carne crua.");
       return;
     }
@@ -299,12 +387,17 @@ export const useConstruction = defineStore("construction", () => {
       if (cookingElapsed.value < COOKING_TIME_MS) return;
       stopCooking();
       if (
-        !craft(g.state.inventory, cookedMeatRecipe, g.capacity, g.state.mission)
+        !craft(
+          g.state.backpack,
+          cookedMeatRecipe,
+          BACKPACK_SLOTS,
+          g.state.mission,
+        )
       ) {
-        g.notify("Carne crua insuficiente ou carga sem espaço.");
+        g.notify("Carne crua insuficiente ou mochila sem espaço.");
         return;
       }
-      g.notify("Carne assada pronta. Abra a carga para comer.");
+      g.notify("Carne assada pronta. Abra a mochila para comer.");
       audio.play(520);
       void g.save();
     }, 100);
@@ -314,10 +407,13 @@ export const useConstruction = defineStore("construction", () => {
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
       if (
+        !isCabinet(piece.kind) &&
         ![
-          "cabinet",
           "woodDoor",
+          "woodHatch",
+          "stickLadder",
           "campfire",
+          "bed",
           "battery",
           "oxygenGenerator",
         ].includes(piece.kind)
@@ -325,10 +421,14 @@ export const useConstruction = defineStore("construction", () => {
         continue;
       const [x, y] = id.split(",").map(Number),
         d = Math.hypot(
-          x! * 16 + 8 - g.state.player.x,
+          x! * 16 +
+            (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
+            g.state.player.x,
           y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
-      if (d < distance) {
+      if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
+        return { key: id, distance: d };
+      if (d < distance && (piece.kind !== "stickLadder" || d <= 28)) {
         distance = d;
         key = id;
       }
@@ -343,20 +443,28 @@ export const useConstruction = defineStore("construction", () => {
     const cabinet = activeCabinet.value;
     if (!cabinet || cabinet.planetId !== g.planet.id || !container.value)
       return false;
-    const [x, y] = cabinet.key.split(",").map(Number);
-    if (g.state.mode !== "surface" || !inReach(g.state.player, x!, y!, 76))
+    if (g.state.mode !== "surface" || !cabinetInReach(cabinet.key))
       return false;
+    const fridge = containerKind.value === "fridge";
+    if (fridge && direction === "deposit" && id !== "rawMeat") {
+      g.notify("A geladeira armazena somente carne crua.");
+      return false;
+    }
+    g.refreshFood();
     const source: Inventory =
-        direction === "deposit" ? g.state.inventory : container.value,
+        direction === "deposit" ? g.state.backpack : container.value,
       destination =
-        direction === "deposit" ? container.value : g.state.inventory;
+        direction === "deposit" ? container.value : g.state.backpack;
     if (
       !transfer(
         source,
         destination,
         id,
         quantity,
-        direction === "deposit" ? CABINET_SLOTS : g.capacity,
+        direction === "deposit" ? containerCapacity.value : BACKPACK_SLOTS,
+        fridge
+          ? { time: g.state.time, deposit: direction === "deposit" }
+          : undefined,
       )
     ) {
       g.notify(
@@ -373,7 +481,7 @@ export const useConstruction = defineStore("construction", () => {
     cursor.value = { x, y };
   }
   function cabinetAt(x: number, y: number) {
-    return settlement.value.pieces[keyAt(x, y)]?.kind === "cabinet";
+    return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);
   }
   watch(
     () => [g.state, g.state.mode, g.planet.id],
@@ -382,6 +490,7 @@ export const useConstruction = defineStore("construction", () => {
         enabled.value = false;
         cursor.value = null;
         activeCabinet.value = null;
+        climbingColumn.value = undefined;
       }
     },
     { flush: "sync" },
@@ -396,6 +505,10 @@ export const useConstruction = defineStore("construction", () => {
     settlement,
     terrain,
     container,
+    containerKind,
+    containerCapacity,
+    fridgePowered,
+    climbingColumn,
     activeCabinet,
     selectedCount,
     openPalette,
@@ -409,6 +522,7 @@ export const useConstruction = defineStore("construction", () => {
     nearestInteraction,
     toggleDoor,
     interactAt,
+    sleep,
     cookMeat,
     cookingElapsed,
     moveItem,

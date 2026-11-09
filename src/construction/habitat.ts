@@ -1,13 +1,15 @@
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
-import { blocksAir, keyAt, pieceAt } from "./pieces";
+import { blocksAir, isOpening, keyAt, pieceAt } from "./pieces";
 export const BATTERY_CAP = 1200;
 export const OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
   GENERATOR_RATE = 6,
   REFILL_RATE = 8,
-  POWER_RANGE = 12;
+  POWER_RANGE = 12,
+  FRIDGE_RATE = 1;
 const SOLAR_TIME_SCALE = 150;
+export const PLANET_DAY = 2 * Math.PI * SOLAR_TIME_SCALE;
 export const solarPhase = (time: number) => time / SOLAR_TIME_SCALE;
 export const daylight = (time: number) =>
   Math.max(0, Math.cos(solarPhase(time)));
@@ -80,7 +82,7 @@ export function analyzeRoom(
     if (at.y < 0 || at.y >= 63) return fail("open");
     if (terrain.get(at.x, at.y) !== 0 || blocksAir(data, at.x, at.y)) continue;
     const piece = pieceAt(data, at.x, at.y)?.piece;
-    if (piece?.kind === "woodDoor" && piece.open) sawOpenDoor = true;
+    if (piece?.open && isOpening(piece.kind)) sawOpenDoor = true;
     if (!data.walls[key])
       return fail(
         sawOpenDoor
@@ -112,10 +114,12 @@ export interface PowerNetwork {
     x: number;
     y: number;
     panels: number;
+    directPanels: string[];
     batteries: string[];
     room: Room;
   }[];
   batteries: { key: string; x: number; y: number; panels: number }[];
+  fridges: { key: string; batteries: string[]; panels: string[] }[];
   panels: number;
   exposedPanels: number;
 }
@@ -131,6 +135,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
         y: y!,
         panels: 0,
         batteries: [] as string[],
+        directPanels: [] as string[],
         room: analyzeRoom(terrain, data, x!, y!),
       };
     })
@@ -163,24 +168,78 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
   const panels = Object.entries(data.pieces).filter(
     ([, p]) => p.kind === "solarPanel",
   );
+  const fridges = Object.entries(data.pieces)
+    .filter(([, piece]) => piece.kind === "fridge")
+    .map(([key]) => {
+      const [x, y] = key.split(",").map(Number);
+      return {
+        key,
+        x: x!,
+        y: y!,
+        batteries: batteries
+          .filter((b) => Math.hypot(b.x - x!, b.y - y!) <= POWER_RANGE)
+          .map((b) => b.key),
+        panels: [] as string[],
+      };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
   let exposedPanels = 0;
   for (const [key] of panels) {
     const [x, y] = key.split(",").map(Number);
     if (!exposedToSky(terrain, data, x!, y!)) continue;
     exposedPanels++;
-    const target =
-      nearest(batteries, x!, y!) ??
-      nearest(
-        generators.filter((g) => !g.batteries.length),
-        x!,
-        y!,
-      );
-    if (target) target.panels++;
+    const battery = nearest(batteries, x!, y!);
+    if (battery) {
+      battery.panels++;
+      continue;
+    }
+    const generator = nearest(
+      generators.filter((g) => !g.batteries.length),
+      x!,
+      y!,
+    );
+    if (generator) {
+      generator.panels++;
+      generator.directPanels.push(key);
+    }
+    for (const fridge of fridges)
+      if (Math.hypot(fridge.x - x!, fridge.y - y!) <= POWER_RANGE)
+        fridge.panels.push(key);
   }
-  return { generators, batteries, panels: panels.length, exposedPanels };
+  return {
+    generators,
+    batteries,
+    fridges,
+    panels: panels.length,
+    exposedPanels,
+  };
 }
 /** Each battery and panel has a single consumer, so power is never duplicated. */
 export function advancePowerNetwork(
+  data: Settlement,
+  network: PowerNetwork,
+  from: number,
+  to: number,
+) {
+  if (network.fridges.length) {
+    for (let start = from; start < to;) {
+      const end = Math.min(to, start + 1);
+      advancePowerStep(data, network, start, end);
+      start = end;
+    }
+    for (const fridge of network.fridges) {
+      const piece = data.pieces[fridge.key]!;
+      const available =
+        fridge.panels.length * daylight(to) * SOLAR_RATE >= FRIDGE_RATE ||
+        fridge.batteries.some((key) => (data.pieces[key]?.energy ?? 0) > 0);
+      piece.powered = available && (from === to || piece.powered === true);
+    }
+    return;
+  }
+  advancePowerStep(data, network, from, to);
+}
+
+function advancePowerStep(
   data: Settlement,
   network: PowerNetwork,
   from: number,
@@ -198,9 +257,20 @@ export function advancePowerNetwork(
       Math.max(0, piece.energy ?? 0) + battery.panels * SOLAR_RATE * sun,
     );
   }
+  const panelEnergy = new Map<string, number>();
+  function takeSolar(keys: string[], needed: number) {
+    let supplied = 0;
+    for (const key of keys) {
+      const available = panelEnergy.get(key) ?? SOLAR_RATE * sun;
+      const used = Math.min(available, needed - supplied);
+      panelEnergy.set(key, available - used);
+      supplied += used;
+    }
+    return supplied;
+  }
   for (const generator of network.generators) {
     const piece = data.pieces[generator.key]!;
-    if (!generator.batteries.length) {
+    if (!generator.batteries.length && !network.fridges.length) {
       advanceGenerator(piece, generator.panels, from, to);
       continue;
     }
@@ -208,7 +278,8 @@ export function advancePowerNetwork(
       0,
       Math.min(OXYGEN_CAP - (piece.oxygen ?? 0), GENERATOR_RATE * elapsed) / 3,
     );
-    let suppliedEnergy = 0;
+    let suppliedEnergy = takeSolar(generator.directPanels, needed);
+    needed -= suppliedEnergy;
     for (const key of generator.batteries) {
       const battery = data.pieces[key]!,
         supplied = Math.min(needed, battery.energy ?? 0);
@@ -217,6 +288,24 @@ export function advancePowerNetwork(
       needed -= supplied;
     }
     advanceGenerator(piece, 0, from, to, suppliedEnergy);
+  }
+  for (const fridge of network.fridges) {
+    const demand = FRIDGE_RATE * elapsed;
+    let supplied = takeSolar(fridge.panels, demand);
+    for (const key of fridge.batteries) {
+      const battery = data.pieces[key]!;
+      const used = Math.min(demand - supplied, battery.energy ?? 0);
+      battery.energy = (battery.energy ?? 0) - used;
+      supplied += used;
+    }
+    const warmTime = Math.max(0, elapsed - supplied / FRIDGE_RATE);
+    data.pieces[fridge.key]!.powered = warmTime < 1e-8;
+    const inventory = data.cabinets[fridge.key];
+    if (warmTime && inventory?.meatBatches)
+      inventory.meatBatches = inventory.meatBatches.map((batch) => ({
+        ...batch,
+        expires: batch.expires - warmTime,
+      }));
   }
 }
 

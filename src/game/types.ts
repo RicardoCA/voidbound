@@ -2,6 +2,8 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | "stone"
+  | "stick"
   | "iron"
   | "copper"
   | "silicon"
@@ -36,14 +38,27 @@ export type Item =
   | "drill"
   | "woodBlock"
   | "woodWall"
+  | "stoneWall"
+  | "metalWall"
+  | "fridge"
+  | "picture"
+  | "table"
+  | "bed"
   | "woodStairs"
+  | "stickLadder"
+  | "woodHatch"
   | "cabinet"
+  | "cabinetDouble"
+  | "cabinetTriple"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
   | "battery"
   | "oxygenGenerator";
-export type Inventory = Partial<Record<Item, number>>;
+export type MeatBatch = { amount: number; expires: number };
+export type Inventory = Partial<Record<Item, number>> & {
+  meatBatches?: MeatBatch[];
+};
 export interface Planet {
   id: string;
   seed: number;
@@ -73,23 +88,34 @@ export interface StarSystem {
 export type BuildItem =
   | "woodBlock"
   | "woodWall"
+  | "stoneWall"
+  | "metalWall"
+  | "fridge"
+  | "picture"
+  | "table"
+  | "bed"
   | "woodStairs"
+  | "stickLadder"
+  | "woodHatch"
   | "cabinet"
+  | "cabinetDouble"
+  | "cabinetTriple"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
   | "battery"
   | "oxygenGenerator";
 export interface PlacedPiece {
-  kind: Exclude<BuildItem, "woodWall">;
+  kind: Exclude<BuildItem, "woodWall" | "stoneWall" | "metalWall">;
   facing: 1 | -1;
   open?: boolean;
   energy?: number;
   oxygen?: number;
+  powered?: boolean;
 }
 export interface Settlement {
   pieces: Record<string, PlacedPiece>;
-  walls: Record<string, true>;
+  walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
   cutTrees: string[];
   foraged?: Record<string, number>;
@@ -109,6 +135,7 @@ export interface ShipState {
   oxygen: number;
 }
 export interface ShipIdentity {
+  rescue?: true;
   id: string;
   model: ShipModelId;
 }
@@ -160,6 +187,7 @@ export interface Save {
     energy: number;
   };
   inventory: Inventory;
+  backpack: Inventory;
   upgrades: Item[];
   changes: Record<string, Record<string, number>>;
   depleted: string[];
@@ -241,6 +269,13 @@ export const items: Record<
     color: "#ffaf6c",
     icon: "▲",
     rarity: "Construção",
+    stack: 99,
+  },
+  stone: {
+    name: "Pedra",
+    color: "#a39b91",
+    icon: "◆",
+    rarity: "Comum",
     stack: 99,
   },
   iron: {
@@ -404,10 +439,73 @@ export const items: Record<
     rarity: "Construção",
     stack: 99,
   },
+  stoneWall: {
+    name: "Parede de pedra",
+    color: "#9ca8a9",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  metalWall: {
+    name: "Parede de metal",
+    color: "#88aab8",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  fridge: {
+    name: "Geladeira",
+    color: "#81c8d2",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  picture: {
+    name: "Quadro",
+    color: "#be9f69",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  table: {
+    name: "Mesa",
+    color: "#c9a475",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  bed: {
+    name: "Cama",
+    color: "#93c2bc",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
   woodWall: {
     name: "Parede de madeira",
     color: "#ad835d",
     icon: "▥",
+    rarity: "Construção",
+    stack: 99,
+  },
+  stick: {
+    name: "Graveto",
+    color: "#c49a6c",
+    icon: "╱",
+    rarity: "Fabricado",
+    stack: 99,
+  },
+  stickLadder: {
+    name: "Escada de graveto",
+    color: "#c49a6c",
+    icon: "╪",
+    rarity: "Construção",
+    stack: 99,
+  },
+  woodHatch: {
+    name: "Alçapão de madeira",
+    color: "#ba9166",
+    icon: "▱",
     rarity: "Construção",
     stack: 99,
   },
@@ -420,6 +518,20 @@ export const items: Record<
   },
   cabinet: {
     name: "Armário planetário",
+    color: "#b6bd9c",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  cabinetDouble: {
+    name: "Armário planetário duplo",
+    color: "#b6bd9c",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  cabinetTriple: {
+    name: "Armário planetário triplo",
     color: "#b6bd9c",
     icon: "▤",
     rarity: "Construção",
@@ -480,7 +592,7 @@ export const biomes = [
     sky: 0x192236,
     daySky: 0x91c5e2,
     ground: 0x605159,
-    resources: "Ferro · Cobre · Silício",
+    resources: "Pedra · Ferro · Cobre · Silício",
     hazard: "Atmosfera rarefeita",
   },
   {

@@ -35,6 +35,7 @@ try {
   await page.keyboard.down("w");
   await page.waitForFunction(() => window.__game.state.ship.x > 340);
   await page.keyboard.up("w");
+  await page.keyboard.press("s", { delay: 2400 });
   await page.keyboard.press("e", { delay: 100 });
   await page.waitForFunction(
     () => window.__game.flightTarget.action === "orbit",

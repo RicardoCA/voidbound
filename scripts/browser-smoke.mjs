@@ -36,6 +36,7 @@ try {
     timeout: 15000,
   });
   await page.keyboard.up("w");
+  await page.keyboard.press("s", { delay: 2400 });
   await page.keyboard.press("e", { delay: 100 });
   await page.waitForFunction(
     () => window.__game.flightTarget.action === "orbit",
@@ -52,7 +53,7 @@ try {
   assert.equal((await state()).mode, "surface");
   // Remove actual generated terrain with mouse input. No inventory grants.
   for (let attempt = 0; attempt < 80; attempt++) {
-    const inv = (await state()).inventory;
+    const inv = (await state()).backpack;
     if (
       (inv.iron ?? 0) >= 6 &&
       (inv.copper ?? 0) >= 4 &&
@@ -67,11 +68,11 @@ try {
         t = new Terrain(g.planet, g.state.changes[g.planet.id]);
       const wanted = (id) =>
         id === "iron"
-          ? (g.state.inventory.iron ?? 0) < 6
+          ? (g.state.backpack.iron ?? 0) < 6
           : id === "copper"
-            ? (g.state.inventory.copper ?? 0) < 4
+            ? (g.state.backpack.copper ?? 0) < 4
             : id === "silicon"
-              ? (g.state.inventory.silicon ?? 0) < 2
+              ? (g.state.backpack.silicon ?? 0) < 2
               : false;
       for (let y = Math.floor(p.y / 16); y < Math.floor(p.y / 16) + 5; y++)
         for (
@@ -111,10 +112,8 @@ try {
   }
   let s = await state();
   assert.ok(
-    s.inventory.iron >= 6 &&
-      s.inventory.copper >= 4 &&
-      s.inventory.silicon >= 2,
-    `Collected ${JSON.stringify(s.inventory)}`,
+    s.backpack.iron >= 6 && s.backpack.copper >= 4 && s.backpack.silicon >= 2,
+    `Collected ${JSON.stringify(s.backpack)}`,
   );
   await page.screenshot({ path: `${artifactDir}/surface.png` });
   // Walk back to the actual landing zone if the mineral search took us away.
@@ -138,6 +137,15 @@ try {
     }
   }
   await walkToEquipment("d", "craft");
+  await walkToEquipment("s", "inventory");
+  await page.getByRole("button", { name: "Abrir carga e melhorias" }).click();
+  await page.getByRole("button", { name: "Mochila", exact: true }).click();
+  for (const item of ["Ferro", "Cobre", "Silício"])
+    await page
+      .getByRole("button", { name: `Transferir ${item}`, exact: true })
+      .click();
+  await page.getByRole("button", { name: "Fechar inventário" }).click();
+  await walkToEquipment("w", "craft");
   await page.getByRole("button", { name: "Abrir fabricação" }).click();
   const make = async (name, n = 1) => {
     for (let i = 0; i < n; i++)
@@ -153,7 +161,7 @@ try {
   await page.getByRole("button", { name: "Fechar fabricação" }).click();
   await walkToEquipment("s", "inventory");
   await page.getByRole("button", { name: "Abrir carga e melhorias" }).click();
-  await page.getByRole("button", { name: /Kit de reparo/ }).click();
+  await page.getByRole("button", { name: /Kit de reparo USAR/ }).click();
   await page.getByRole("button", { name: "Fechar inventário" }).click();
   await walkToEquipment("w", "craft");
   await walkToEquipment("d", "pilot");
@@ -187,6 +195,7 @@ try {
   assert.equal(s.seed, snapshot.seed);
   assert.deepEqual(s.changes, snapshot.changes);
   assert.deepEqual(s.inventory, snapshot.inventory);
+  assert.deepEqual(s.backpack, snapshot.backpack);
   assert.equal(s.mission, 4);
   await page.screenshot({ path: `${artifactDir}/flight.png` });
   await page.setViewportSize({ width: 390, height: 844 });

@@ -4,6 +4,7 @@ import type { Planet, Item } from "../types";
 export const TILE = 16,
   CHUNK_W = 32,
   CHUNK_H = 64;
+export const STONE_TILE = 12;
 export const tileItems: Record<number, Item> = {
   2: "iron",
   3: "copper",
@@ -15,6 +16,7 @@ export const tileItems: Record<number, Item> = {
   9: "fiber",
   10: "wood",
   11: "rawFuel",
+  [STONE_TILE]: "stone",
 };
 export class Terrain {
   private noise;
@@ -65,6 +67,12 @@ export class Terrain {
             ]!;
         }
         if (Math.abs(x) < 8 && y === h) tile = 2 + ((x + 8) % 3);
+        if (
+          tile === 1 &&
+          this.planet.kind === 0 &&
+          (ore < 58 || (Math.abs(x) < 8 && y === h + 1))
+        )
+          tile = STONE_TILE;
         data[y * CHUNK_W + lx] = tile;
       }
     return this.cache.set(cx, data);

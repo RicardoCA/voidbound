@@ -12,7 +12,7 @@ import {
 } from "../progression/exploration";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import type { Item, Save } from "../game/types";
+import type { Item, Save, Settlement } from "../game/types";
 import { biomes, items } from "../game/types";
 import { systemAt, planetPosition } from "../universe/generator";
 import { add, consume, slots } from "../inventory/inventory";
@@ -20,7 +20,7 @@ import { craft, recipes } from "../crafting/recipes";
 import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
-import { emptySettlement } from "../construction/building";
+import { emptySettlement, transfer } from "../construction/building";
 import {
   awardCareerXP,
   newProgression,
@@ -29,7 +29,14 @@ import {
 } from "../progression/careers";
 import { Terrain, tileItems } from "../game/procedural/terrain";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
-import { emptyHabitat } from "../construction/habitat";
+import {
+  advancePowerNetwork,
+  emptyHabitat,
+  PLANET_DAY,
+  planetClock,
+  powerNetwork,
+  type PowerNetwork,
+} from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
 import { shipModels } from "../fleet/models";
@@ -39,7 +46,11 @@ import {
   RAW_MEAT_RISK,
   foodValue,
 } from "../survival/food";
+import { planetAddress } from "../construction/catalog";
+import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
+export const BACKPACK_SLOTS = 24;
+export const PLANET_SCAN_SECONDS = 10;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
 export const SURFACE_SEQUENCE_DURATION = {
@@ -64,7 +75,7 @@ export const missions = [
   },
   {
     title: "Reparo de emergência",
-    text: "Na estação da nave, fabrique 2 placas, 2 circuitos e um kit de reparo.",
+    text: "Guarde os recursos da mochila no armário de carga. Na bancada, fabrique 2 placas, 2 circuitos e um kit de reparo.",
   },
   {
     title: "De volta ao espaço",
@@ -111,6 +122,7 @@ function initial(seed: string): Save {
     },
     player: { x: 0, y: 0, health: 100, oxygen: 100, energy: 100, hunger: 100 },
     inventory: {},
+    backpack: {},
     upgrades: [],
     changes: {},
     depleted: [],
@@ -154,12 +166,14 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
   const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     surfaceSequence = ref<SurfaceSequence>(),
     dockingSequence = ref<{ elapsed: number }>(),
+    planetScan = ref<{ index: number; name: string; elapsed: number }>(),
     panel = ref(""),
     paused = ref(false),
     notice = ref("Sinal de emergência detectado. Explore o planeta próximo."),
@@ -203,6 +217,7 @@ export const useGame = defineStore("game", () => {
     () => {
       routeIndex.value = undefined;
       standingInFlight.value = false;
+      planetScan.value = undefined;
     },
     { flush: "sync" },
   );
@@ -280,6 +295,19 @@ export const useGame = defineStore("game", () => {
       () => (100 * state.value.ship.hull) / model.value.hull,
     ),
     usedSlots = computed(() => slots(state.value.inventory)),
+    onSurface = computed(() => state.value.mode === "surface"),
+    workingInventory = computed(() =>
+      onSurface.value ? state.value.backpack : state.value.inventory,
+    ),
+    workingCapacity = computed(() =>
+      onSurface.value ? BACKPACK_SLOTS : capacity.value,
+    ),
+    canAccessShipCargo = computed(
+      () =>
+        state.value.mode === "interior" ||
+        state.value.mode === "docked" ||
+        flightCabin.value,
+    ),
     mission = computed(() => missions[state.value.mission]!),
     showMission = computed(() => state.value.mission < missions.length - 1),
     maxFuel = computed(() =>
@@ -337,6 +365,7 @@ export const useGame = defineStore("game", () => {
       !station
     )
       return false;
+    refreshFood();
     trading.value = true;
     try {
       const draft = JSON.parse(JSON.stringify(state.value)) as Save;
@@ -443,6 +472,7 @@ export const useGame = defineStore("game", () => {
       const s = await database.read();
       if (s) {
         state.value = s;
+        refreshFood();
         started.value = true;
         panel.value = "";
         paused.value = false;
@@ -453,12 +483,20 @@ export const useGame = defineStore("game", () => {
     }
   }
   function collect(id: Item, n = 1) {
-    if (!add(state.value.inventory, id, n, capacity.value)) {
-      notify("Carga cheia. Fabrique ou use itens para liberar espaço.");
+    if (!add(workingInventory.value, id, n, workingCapacity.value)) {
+      notify(
+        onSurface.value
+          ? "Mochila cheia. Use ou guarde itens para liberar espaço."
+          : "Carga cheia. Fabrique ou use itens para liberar espaço.",
+      );
       return false;
     }
+    if (id === "rawMeat")
+      addMeatBatches(workingInventory.value, [
+        { amount: n, expires: state.value.time + PLANET_DAY },
+      ]);
     audio.play(380);
-    const inv = state.value.inventory;
+    const inv = workingInventory.value;
     if (
       (inv.iron ?? 0) >= 6 &&
       (inv.copper ?? 0) >= 4 &&
@@ -526,7 +564,12 @@ export const useGame = defineStore("game", () => {
     }
     if (
       !recipe ||
-      !craft(state.value.inventory, recipe, capacity.value, state.value.mission)
+      !craft(
+        workingInventory.value,
+        recipe,
+        workingCapacity.value,
+        state.value.mission,
+      )
     ) {
       notify("Materiais insuficientes, receita bloqueada ou carga cheia.");
       return;
@@ -547,7 +590,27 @@ export const useGame = defineStore("game", () => {
     progress();
     void save();
   }
-  function use(id: Item) {
+  function moveCargo(toShip: boolean, id: Item, quantity: number) {
+    if (!canAccessShipCargo.value || trading.value) return false;
+    refreshFood();
+    const { inventory, backpack } = state.value;
+    if (
+      !transfer(
+        toShip ? backpack : inventory,
+        toShip ? inventory : backpack,
+        id,
+        quantity,
+        toShip ? capacity.value : BACKPACK_SLOTS,
+      )
+    ) {
+      notify("Confira a quantidade e o espaço livre no destino.");
+      return false;
+    }
+    notify(`${quantity} × ${items[id].name} transferido.`);
+    void save();
+    return true;
+  }
+  function use(id: Item, fromBackpack = onSurface.value) {
     const s = state.value,
       upgrades: Item[] = [
         "engine",
@@ -558,7 +621,9 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (trading.value) return;
+    if (trading.value || (onSurface.value && !fromBackpack)) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
+    if (id === "rawMeat") refreshFood();
     const nutrition = foodValue(id);
     if (nutrition) {
       if (!hungerEnabled.value) {
@@ -570,7 +635,7 @@ export const useGame = defineStore("game", () => {
         notify("Você já está alimentado.");
         return;
       }
-      if (!consume(s.inventory, { [id]: 1 })) return;
+      if (!consume(inventory, { [id]: 1 })) return;
       s.player.hunger = Math.min(100, hunger + nutrition);
       if (id === "rawMeat" && Math.random() < RAW_MEAT_RISK) {
         s.player.sickness = FOOD_SICKNESS_DURATION;
@@ -601,7 +666,7 @@ export const useGame = defineStore("game", () => {
       notify("Reserva de oxigênio já cheia.");
       return;
     }
-    if (!consume(s.inventory, { [id]: 1 })) return;
+    if (!consume(inventory, { [id]: 1 })) return;
     if (id === "repair")
       s.ship.hull = Math.min(model.value.hull, s.ship.hull + 50);
     if (id === "fuel") s.ship.fuel = Math.min(maxFuel.value, s.ship.fuel + 30);
@@ -848,24 +913,57 @@ export const useGame = defineStore("game", () => {
     else
       notify("Aproxime-se de um planeta, anomalia ou estação para interagir.");
   }
-  function scanPlanet(index: number) {
+  function canScanPlanet(index: number) {
     const s = state.value;
-    const target = system.value.planets[index];
-    if (!target || trading.value || busy.value) return;
+    if (s.mode !== "space")
+      return (
+        ["orbit", "interior", "surface"].includes(s.mode) &&
+        s.planetIndex === index
+      );
     const pos = planetPosition(index);
-    const reachable =
-      s.mode === "space"
-        ? Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s)
-        : ["orbit", "interior", "surface"].includes(s.mode) &&
-          s.planetIndex === index;
-    if (!reachable) {
-      notify("Aproxime-se do planeta para escanear.");
+    return Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s);
+  }
+  function scanPlanet(index: number) {
+    const target = system.value.planets[index];
+    if (
+      !target ||
+      !started.value ||
+      paused.value ||
+      trading.value ||
+      busy.value ||
+      inSequence.value ||
+      planetScan.value
+    )
       return;
-    }
-    if (!cataloguePlanet(s, system.value, target)) {
+    if (state.value.progression.cataloguedPlanets[target.id]) {
       notify("Planeta já catalogado.");
       return;
     }
+    if (!canScanPlanet(index)) {
+      notify("Aproxime-se do planeta para escanear.");
+      return;
+    }
+    planetScan.value = { index, name: target.name, elapsed: 0 };
+    notify(`Escaneando ${target.name}…`);
+  }
+  function advancePlanetScan(dt: number) {
+    const scan = planetScan.value;
+    if (!scan || paused.value) return;
+    const target = system.value.planets[scan.index];
+    if (
+      !target ||
+      busy.value ||
+      inSequence.value ||
+      !canScanPlanet(scan.index)
+    ) {
+      planetScan.value = undefined;
+      notify("Escaneamento interrompido. Volte ao alcance do planeta.");
+      return;
+    }
+    scan.elapsed += dt;
+    if (scan.elapsed < PLANET_SCAN_SECONDS) return;
+    planetScan.value = undefined;
+    if (!cataloguePlanet(state.value, system.value, target)) return;
     notify(`${target.name} catalogado.`);
     void save();
   }
@@ -887,6 +985,55 @@ export const useGame = defineStore("game", () => {
     notify(`${signal.name} registrada.`);
     void save();
   }
+  const fridgeNetworks = new WeakMap<
+    Settlement,
+    { revision: number; network: PowerNetwork }
+  >();
+  function refreshFood() {
+    const s = state.value;
+    for (const [id, data] of Object.entries(s.settlements)) {
+      let cached = fridgeNetworks.get(data);
+      if (cached?.revision !== worldRevision.value) {
+        if (
+          !Object.values(data.pieces).some((piece) => piece.kind === "fridge")
+        )
+          continue;
+        const address = planetAddress(s.seed, id);
+        if (!address) continue;
+        const planet = systemAt(s.seed, address.x, address.y).planets[
+          address.planetIndex
+        ];
+        if (!planet) continue;
+        cached = {
+          revision: worldRevision.value,
+          network: powerNetwork(new Terrain(planet, s.changes[id] ?? {}), data),
+        };
+        fridgeNetworks.set(data, cached);
+      }
+      advancePowerNetwork(
+        data,
+        cached.network,
+        Math.min(s.time, data.utilityTime ?? s.time),
+        s.time,
+      );
+      data.utilityTime = s.time;
+    }
+    return spoilMeat(s);
+  }
+  function sleepInBed() {
+    const s = state.value;
+    refreshFood();
+    s.time += PLANET_DAY / 3;
+    advancePilotTrips(s);
+    const spoiled = refreshFood();
+    refreshHabitat();
+    panel.value = "";
+    notify(
+      `Você dormiu 8 horas. Hora local: ${planetClock(s.time)}.` +
+        (spoiled ? ` Carne crua estragada: ${spoiled}.` : ""),
+    );
+    void save();
+  }
   function recover() {
     if (state.value.mode !== "interior") {
       notify("A recuperação solar funciona com a nave pousada.");
@@ -896,6 +1043,7 @@ export const useGame = defineStore("game", () => {
     state.value.ship.oxygen = Math.min(100, state.value.ship.oxygen + 5);
     state.value.time += 60;
     advancePilotTrips(state.value);
+    refreshFood();
     notify("60 s de recuperação solar: +5 combustível e oxigênio.");
     void save();
   }
@@ -906,6 +1054,92 @@ export const useGame = defineStore("game", () => {
       worldRevision.value,
       0,
     );
+  }
+  function restorePlayer() {
+    const player = state.value.player;
+    player.health = 100;
+    player.oxygen = Math.max(60, player.oxygen);
+    if (hungerEnabled.value) player.hunger = Math.max(25, player.hunger);
+    delete player.sickness;
+  }
+  function handleHullFailure(emergencyMessage: string) {
+    const s = state.value;
+    if (s.ship.hull > 0) return false;
+    if (
+      !survivorEnabled.value ||
+      (s.activeShip.id === "ship-1" && s.activeShip.model === "sparrow") ||
+      s.activeShip.rescue
+    ) {
+      Object.assign(s.ship, {
+        hull: 30,
+        vx: 0,
+        vy: 0,
+        fuel: Math.max(s.ship.fuel, 15),
+      });
+      notify(emergencyMessage);
+      void save();
+      return false;
+    }
+
+    const destination = system.value.station
+      ? system.value
+      : systemAt(s.seed, 0, 0);
+    const station = destination.station!;
+    const starter = shipModels.sparrow;
+    const lost = model.value.name;
+    s.activeShip = {
+      id: `ship-${s.nextShipId++}`,
+      model: "sparrow",
+      rescue: true,
+    };
+    s.ship = {
+      x: station.x,
+      y: station.y,
+      angle: 0,
+      vx: 0,
+      vy: 0,
+      hull: starter.hull,
+      fuel: starter.fuel,
+      oxygen: 100,
+      energy: 100,
+    };
+    s.inventory = {};
+    s.backpack = {};
+    s.upgrades = [...starter.equipment];
+    restorePlayer();
+    s.systemX = destination.x;
+    s.systemY = destination.y;
+    s.planetIndex = 0;
+    s.mode = "docked";
+    panel.value = "";
+    speed.value = 0;
+    flightContact.value = undefined;
+    releaseControls();
+    notify(
+      `${lost} destruída. Você foi resgatado em ${station.name} com uma Sparrow de emergência.`,
+    );
+    void save();
+    return true;
+  }
+  function resolvePlayerDeath() {
+    const s = state.value;
+    if (s.player.health > 0) return false;
+    restorePlayer();
+    s.ship.hull = Math.max(15, s.ship.hull - 10);
+    const lostBackpack = s.mode === "surface" && survivorEnabled.value;
+    if (s.mode === "surface") {
+      if (lostBackpack) s.backpack = {};
+      s.mode = "interior";
+      panel.value = "";
+      releaseControls();
+    }
+    notify(
+      lostBackpack
+        ? "Resgate de emergência. Você perdeu os itens da mochila e voltou à nave."
+        : "Resgate de emergência. Penalidade: 10 pontos de casco.",
+    );
+    void save();
+    return true;
   }
   function tick(dt: number) {
     if (
@@ -918,7 +1152,15 @@ export const useGame = defineStore("game", () => {
     )
       return;
     const s = state.value;
+    const second = Math.floor(s.time);
     s.time += dt;
+    if (second !== Math.floor(s.time)) {
+      const spoiled = refreshFood();
+      if (spoiled) {
+        notify(`${spoiled} × Carne crua estragou fora da geladeira.`);
+        void save();
+      }
+    }
     if (hungerEnabled.value) {
       s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
       if (s.player.hunger === 0) s.player.health -= dt * 3;
@@ -965,16 +1207,7 @@ export const useGame = defineStore("game", () => {
         s.player.health = Math.min(100, s.player.health + dt * 3);
       s.ship.energy = Math.min(100, s.ship.energy + dt * 8);
     } else s.ship.energy = Math.min(100, s.ship.energy + dt * 5);
-    if (s.player.health <= 0) {
-      s.player.health = 100;
-      s.player.oxygen = Math.max(60, s.player.oxygen);
-      if (hungerEnabled.value) s.player.hunger = Math.max(25, s.player.hunger);
-      delete s.player.sickness;
-      s.ship.hull = Math.max(15, s.ship.hull - 10);
-      if (s.mode === "surface") s.mode = "interior";
-      notify("Resgate de emergência. Penalidade: 10 pontos de casco.");
-      void save();
-    }
+    resolvePlayerDeath();
   }
   return {
     state,
@@ -993,6 +1226,7 @@ export const useGame = defineStore("game", () => {
     paused,
     notice,
     saveStatus,
+    survivorEnabled,
     hungerEnabled,
     autosaveEnabled,
     saveRevision,
@@ -1023,6 +1257,10 @@ export const useGame = defineStore("game", () => {
     biome,
     weather,
     capacity,
+    canAccessShipCargo,
+    moveCargo,
+    handleHullFailure,
+    resolvePlayerDeath,
     extractionEfficiency,
     model,
     hullPercent,
@@ -1043,6 +1281,8 @@ export const useGame = defineStore("game", () => {
     mineTerrain,
     mineAsteroid,
     scanPlanet,
+    planetScan,
+    advancePlanetScan,
     scanSignal,
     make,
     use,
@@ -1054,6 +1294,8 @@ export const useGame = defineStore("game", () => {
     beginTakeoff,
     jump,
     recover,
+    refreshFood,
+    sleepInBed,
     tick,
   };
 });

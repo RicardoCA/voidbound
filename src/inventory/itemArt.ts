@@ -9,6 +9,13 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  stone: {
+    body: "M2 15l4-6 4 1 4-5 5 2 3 9-4 4H6z",
+    shade: "M2 15l5-2 3 5 7-2 5 0-4 4H6zM10 10l4-5 2 4-2 4z",
+    light: "M4 13l2-4 4 1-3 3zM14 5l5 2 1 3-5-2z",
+    detail: "M10 15h2v1h-2zM17 13h2v1h-2z",
+    accent: "#756b64",
+  },
   iron: {
     body: "M3 14l3-7 8-3 6 4 1 8-6 4-9-2z",
     shade: "M6 18l3-5 8-1 3-4 1 8-6 4z",
@@ -234,12 +241,61 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M6 11h1v6H6zM9 12h1v6H9z",
     accent: "#8d5d41",
   },
+  stoneWall: {
+    body: "M3 4h18v16H3z",
+    shade: "M3 9h18v1H3zM3 14h18v1H3zM11 4h1v5h-1zM7 10h1v4H7zM14 15h1v5h-1z",
+    light: "M4 5h6v1H4zM12 5h7v1h-7zM9 11h9v1H9zM4 16h8v1H4z",
+  },
+  metalWall: {
+    body: "M3 4h18v16H3z",
+    shade: "M5 7h14v10H5zM3 18h18v2H3z",
+    light: "M4 5h16v1H4zM7 8h10v1H7z",
+    detail: "M5 6h1v1H5zM18 6h1v1h-1zM5 16h1v1H5zM18 16h1v1h-1z",
+  },
+  fridge: {
+    body: "M6 2h12v20H6z",
+    shade: "M7 9h10v2H7zM7 20h10v2H7z",
+    light: "M7 3h10v1H7zM8 5h1v3H8zM8 12h1v5H8z",
+    detail: "M14 5h2v2h-2z",
+  },
+  picture: {
+    body: "M3 5h18v14H3z",
+    shade: "M5 7h14v10H5z",
+    light: "M4 6h16v1H4zM8 13l7-4 1 2-7 4z",
+  },
+  table: {
+    body: "M2 8h20v5h-2v8h-3v-8H7v8H4v-8H2z",
+    shade: "M3 11h18v2H3zM5 14h2v7H5zM18 14h2v7h-2z",
+    light: "M3 8h18v2H3z",
+  },
+  bed: {
+    body: "M2 7h3v6h15v-2h2v10h-3v-3H5v3H2z",
+    shade: "M5 16h14v2H5zM2 19h3v2H2z",
+    light: "M5 11h5v4H5zM11 13h8v1h-8z",
+  },
   woodWall: {
     body: "M4 4h16v16H4z",
     shade: "M8 4h1v16H8zM14 4h1v16h-1zM4 17h16v3H4z",
     light: "M5 5h3v2H5zM10 5h4v2h-4zM16 5h3v2h-3z",
     detail: "M6 11h2v1H6zM16 13h3v1h-3z",
     accent: "#694b39",
+  },
+  stick: {
+    body: "M4 17L17 4l3 3L7 20z",
+    shade: "M6 19L19 6l1 1L7 20z",
+    light: "M5 17L17 5l1 1L6 18z",
+  },
+  stickLadder: {
+    body: "M5 2h3v20H5zM16 2h3v20h-3zM8 5h8v3H8zM8 11h8v3H8zM8 17h8v3H8z",
+    shade: "M7 2h1v20H7zM18 2h1v20h-1zM8 7h8v1H8zM8 13h8v1H8zM8 19h8v1H8z",
+    light: "M5 2h1v20H5zM16 2h1v20h-1zM8 5h8v1H8zM8 11h8v1H8zM8 17h8v1H8z",
+  },
+  woodHatch: {
+    body: "M3 8h18v9H3z",
+    shade: "M3 15h18v2H3zM5 11h13v1H5z",
+    light: "M3 8h18v2H3z",
+    detail: "M14 11h4v2h-4z",
+    accent: "#d6bf9a",
   },
   woodStairs: {
     body: "M3 15h5v-4h5V7h5V4h3v16H3z",
@@ -251,6 +307,21 @@ export const itemArt: Record<Item, ItemArt> = {
     shade: "M5 8h14v11H5z",
     light: "M5 5h14v2H5zM6 9h1v8H6z",
     detail: "M11 8h2v11h-2zM8 12h2v2H8zM14 12h2v2h-2z",
+    accent: "#c7b27e",
+  },
+  cabinetDouble: {
+    body: "M2 7h20v12H2z",
+    shade: "M3 10h18v8H3z",
+    light: "M3 7h18v2H3z",
+    detail: "M11 10h2v8h-2zM7 13h2v2H7zM15 13h2v2h-2z",
+    accent: "#c7b27e",
+  },
+  cabinetTriple: {
+    body: "M1 8h22v11H1z",
+    shade: "M2 11h20v7H2z",
+    light: "M2 8h20v2H2z",
+    detail:
+      "M8 11h1v7H8zM15 11h1v7h-1zM5 13h2v2H5zM12 13h2v2h-2zM19 13h2v2h-2z",
     accent: "#c7b27e",
   },
   woodDoor: {

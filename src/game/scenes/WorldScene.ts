@@ -55,8 +55,13 @@ import {
 } from "../rendering/surfaceMaterials";
 import { SurfaceArt } from "../rendering/surfaceArt";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
-import { solidCell, stairFloor, stepSurface } from "../physics/surface";
-import { footprint } from "../../construction/pieces";
+import {
+  solidCell,
+  stairFloor,
+  stepClimb,
+  stepSurface,
+} from "../physics/surface";
+import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
@@ -94,6 +99,7 @@ export class WorldScene extends Phaser.Scene {
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private gfx!: Phaser.GameObjects.Graphics;
+  private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
   private surfaceArt = new SurfaceArt();
   private backdrop!: Phaser.GameObjects.Graphics;
@@ -173,6 +179,7 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.surfaceSky = this.add.graphics().setDepth(-1);
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
     this.spaceDust = createSpaceBackdrop(this).setVisible(false);
@@ -314,11 +321,13 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    g.advancePlanetScan(this.game.loop.rawDelta / 1000);
     for (let i = 0; i < this.usedShipSprites; i++)
       this.shipSprites[i]!.setVisible(false);
     this.usedShipSprites = 0;
     this.flightShipGfx.clear();
     this.atmosphereGfx.clear();
+    this.surfaceSky.clear();
     this.surfaceBase.clear();
     this.surfaceArt.reset();
     this.backdrop.clear();
@@ -374,7 +383,10 @@ export class WorldScene extends Phaser.Scene {
       const held = this.down("E") || controls.interact;
       if (!g.paused && !g.panel && !g.busy) {
         g.tick(dt);
-        if (g.flightCabin) this.spacePhysics(dt, false);
+        if (g.flightCabin) {
+          this.spacePhysics(dt, false);
+          if (!g.flightCabin) return;
+        }
         const { x, y } = this.walkingDirection();
         this.cabin.walk(x, y, dt);
         g.cabinContact = this.cabin.nearby();
@@ -506,8 +518,14 @@ export class WorldScene extends Phaser.Scene {
     }
     if (g.started && !g.paused && !g.panel && !g.busy) {
       g.tick(dt);
-      if (s.mode === "space") this.spacePhysics(dt);
-      if (s.mode === "surface") this.surfacePhysics(dt);
+      if (s.mode === "space") {
+        this.spacePhysics(dt);
+        if (s.mode !== "space") return;
+      }
+      if (s.mode === "surface") {
+        this.surfacePhysics(dt);
+        if (g.resolvePlayerDeath()) return;
+      }
       const pressed = takePulse("interact");
       const held = this.down("E") || controls.interact;
       const surfacePress =
@@ -656,13 +674,13 @@ export class WorldScene extends Phaser.Scene {
         s.vy *= -0.65;
         s.x -= Math.cos(s.angle) * 8;
         s.y -= Math.sin(s.angle) * 8;
-        if (s.hull <= 0) {
-          s.hull = 30;
-          s.vx = 0;
-          s.vy = 0;
-          s.fuel = Math.max(s.fuel, 15);
-          g.notify("Sistema de emergência estabilizou a nave. Repare o casco.");
-        }
+        if (
+          s.hull <= 0 &&
+          g.handleHullFailure(
+            "Sistema de emergência estabilizou a nave. Repare o casco.",
+          )
+        )
+          return;
       }
     }
     if (
@@ -685,8 +703,12 @@ export class WorldScene extends Phaser.Scene {
       void g.save();
     }
     if (encounter.playerDisabled) {
-      g.notify("Casco crítico. A nave foi estabilizada em emergência.");
-      void g.save();
+      if (
+        g.handleHullFailure(
+          "Casco crítico. A nave foi estabilizada em emergência.",
+        )
+      )
+        return;
     }
     if (this.elapsed >= this.contactAt || encounter.destroyed) {
       this.updateFlightContact();
@@ -788,7 +810,7 @@ export class WorldScene extends Phaser.Scene {
     const data = settlementFor(g.state, g.planet.id);
     (data.foraged ??= {})[fruit.id] = g.state.time + FRUIT_REGROWTH;
     this.fruit = this.fruit.filter((target) => target.id !== fruit.id);
-    g.notify("Duas frutas coletadas. Abra a carga para comer.");
+    g.notify("Duas frutas coletadas. Abra a mochila para comer.");
     void g.save();
   }
   private surfacePhysics(dt: number) {
@@ -796,8 +818,8 @@ export class WorldScene extends Phaser.Scene {
       p = g.state.player,
       t = this.terrain!;
     const direction =
-      (this.down("D") || controls.right ? 1 : 0) -
-      (this.down("A") || controls.left ? 1 : 0);
+      (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
+      (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
     if (direction) this.facing = direction;
     const pulse = takePulse("jump");
     const jumping = this.down("SPACE") || controls.jump;
@@ -808,15 +830,30 @@ export class WorldScene extends Phaser.Scene {
     );
     if (jump && this.grounded) audio.play(300);
     this.jumpHeld = jumping;
-    const movement = stepSurface(
-      { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
-      direction,
-      jump,
-      g.planet.gravity,
-      dt,
-      t,
-      this.building.settlement,
-    );
+    const vertical =
+      Number(this.down("S") || this.down("DOWN") || controls.down) -
+      Number(this.down("W") || this.down("UP") || controls.up);
+    const grip = this.building.climbingColumn;
+    const climb =
+      !direction &&
+      !jumping &&
+      !pulse &&
+      !this.building.enabled &&
+      (grip !== undefined || vertical !== 0)
+        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement)
+        : undefined;
+    this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
+    const movement =
+      climb ??
+      stepSurface(
+        { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
+        direction,
+        jump,
+        g.planet.gravity,
+        dt,
+        t,
+        this.building.settlement,
+      );
     p.x = movement.x;
     p.y = movement.y;
     p.health -= movement.fallDamage;
@@ -1127,12 +1164,12 @@ export class WorldScene extends Phaser.Scene {
         const radius = Math.round(
           Math.min(this.viewWidth, this.viewHeight) * 0.065,
         );
-        f.fillStyle(0xffd98d, light * 0.16);
-        f.fillCircle(sunX, sunY, radius * 1.9);
-        f.fillStyle(0xffe5a8, light * 0.24);
-        f.fillCircle(sunX, sunY, radius * 1.4);
-        f.fillStyle(0xffedb6, Math.min(1, light * 4));
-        f.fillCircle(sunX, sunY, radius);
+        this.surfaceSky.fillStyle(0xffd98d, light * 0.16);
+        this.surfaceSky.fillCircle(sunX, sunY, radius * 1.9);
+        this.surfaceSky.fillStyle(0xffe5a8, light * 0.24);
+        this.surfaceSky.fillCircle(sunX, sunY, radius * 1.4);
+        this.surfaceSky.fillStyle(0xffedb6, Math.min(1, light * 4));
+        this.surfaceSky.fillCircle(sunX, sunY, radius);
       }
       this.drawSurface(light);
       if (storm) this.drawWeather(storm);
@@ -1912,7 +1949,9 @@ export class WorldScene extends Phaser.Scene {
         this.drawAstronaut(
           Math.round(p.x - this.camX + this.centerX),
           Math.round(p.y - this.camY + this.centerY),
-          this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0,
+          this.grounded || this.building.climbingColumn !== undefined
+            ? Math.sin(this.elapsed * 13) * 2
+            : 0,
           this.facing,
         );
       }
@@ -1945,11 +1984,13 @@ export class WorldScene extends Phaser.Scene {
       const valid =
         this.building.removing || !this.building.errorAt(cursor.x, cursor.y);
       f.lineStyle(1, valid ? 0x9cf0cf : 0xf09d86, 0.9);
+      const kind = this.building.selected;
+      const door = kind === "woodDoor";
       f.strokeRect(
         sx,
-        sy - (this.building.selected === "woodDoor" ? 16 : 0),
-        16,
-        footprint(this.building.selected, cursor.x, cursor.y).length * 16,
+        sy - (door ? 16 : 0),
+        16 * (isCabinet(kind) ? cabinetWidths[kind] : 1),
+        door ? 32 : 16,
       );
     }
   }

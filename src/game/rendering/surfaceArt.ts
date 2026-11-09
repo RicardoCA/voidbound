@@ -1,7 +1,20 @@
+import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
+import { STONE_TILE } from "../procedural/terrain";
 import type Phaser from "phaser";
 import type { BuildItem, PlacedPiece } from "../types";
 
+const stoneDeposit = "surface-stone-deposit";
 const sprites = "surface-sprites";
+const ladderAndHatch = "surface-ladder-and-hatch";
+const furnishings = "surface-furnishings";
+const furnishingFrames = [
+  "stoneWall",
+  "metalWall",
+  "fridge",
+  "picture",
+  "table",
+  "bed",
+] as const;
 const materials = "surface-wood-and-deposits";
 const path = import.meta.env.BASE_URL + "surface/";
 const ground = (kind: number) => "surface-ground-" + kind;
@@ -17,7 +30,16 @@ export class SurfaceArt {
   private kind = 0;
 
   preload(scene: Phaser.Scene) {
+    scene.load.image(stoneDeposit, path + "stone-deposit.webp");
     scene.load.atlas(sprites, path + "sprites.webp", path + "sprites.json");
+    scene.load.spritesheet(ladderAndHatch, path + "ladder-and-hatch.webp", {
+      frameWidth: 32,
+      frameHeight: 48,
+    });
+    scene.load.spritesheet(furnishings, path + "furnishings.webp", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
     scene.load.spritesheet(materials, path + "wood-and-deposits.webp", {
       frameWidth: 32,
       frameHeight: 32,
@@ -153,6 +175,19 @@ export class SurfaceArt {
     column: number,
     row: number,
   ) {
+    if (tile === STONE_TILE)
+      return this.sprite(
+        scene,
+        "__BASE",
+        x + 8,
+        y + 15,
+        15,
+        14,
+        ((column ^ row) & 1) !== 0,
+        1,
+        -0.15,
+        stoneDeposit,
+      );
     if (tile < 2 || tile > 11) return false;
     const flip = ((column ^ row) & 1) !== 0;
     const size = 12 + ((column + row) & 1);
@@ -223,6 +258,20 @@ export class SurfaceArt {
     alpha: number,
     state?: PlacedPiece,
   ) {
+    const furnishing = furnishingFrames.findIndex((item) => item === kind);
+    if (furnishing >= 0)
+      return this.sprite(
+        scene,
+        furnishing,
+        x + 8,
+        y + 16,
+        16,
+        16,
+        false,
+        alpha,
+        alpha < 1 ? -0.01 : isWall(kind) ? -0.4 : -0.02,
+        furnishings,
+      );
     if (kind === "woodBlock" || kind === "woodWall") {
       const depth = alpha < 1 ? -0.01 : kind === "woodWall" ? -0.4 : -0.02;
       return this.sprite(
@@ -237,6 +286,40 @@ export class SurfaceArt {
         depth,
         materials,
       );
+    }
+    if (kind === "stickLadder" || kind === "woodHatch") {
+      const frame = kind === "stickLadder" ? 0 : state?.open ? 2 : 1;
+      return this.sprite(
+        scene,
+        frame,
+        x + 8,
+        y + 16,
+        16,
+        24,
+        state?.facing === -1,
+        alpha,
+        -0.02,
+        ladderAndHatch,
+      );
+    }
+    if (isCabinet(kind)) {
+      for (let i = 0; i < cabinetWidths[kind]; i++) {
+        if (
+          !this.sprite(
+            scene,
+            "cabinet",
+            x + 8 + i * 16,
+            y + 16,
+            16,
+            16,
+            false,
+            alpha,
+            -0.02,
+          )
+        )
+          return false;
+      }
+      return true;
     }
     const door = kind === "woodDoor";
     if (door && state?.open) return this.openDoor(scene, x, y, state.facing);

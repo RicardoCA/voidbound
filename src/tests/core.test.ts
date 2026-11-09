@@ -108,6 +108,9 @@ describe("Progressão e salvamento", () => {
     g.collect("silicon", 2);
     expect(g.state.mission).toBe(2);
     g.enter();
+    expect(g.moveCargo(true, "iron", 6)).toBe(true);
+    expect(g.moveCargo(true, "copper", 4)).toBe(true);
+    expect(g.moveCargo(true, "silicon", 2)).toBe(true);
     g.make("plate");
     g.make("plate");
     g.make("circuit");

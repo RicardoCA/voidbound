@@ -43,8 +43,8 @@ function move(event: PointerEvent) {
   y.value = dy;
   controls.left = dx < -radius * 0.28;
   controls.right = dx > radius * 0.28;
-  controls.up = !surface.value && dy < -radius * 0.28;
-  controls.down = !surface.value && dy > radius * 0.28;
+  controls.up = dy < -radius * 0.28;
+  controls.down = dy > radius * 0.28;
 }
 function start(event: PointerEvent) {
   if (stickPointer !== undefined) return;
@@ -172,7 +172,7 @@ onBeforeUnmount(reset);
             : cabin
               ? 'Usar equipamento da nave'
               : surface
-                ? 'Interagir com porta, nave ou armário'
+                ? 'Interagir na superfície'
                 : g.flightContact?.wreck && g.flightContact.distance <= 95
                   ? 'Saquear destroço'
                   : g.stationDistance <= 115

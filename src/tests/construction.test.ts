@@ -4,7 +4,7 @@ import Dexie from "dexie";
 import { createPinia, setActivePinia } from "pinia";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { Terrain } from "../game/procedural/terrain";
+import { STONE_TILE, Terrain } from "../game/procedural/terrain";
 import { treeAt, treesInRange } from "../game/procedural/trees";
 import { systemAt } from "../universe/generator";
 import {
@@ -14,11 +14,22 @@ import {
   settlementFor,
   transfer,
 } from "../construction/building";
-import { stepSurface, solidCell, type Actor } from "../game/physics/surface";
+import {
+  stepClimb,
+  stepSurface,
+  solidCell,
+  type Actor,
+} from "../game/physics/surface";
 import { craft, recipes } from "../crafting/recipes";
+import { listBases } from "../construction/catalog";
 import { SaveDatabase } from "../persistence/database";
 import { migrateSave, type LegacySave } from "../persistence/migrations";
-import type { Inventory, Save, Settlement } from "../game/types";
+import {
+  items,
+  type Inventory,
+  type Save,
+  type Settlement,
+} from "../game/types";
 import { audio } from "../game/systems/audio";
 audio.enabled = false;
 beforeEach(() => setActivePinia(createPinia()));
@@ -39,7 +50,7 @@ function setup() {
     ctx: {
       terrain,
       settlement: data,
-      inventory: g.state.inventory,
+      inventory: g.state.backpack,
       capacity: g.capacity,
       player: g.state.player,
       landingX: g.state.landingX,
@@ -70,14 +81,14 @@ describe("Florestas alienígenas", () => {
     expect(b.harvest(tree)).toBe(false);
     g.state.player.x = 40;
     const inventory: Inventory = {};
-    g.state.inventory = { woodBlock: 99 * 24 };
+    g.state.backpack = { woodBlock: 99 * 24 };
     expect(b.harvest(tree)).toBe(false);
     expect(data.cutTrees).toEqual([]);
-    g.state.inventory = inventory;
+    g.state.backpack = inventory;
     expect(b.harvest(tree)).toBe(true);
-    expect(g.state.inventory.wood).toBe(tree.wood);
+    expect(g.state.backpack.wood).toBe(tree.wood);
     expect(b.harvest(tree)).toBe(false);
-    expect(g.state.inventory.wood).toBe(tree.wood);
+    expect(g.state.backpack.wood).toBe(tree.wood);
     expect(
       treesInRange(g.planet, terrain, -8, 10, data.cutTrees).some(
         (t) => t.id === tree.id,
@@ -86,11 +97,38 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("minera pedra em terreno rochoso e usa pedra na parede", () => {
+    const { g } = setup();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    const other = new Terrain({ ...g.planet, kind: 1 }, {});
+    expect(other.chunk(0).includes(STONE_TILE)).toBe(false);
+    g.state.backpack.silicon = 3;
+    g.make("stoneWall");
+    expect(g.state.backpack).toEqual({ silicon: 3 });
+    const deposits = [];
+    for (let x = -8; x <= 8; x++)
+      for (let y = 29; y <= 31; y++)
+        if (terrain.get(x, y) === STONE_TILE) deposits.push({ x, y });
+    expect(deposits.length).toBeGreaterThanOrEqual(3);
+    for (const { x, y } of deposits.slice(0, 3)) {
+      expect(g.mineTerrain(terrain, x, y)).toBe(true);
+      expect(g.mineTerrain(terrain, x, y)).toBe(false);
+    }
+    g.make("stoneWall");
+    expect(g.state.backpack).toEqual({ silicon: 3, stoneWall: 4 });
+    const restored = migrateSave(g.state);
+    const terrainAfterSave = new Terrain(
+      g.planet,
+      restored.changes[g.planet.id]!,
+    );
+    for (const { x, y } of deposits.slice(0, 3))
+      expect(terrainAfterSave.get(x, y)).toBe(0);
+  });
   it("fabrica lotes de peças à mão com custo exato", () => {
     const { g } = setup();
-    g.state.inventory = { wood: 7, iron: 2 };
+    g.state.backpack = { wood: 7, iron: 2 };
     g.make("woodBlock");
-    expect(g.state.inventory).toEqual({ wood: 5, iron: 2, woodBlock: 4 });
+    expect(g.state.backpack).toEqual({ wood: 5, iron: 2, woodBlock: 4 });
     const inv = { wood: 1 };
     expect(
       craft(
@@ -104,47 +142,143 @@ describe("Construção e armazenamento transacionais", () => {
   });
   it("valida alcance, colisão, suporte e peças disponíveis antes de consumir", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory.woodBlock = 4;
+    g.state.backpack.woodBlock = 4;
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeUndefined();
-    expect(g.state.inventory.woodBlock).toBe(3);
+    expect(g.state.backpack.woodBlock).toBe(3);
     expect(data.pieces["4,28"]?.kind).toBe("woodBlock");
-    const before = JSON.stringify(g.state.inventory);
+    const before = JSON.stringify(g.state.backpack);
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 400, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 2, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 4, 29)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 4, 24)).toBeTruthy();
-    expect(JSON.stringify(g.state.inventory)).toBe(before);
+    expect(JSON.stringify(g.state.backpack)).toBe(before);
   });
   it("mantém paredes e peças em camadas separadas e devolve peças uma única vez", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory = { woodBlock: 2, woodWall: 2 };
-    ctx.inventory = g.state.inventory;
+    g.state.backpack = { woodBlock: 2, woodWall: 2 };
+    ctx.inventory = g.state.backpack;
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeUndefined();
     expect(placePiece(ctx, "woodWall", 4, 28)).toBeUndefined();
     expect(data.walls["4,28"]).toBe(true);
     expect(removePiece(ctx, 4, 28, true)).toBeUndefined();
     expect(data.pieces["4,28"]).toBeDefined();
     expect(removePiece(ctx, 4, 28)).toBeUndefined();
-    const before = { ...g.state.inventory };
+    const before = { ...g.state.backpack };
     expect(removePiece(ctx, 4, 28)).toBeTruthy();
-    expect(g.state.inventory).toEqual(before);
+    expect(g.state.backpack).toEqual(before);
   });
   it("não desmonta armário cheio; transferências não perdem nem duplicam recursos", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory = { cabinet: 1, wood: 20 };
-    ctx.inventory = g.state.inventory;
+    g.state.backpack = { cabinet: 1, wood: 20 };
+    ctx.inventory = g.state.backpack;
     expect(placePiece(ctx, "cabinet", 4, 28)).toBeUndefined();
     const cabinet = data.cabinets["4,28"]!;
-    expect(transfer(g.state.inventory, cabinet, "wood", 15, 16)).toBe(true);
-    expect(g.state.inventory.wood).toBe(5);
+    expect(transfer(g.state.backpack, cabinet, "wood", 15, 16)).toBe(true);
+    expect(g.state.backpack.wood).toBe(5);
     expect(cabinet.wood).toBe(15);
     expect(removePiece(ctx, 4, 28)).toContain("Esvazie");
     expect(transfer(cabinet, cabinet, "wood", 1, 16)).toBe(false);
-    expect(transfer(cabinet, g.state.inventory, "wood", 15, 24)).toBe(true);
+    expect(transfer(cabinet, g.state.backpack, "wood", 15, 24)).toBe(true);
     expect(removePiece(ctx, 4, 28)).toBeUndefined();
-    expect(g.state.inventory).toEqual({ wood: 20, cabinet: 1 });
+    expect(g.state.backpack).toEqual({ wood: 20, cabinet: 1 });
     expect(data.cabinets["4,28"]).toBeUndefined();
+  });
+  it.each([
+    ["cabinetDouble", 2, 32],
+    ["cabinetTriple", 3, 48],
+  ] as const)(
+    "fabrica e instala %s com o tamanho e a capacidade corretos",
+    async (kind, width, capacity) => {
+      const { ctx, g, data } = setup();
+      const b = useConstruction();
+      Object.assign(g.state.backpack, { wood: width * 6, iron: width * 2 });
+      g.make(kind);
+      expect(g.state.backpack).toEqual({ [kind]: 1 });
+      expect(placePiece(ctx, kind, 4, 28)).toBeUndefined();
+      const edge = 4 + width - 1;
+      expect(b.cabinetAt(edge, 28)).toBe(true);
+      expect(placePiece(ctx, "woodBlock", edge, 28)).toContain("Já existe");
+      expect(b.interactAt(edge, 28)).toBe(true);
+      expect(b.containerCapacity).toBe(capacity);
+      data.cabinets["4,28"]!.iron = items.iron.stack * capacity - 1;
+      g.state.backpack.iron = 2;
+      expect(b.moveItem("deposit", "iron", 2)).toBe(false);
+      expect(b.moveItem("deposit", "iron", 1)).toBe(true);
+      expect(removePiece(ctx, edge, 28)).toContain("Esvazie");
+      const db = new SaveDatabase(`large-cabinet-${crypto.randomUUID()}`);
+      try {
+        await db.write(g.state);
+        const saved = (await db.read())!;
+        expect(listBases(saved)[0]?.cabinets[0]).toMatchObject({
+          kind,
+          capacity,
+          usedSlots: capacity,
+          inventory: { iron: items.iron.stack * capacity },
+        });
+      } finally {
+        await db.delete();
+      }
+    },
+  );
+  it("fabrica gravetos na nave e monta uma passagem vertical com alçapão", () => {
+    const { ctx, g, data, terrain } = setup();
+    const b = useConstruction();
+    g.state.inventory.wood = 1;
+    g.make("stick");
+    expect(g.state.inventory).toEqual({ wood: 1 });
+    g.enter();
+    g.make("stick");
+    expect(g.state.inventory).toEqual({ stick: 8 });
+    expect(g.moveCargo(false, "stick", 8)).toBe(true);
+    g.exit();
+    g.state.player.x = 72;
+    g.state.player.y = 452;
+    Object.assign(g.state.backpack, { wood: 3, iron: 1, woodBlock: 1 });
+    g.make("stickLadder");
+    g.make("stickLadder");
+    g.make("woodHatch");
+    expect(placePiece(ctx, "stickLadder", 4, 28)).toBeUndefined();
+    expect(placePiece(ctx, "stickLadder", 4, 27)).toBeUndefined();
+    expect(placePiece(ctx, "woodHatch", 4, 26)).toBeUndefined();
+    expect(placePiece(ctx, "woodBlock", 5, 26)).toBeUndefined();
+
+    function climb(from: { x: number; y: number }, vertical: number) {
+      let position = from;
+      for (let frame = 0; frame < 100; frame++)
+        position =
+          stepClimb(position, 4, vertical, 0.02, terrain, data) ?? position;
+      return position;
+    }
+    expect(
+      stepClimb({ x: 88, y: 452 }, undefined, -1, 0.02, terrain, data),
+    ).toMatchObject({ x: 72 });
+    expect(b.interactAt(4, 28)).toBe(true);
+    expect(b.climbingColumn).toBe(4);
+    const below = climb(g.state.player, -1);
+    expect(below.y).toBeGreaterThanOrEqual(443.9);
+    expect(solidCell(terrain, data, 4, 26)).toBe(true);
+    Object.assign(g.state.player, below);
+    expect(b.toggleDoor("4,26")).toBe(true);
+    expect(solidCell(terrain, data, 4, 26)).toBe(false);
+    const upstairs = climb(below, -1);
+    expect(upstairs.y).toBe(26 * 16 - 12);
+    const walked = stepSurface(
+      { ...upstairs, vy: 0, grounded: false },
+      1,
+      false,
+      1,
+      0.18,
+      terrain,
+      data,
+    );
+    expect(walked.grounded).toBe(true);
+    expect(climb(upstairs, 1).y).toBeGreaterThan(440);
+    Object.assign(g.state.player, { x: 72, y: 430 });
+    expect(b.toggleDoor("4,26")).toBe(false);
+    expect(
+      migrateSave(g.state).settlements[g.planet.id]?.pieces["4,26"]?.open,
+    ).toBe(true);
   });
   it("recusa transferência sem espaço ou com quantidade inválida mantendo os dois lados", () => {
     const source: Inventory = { wood: 50 },

@@ -1,3 +1,4 @@
+import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
 import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
@@ -134,7 +135,9 @@ export function drawPiece(
   state?: PlacedPiece,
 ) {
   g.fillStyle(material.timber, alpha);
-  if (kind === "woodWall") {
+  if (isWall(kind)) {
+    if (kind !== "woodWall")
+      g.fillStyle(kind === "stoneWall" ? 0x687077 : 0x546b79, alpha);
     g.fillRect(x, y, 16, 16);
     g.fillStyle(material.shade, alpha * 0.5);
     g.fillRect(x, y, 16, 16);
@@ -174,6 +177,37 @@ export function drawPiece(
       g.fillRect(x + sx, y + 12 - i * 4, 4, 4 + i * 4);
       g.fillStyle(material.trim, alpha);
       g.fillRect(x + sx, y + 12 - i * 4, 4, 1);
+    }
+    return;
+  }
+  if (kind === "stickLadder") {
+    g.fillStyle(material.shade, alpha)
+      .fillRect(x + 2, y, 3, 16)
+      .fillRect(x + 12, y, 3, 16);
+    g.fillStyle(material.timber, alpha)
+      .fillRect(x + 2, y, 2, 16)
+      .fillRect(x + 12, y, 2, 16);
+    for (const rung of [2, 7, 12]) {
+      g.fillStyle(material.shade, alpha).fillRect(x + 4, y + rung, 8, 3);
+      g.fillStyle(material.trim, alpha).fillRect(x + 4, y + rung, 8, 1);
+    }
+    return;
+  }
+  if (kind === "woodHatch") {
+    const side = facing === 1 ? 0 : 13;
+    g.fillStyle(material.shade, alpha)
+      .fillRect(x, y, 2, 16)
+      .fillRect(x + 14, y, 2, 16);
+    if (state?.open) {
+      g.fillStyle(material.timber, alpha).fillRect(x + side, y - 7, 3, 18);
+      g.fillStyle(material.trim, alpha).fillRect(x + side, y - 7, 1, 18);
+    } else {
+      g.fillStyle(material.timber, alpha).fillRect(x, y, 16, 10);
+      g.fillStyle(material.trim, alpha).fillRect(x, y, 16, 2);
+      g.fillStyle(material.shade, alpha)
+        .fillRect(x + 2, y + 5, 12, 1)
+        .fillRect(x + 11, y + 3, 3, 2);
+      g.fillStyle(material.trim, alpha).fillRect(x + 11, y + 3, 2, 1);
     }
     return;
   }
@@ -259,6 +293,11 @@ export function drawPiece(
     g.fillRect(x + 4, y + 13, Math.round((8 * (state?.oxygen ?? 0)) / 100), 1);
     return;
   }
+  if (isCabinet(kind) && kind !== "cabinet") {
+    for (let i = 0; i < cabinetWidths[kind]; i++)
+      drawPiece(g, "cabinet", x + i * 16, y, material, facing, alpha);
+    return;
+  }
   g.fillRect(x + 1, y + 1, 14, 15);
   g.fillStyle(material.shade, alpha);
   g.fillRect(x + 3, y + 3, 10, 11);
@@ -285,23 +324,28 @@ export function drawSettlement(
     state?: PlacedPiece,
   ) => boolean,
 ) {
-  const minX = Math.floor((camX - width / 2) / 16) - 1,
+  const minX =
+      Math.floor((camX - width / 2) / 16) - cabinetWidths.cabinetTriple,
     maxX = Math.ceil((camX + width / 2) / 16) + 1;
   const minY = Math.max(0, Math.floor((camY - height / 2) / 16) - 1),
     maxY = Math.min(63, Math.ceil((camY + height / 2) / 16) + 1);
   for (let tx = minX; tx <= maxX; tx++)
     for (let ty = minY; ty <= maxY; ty++) {
       const key = `${tx},${ty}`;
+      const wall = data.walls[key];
       const piece =
         layer === "walls"
-          ? data.walls[key]
-            ? { kind: "woodWall" as const, facing: 1 as const }
+          ? wall
+            ? {
+                kind: wall === true ? ("woodWall" as const) : wall,
+                facing: 1 as const,
+              }
             : undefined
           : data.pieces[key];
       if (!piece) continue;
       const x = Math.round(tx * 16 - camX + width / 2);
       const y = Math.round(ty * 16 - camY + height / 2);
-      const state = piece.kind === "woodWall" ? undefined : piece;
+      const state = layer === "walls" ? undefined : data.pieces[key];
       if (drawProp?.(piece.kind, x, y, state)) {
         if (piece.kind === "battery" || piece.kind === "oxygenGenerator") {
           const level =

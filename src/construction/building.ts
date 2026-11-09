@@ -6,14 +6,35 @@ import type {
   Settlement,
 } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
-import { keyAt, pieceAt, footprint, overlapsActor } from "./pieces";
+import {
+  cabinetWidths,
+  isCabinet,
+  isOpening,
+  isWall,
+  keyAt,
+  pieceAt,
+  footprint,
+  overlapsActor,
+  type CabinetKind,
+} from "./pieces";
 export { keyAt } from "./pieces";
-import { add, consume, slots } from "../inventory/inventory";
+import { add, consume, inventoryEntries, slots } from "../inventory/inventory";
+import { addMeatBatches, splitMeat } from "../survival/perishables";
 export const buildItems: BuildItem[] = [
   "woodBlock",
   "woodWall",
+  "stoneWall",
+  "metalWall",
+  "fridge",
+  "picture",
+  "table",
+  "bed",
   "woodStairs",
+  "stickLadder",
+  "woodHatch",
   "cabinet",
+  "cabinetDouble",
+  "cabinetTriple",
   "woodDoor",
   "solarPanel",
   "campfire",
@@ -22,6 +43,9 @@ export const buildItems: BuildItem[] = [
 ];
 export const CABINET_SLOTS = 16,
   BUILD_RANGE = 96;
+export function cabinetCapacity(kind: CabinetKind) {
+  return CABINET_SLOTS * cabinetWidths[kind];
+}
 export function emptySettlement(): Settlement {
   return { pieces: {}, walls: {}, cabinets: {}, cutTrees: [] };
 }
@@ -75,21 +99,21 @@ export function placementError(
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
         : "Minere o terreno antes de construir aqui.";
     if (
-      kind === "woodWall"
+      isWall(kind)
         ? settlement.walls[keyAt(cell.x, cell.y)]
         : pieceAt(settlement, cell.x, cell.y)
     )
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (kind === "woodBlock" || kind === "woodDoor") &&
+    (kind === "woodBlock" || isOpening(kind)) &&
     overlapsActor(kind, x, y, ctx.player)
   )
     return "Não é possível fechar uma peça sobre o astronauta.";
   const padY = terrain.height(ctx.landingX) * 16;
   for (const cell of cells) {
     if (
-      kind !== "woodWall" &&
+      !isWall(kind) &&
       cell.x * 16 < ctx.landingX * 16 + 27 &&
       (cell.x + 1) * 16 > ctx.landingX * 16 - 27 &&
       cell.y * 16 < padY &&
@@ -97,7 +121,7 @@ export function placementError(
     )
       return "Mantenha a área de acesso da nave livre.";
     if (
-      ["woodBlock", "woodStairs", "woodDoor"].includes(kind) &&
+      (kind === "woodBlock" || kind === "woodStairs" || isOpening(kind)) &&
       cell.x * 16 < ctx.landingX * 16 + 48 &&
       (cell.x + 1) * 16 > ctx.landingX * 16 + 32 &&
       cell.y * 16 < padY &&
@@ -121,21 +145,30 @@ export function placementError(
     kind === "woodStairs" &&
     lowerStair?.kind === "woodStairs" &&
     lowerStair.facing === facing;
-  if (!supported && !stairSupport)
+  const ladderBacking = kind === "stickLadder" && settlement.walls[keyAt(x, y)];
+  const wallBacking = kind === "picture" && settlement.walls[keyAt(x, y)];
+  if (kind === "picture" && !wallBacking)
+    return "Instale o quadro sobre uma parede de fundo.";
+  if (!supported && !stairSupport && !ladderBacking && !wallBacking)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
-    [
-      "campfire",
-      "cabinet",
-      "woodDoor",
-      "solarPanel",
-      "battery",
-      "oxygenGenerator",
-    ].includes(kind) &&
-    !(
-      terrain.get(x, y + 1) ||
-      settlement.pieces[keyAt(x, y + 1)]?.kind === "woodBlock"
-    )
+    (isCabinet(kind) ||
+      [
+        "campfire",
+        "table",
+        "bed",
+        "woodDoor",
+        "solarPanel",
+        "battery",
+        "oxygenGenerator",
+      ].includes(kind)) &&
+    !cells
+      .filter((cell) => cell.y === y)
+      .every(
+        (cell) =>
+          terrain.get(cell.x, y + 1) ||
+          settlement.pieces[keyAt(cell.x, y + 1)]?.kind === "woodBlock",
+      )
   )
     return "Esta peça precisa de chão firme logo abaixo.";
   if ((ctx.inventory[kind] ?? 0) < 1)
@@ -153,16 +186,17 @@ export function placePiece(
   if (error) return error;
   if (!consume(ctx.inventory, { [kind]: 1 })) return "Peça indisponível.";
   const key = keyAt(x, y);
-  if (kind === "woodWall") ctx.settlement.walls[key] = true;
+  if (isWall(kind))
+    ctx.settlement.walls[key] = kind === "woodWall" ? true : kind;
   else {
     ctx.settlement.pieces[key] = {
       kind,
       facing,
-      ...(kind === "woodDoor" ? { open: false } : {}),
+      ...(isOpening(kind) ? { open: false } : {}),
       ...(kind === "battery" ? { energy: 0 } : {}),
       ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
     };
-    if (kind === "cabinet") ctx.settlement.cabinets[key] = {};
+    if (isCabinet(kind)) ctx.settlement.cabinets[key] = {};
   }
 }
 export function removePiece(
@@ -174,15 +208,18 @@ export function removePiece(
   if (!inReach(ctx.player, x, y)) return "Aproxime-se para desmontar.";
   const located = pieceAt(ctx.settlement, x, y),
     key = wallLayer ? keyAt(x, y) : (located?.key ?? keyAt(x, y));
+  const wall = ctx.settlement.walls[key];
   const kind = wallLayer
-    ? ctx.settlement.walls[key]
+    ? wall === true
       ? "woodWall"
-      : undefined
+      : wall
     : located?.piece.kind;
   if (!kind)
     return "Nenhuma peça nesta camada. Escolha Parede para desmontar o fundo.";
-  if (kind === "cabinet" && slots(ctx.settlement.cabinets[key] ?? {}) > 0)
+  if (isCabinet(kind) && slots(ctx.settlement.cabinets[key] ?? {}) > 0)
     return "Esvazie o armário antes de desmontá-lo.";
+  if (wallLayer && located?.piece.kind === "picture")
+    return "Retire o quadro antes de desmontar esta parede.";
   if (!add(ctx.inventory, kind, 1, ctx.capacity))
     return "Carga cheia: não há espaço para recuperar a peça.";
   if (wallLayer) delete ctx.settlement.walls[key];
@@ -198,6 +235,7 @@ export function transfer(
   id: Item,
   quantity: number,
   capacity: number,
+  cooling?: { time: number; deposit: boolean },
 ) {
   if (source === destination || !Number.isInteger(quantity) || quantity < 1)
     return false;
@@ -205,6 +243,19 @@ export function transfer(
     to = { ...destination };
   if (!consume(from, { [id]: quantity }) || !add(to, id, quantity, capacity))
     return false;
+  if (id === "rawMeat") {
+    const { taken } = splitMeat(source, quantity);
+    addMeatBatches(
+      to,
+      cooling
+        ? taken.map((batch) => ({
+            ...batch,
+            expires:
+              batch.expires + (cooling.deposit ? -cooling.time : cooling.time),
+          }))
+        : taken,
+    );
+  }
   for (const key of Object.keys(source)) delete source[key as Item];
   Object.assign(source, from);
   for (const key of Object.keys(destination)) delete destination[key as Item];
@@ -217,7 +268,7 @@ export function addBatch(
   capacity: number,
 ) {
   const draft = { ...inventory };
-  for (const [id, n] of Object.entries(resources))
+  for (const [id, n] of inventoryEntries(resources))
     if (!add(draft, id as Item, n!, capacity)) return false;
   for (const id of Object.keys(inventory)) delete inventory[id as Item];
   Object.assign(inventory, draft);

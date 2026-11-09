@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import { useBases } from "../stores/bases";
 import { items, biomes, type Item } from "../game/types";
-import { CABINET_SLOTS } from "../construction/building";
 import type { BaseSummary } from "../construction/catalog";
 const props = withDefaults(
   defineProps<{ focusPlanet?: string; canLocate?: boolean }>(),
@@ -38,7 +38,7 @@ const visible = computed(() => {
 });
 const units = (n: number) => `${n} ${n === 1 ? "unidade" : "unidades"}`;
 const entries = (inventory: BaseSummary["inventory"]) =>
-  Object.entries(inventory) as [Item, number][];
+  inventoryEntries(inventory);
 </script>
 <template>
   <div class="base-registry">
@@ -139,10 +139,13 @@ const entries = (inventory: BaseSummary["inventory"]) =>
           :key="cabinet.key"
           class="cabinet-location"
         >
-          <h4>Armário · bloco ({{ cabinet.x }}, {{ cabinet.y }})</h4>
+          <h4>
+            {{ items[cabinet.kind].name }} · bloco ({{ cabinet.x }},
+            {{ cabinet.y }})
+          </h4>
           <p>
             {{ units(cabinet.units) }} · {{ cabinet.usedSlots }} /
-            {{ CABINET_SLOTS }} slots
+            {{ cabinet.capacity }} slots
           </p>
           <p>
             Pouso mais próximo: <b>{{ cabinet.landing.name }}</b> ·

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -10,11 +11,26 @@ import { treeNames } from "../game/procedural/trees";
 const g = useGame(),
   b = useConstruction();
 const descriptions = {
+  stoneWall: "Parede de fundo feita de pedra minerada em planetas rochosos.",
+  metalWall: "Parede de fundo feita de placas metálicas.",
+  fridge:
+    "Guarda carne crua em 16 slots. Precisa de energia de placas solares ou baterias próximas para refrigerar.",
+  picture: "Decoração. Instale em uma parede de fundo.",
+  table: "Mesa decorativa. Instale sobre chão firme.",
+  bed: "Use E ou toque para dormir e avançar 8 horas locais.",
   woodBlock: "Piso, fundação, pilares e telhado. Bloco sólido.",
   woodWall: "Fundo da casa. Você pode andar à frente da parede.",
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
+  stickLadder:
+    "Empilhe na vertical. Use E ou toque para se apoiar. Suba e desça com W/S, setas ou o joystick.",
+  woodHatch:
+    "Instale no piso acima da escada. Use E ou toque para abrir e passar entre andares.",
   cabinet:
     "16 slots de armazenamento exclusivo deste planeta. E ou toque abre.",
+  cabinetDouble:
+    "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
+  cabinetTriple:
+    "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
   woodDoor:
     "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
   solarPanel:
@@ -30,8 +46,8 @@ const constructionRecipes = buildItems.map((id) =>
   recipes.find((r) => r.id === id)!,
 );
 function affordable(cost: Partial<Record<Item, number>>) {
-  return Object.entries(cost).every(
-    ([id, n]) => (g.state.inventory[id as Item] ?? 0) >= n!,
+  return inventoryEntries(cost).every(
+    ([id, n]) => (g.state.backpack[id as Item] ?? 0) >= n!,
   );
 }
 </script>
@@ -58,11 +74,11 @@ function affordable(cost: Partial<Record<Item, number>>) {
     <div class="build-materials">
       <span
         ><ItemIcon item="wood" /> MADEIRA
-        <b>{{ g.state.inventory.wood ?? 0 }}</b></span
+        <b>{{ g.state.backpack.wood ?? 0 }}</b></span
       >
       <span
         ><ItemIcon item="iron" /> FERRO
-        <b>{{ g.state.inventory.iron ?? 0 }}</b></span
+        <b>{{ g.state.backpack.iron ?? 0 }}</b></span
       >
     </div>
     <HabitatStatus always />
@@ -81,18 +97,18 @@ function affordable(cost: Partial<Record<Item, number>>) {
           <ItemIcon :item="r.id" />
           <div>
             <h3>{{ items[r.id].name }}</h3>
-            <small>{{ g.state.inventory[r.id] ?? 0 }} na carga</small>
+            <small>{{ g.state.backpack[r.id] ?? 0 }} na mochila</small>
           </div>
         </div>
         <p>{{ descriptions[r.id as keyof typeof descriptions] }}</p>
         <div class="ingredients">
           <span
-            v-for="(n, id) in r.cost"
+            v-for="[id, n] in inventoryEntries(r.cost)"
             :key="id"
-            :class="{ missing: (g.state.inventory[id] ?? 0) < n! }"
+            :class="{ missing: (g.state.backpack[id] ?? 0) < n! }"
           >
             <ItemIcon :item="id" />
-            {{ g.state.inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}
+            {{ g.state.backpack[id] ?? 0 }}/{{ n }} {{ items[id].name }}
           </span>
         </div>
         <div class="build-card-actions">

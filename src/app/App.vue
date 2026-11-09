@@ -21,6 +21,7 @@ import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
 import BaseRegistry from "../components/BaseRegistry.vue";
 import OrbitConsole from "../components/OrbitConsole.vue";
+import PlanetScanProgress from "../components/PlanetScanProgress.vue";
 import FlightRouteConsole from "../components/FlightRouteConsole.vue";
 import { useGame } from "../stores/game";
 import { releaseControls } from "../game/input";
@@ -80,7 +81,12 @@ const stationNpc = computed(() =>
 );
 const localTime = computed(() => planetClock(g.state.time));
 const nav = computed(() => [
-  { id: "inventory", icon: "▦", label: "Carga", key: "I" },
+  {
+    id: "inventory",
+    icon: "▦",
+    label: surface.value ? "Mochila" : "Carga",
+    key: "I",
+  },
   ...(surface.value
     ? [{ id: "build", icon: "⌂", label: "Construir", key: "B" }]
     : [
@@ -580,6 +586,15 @@ function minutes() {
               ><input v-model="g.autosaveEnabled" type="checkbox" /> Salvamento
               automático</label
             >
+            <label
+              ><input v-model="g.survivorEnabled" type="checkbox" /> Modo
+              sobrevivente</label
+            >
+            <p>
+              No modo sobrevivente, morrer na superfície esvazia a mochila. Se
+              uma nave fora da proteção de emergência for destruída, você perde
+              a nave, a carga e a mochila.
+            </p>
             <p v-if="!g.autosaveEnabled">
               Use Salvar partida no menu de pausa para gravar seu progresso.
             </p>
@@ -672,6 +687,14 @@ function minutes() {
             {{ Math.round(g.stationDistance) }} km
           </p>
         </section>
+        <section v-else-if="g.panel === 'sleep'" class="dialog">
+          <h2>Dormir na cama</h2>
+          <p>Avance 8 horas no relógio do planeta.</p>
+          <div class="station-actions">
+            <button class="primary" @click="b.sleep()">Dormir 8 horas</button>
+            <button class="secondary" @click="g.panel = ''">Cancelar</button>
+          </div>
+        </section>
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
@@ -723,6 +746,12 @@ function minutes() {
         </section>
       </div>
       <div
+        v-if="g.planetScan && !g.panel && !g.paused"
+        class="surface-sequence-caption"
+      >
+        <PlanetScanProgress />
+      </div>
+      <div
         v-if="g.inSequence && !g.paused"
         class="surface-sequence-caption"
         role="status"
@@ -765,8 +794,9 @@ function minutes() {
     </footer>
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
-        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
-        <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
+        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR <kbd>W</kbd
+        ><kbd>S</kbd> ESCALAR <kbd>CLIQUE</kbd> MINERAR
+        <kbd>B</kbd> CONSTRUIR</span
       ><span v-else-if="atStation || inShip"
         ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para
         caminhar</span

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PlanetScanProgress from "./PlanetScanProgress.vue";
 import { computed } from "vue";
 import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
@@ -114,9 +115,11 @@ const minerals = computed(() => {
           {{ Math.round(distance) }} km ·
           {{ distance <= range ? "No alcance" : "Fora do alcance" }}
         </p>
+        <PlanetScanProgress v-if="g.planetScan?.index === index" />
         <button
+          v-else
           class="primary"
-          :disabled="distance > range"
+          :disabled="distance > range || Boolean(g.planetScan)"
           @click="g.scanPlanet(index)"
         >
           Catalogar planeta

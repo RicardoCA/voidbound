@@ -89,25 +89,25 @@ describe("Portas funcionais", () => {
     const { g, terrain } = fixture(),
       data = emptySettlement();
     g.state.player.x = 40;
-    g.state.inventory = { woodDoor: 1 };
+    g.state.backpack = { woodDoor: 1 };
     const ctx = {
       terrain,
       settlement: data,
       player: g.state.player,
-      inventory: g.state.inventory,
+      inventory: g.state.backpack,
       capacity: 24,
       landingX: 0,
     };
     data.pieces["3,27"] = { kind: "woodBlock", facing: 1 };
     expect(placePiece(ctx, "woodDoor", 3, 28)).toBeTruthy();
-    expect(g.state.inventory.woodDoor).toBe(1);
+    expect(g.state.backpack.woodDoor).toBe(1);
     delete data.pieces["3,27"];
     expect(placePiece(ctx, "woodDoor", 3, 28)).toBeUndefined();
-    expect(g.state.inventory.woodDoor).toBeUndefined();
+    expect(g.state.backpack.woodDoor).toBeUndefined();
     expect(removePiece(ctx, 3, 27)).toBeUndefined();
-    expect(g.state.inventory.woodDoor).toBe(1);
+    expect(g.state.backpack.woodDoor).toBe(1);
     expect(removePiece(ctx, 3, 28)).toBeTruthy();
-    expect(g.state.inventory.woodDoor).toBe(1);
+    expect(g.state.backpack.woodDoor).toBe(1);
   });
 });
 describe("Vedação de casas", () => {
@@ -292,7 +292,7 @@ describe("Persistência das casas pressurizadas", () => {
   });
   it("as novas receitas consomem os materiais na oficina de campo", () => {
     const { g } = fixture();
-    g.state.inventory = {
+    g.state.backpack = {
       wood: 4,
       iron: 1,
       plate: 4,
@@ -304,7 +304,7 @@ describe("Persistência das casas pressurizadas", () => {
     g.make("woodDoor");
     g.make("solarPanel");
     g.make("oxygenGenerator");
-    expect(g.state.inventory).toEqual({
+    expect(g.state.backpack).toEqual({
       woodDoor: 1,
       solarPanel: 1,
       oxygenGenerator: 1,
@@ -336,7 +336,7 @@ describe("Conservação e alcance do suporte de vida", () => {
     g.state.time = 100;
     data.utilityTime = 0;
     g.state.player.x = 40;
-    g.state.inventory = { oxygenGenerator: 1 };
+    g.state.backpack = { oxygenGenerator: 1 };
     b.equip("oxygenGenerator");
     expect(b.apply(6, 28)).toBe(true);
     expect(data.pieces["6,28"]!.energy).toBe(0);
@@ -430,9 +430,9 @@ describe("Baterias solares persistentes", () => {
   it("fabrica, instala vazia e salva a carga exata por planeta", async () => {
     const { g, data } = fixture(),
       b = useConstruction();
-    g.state.inventory = { plate: 2, circuit: 1, cell: 2 };
+    g.state.backpack = { plate: 2, circuit: 1, cell: 2 };
     g.make("battery");
-    expect(g.state.inventory).toEqual({ battery: 1 });
+    expect(g.state.backpack).toEqual({ battery: 1 });
     g.state.player.x = 88;
     b.equip("battery");
     expect(b.apply(7, 28)).toBe(true);

@@ -130,8 +130,8 @@ function pause() {
       </template>
       <button
         v-if="!cabin && !piloting"
-        aria-label="Abrir carga"
-        title="Carga"
+        :aria-label="surface ? 'Abrir mochila' : 'Abrir carga'"
+        :title="surface ? 'Mochila' : 'Carga'"
         @click="open('inventory')"
       >
         ▦

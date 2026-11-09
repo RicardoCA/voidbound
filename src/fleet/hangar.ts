@@ -81,7 +81,11 @@ export function activateShip(state: Save, id: string) {
     inventory: state.inventory,
     upgrades: state.upgrades,
   };
-  state.activeShip = { id: next.id, model: next.model };
+  state.activeShip = {
+    id: next.id,
+    model: next.model,
+    ...(next.rescue && { rescue: true }),
+  };
   state.ship = { ...next.ship, x: state.ship.x, y: state.ship.y, vx: 0, vy: 0 };
   state.inventory = next.inventory;
   state.upgrades = next.upgrades;

@@ -69,7 +69,7 @@ export type SurfaceMaterial = (typeof surfaceMaterials)[number];
 
 const oreColors = [
   0, 0, 0xb8cbd4, 0xe89765, 0xc6b2ec, 0x718497, 0x75dce3, 0xb388ee, 0xa5edff,
-  0x9cca83, 0xc4ad78, 0xebca68,
+  0x9cca83, 0xc4ad78, 0xebca68, 0xb5a291,
 ];
 
 export function drawTerrainTile(
