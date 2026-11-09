@@ -53,6 +53,7 @@ import {
   drawTerrainTile,
   surfaceMaterials,
 } from "../rendering/surfaceMaterials";
+import { SurfaceArt } from "../rendering/surfaceArt";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
 import { solidCell, stairFloor, stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
@@ -93,6 +94,8 @@ export class WorldScene extends Phaser.Scene {
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private gfx!: Phaser.GameObjects.Graphics;
+  private surfaceBase!: Phaser.GameObjects.Graphics;
+  private surfaceArt = new SurfaceArt();
   private backdrop!: Phaser.GameObjects.Graphics;
   private spaceDust!: Phaser.GameObjects.TileSprite;
   private planetTextures = new PlanetTextures();
@@ -137,6 +140,7 @@ export class WorldScene extends Phaser.Scene {
     super("world");
   }
   preload() {
+    this.surfaceArt.preload(this);
     for (const hull of shipTextures)
       this.load.image("hull:" + hull, shipTextureUrl(hull));
   }
@@ -168,6 +172,7 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
     this.spaceDust = createSpaceBackdrop(this).setVisible(false);
     this.events.once("shutdown", () => this.planetTextures.clear(this));
@@ -313,6 +318,8 @@ export class WorldScene extends Phaser.Scene {
     this.usedShipSprites = 0;
     this.flightShipGfx.clear();
     this.atmosphereGfx.clear();
+    this.surfaceBase.clear();
+    this.surfaceArt.reset();
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
     this.planetTextures.hide();
@@ -1626,21 +1633,31 @@ export class WorldScene extends Phaser.Scene {
     const offsetX = this.centerX - this.camX;
     const offsetY = this.centerY - this.camY;
     const settlement = this.building.settlement;
-    drawSurfaceRidges(
-      f,
-      this.viewWidth,
-      this.viewHeight,
-      this.camX,
-      this.camY,
-      material,
-      light,
-    );
+    if (
+      !this.surfaceArt.drawHorizon(
+        this,
+        g.planet.kind,
+        this.viewWidth,
+        this.viewHeight,
+        this.camX,
+        light,
+      )
+    )
+      drawSurfaceRidges(
+        this.surfaceBase,
+        this.viewWidth,
+        this.viewHeight,
+        this.camX,
+        this.camY,
+        material,
+        light,
+      );
     // Render the projected faces behind the playable grid so blocks keep their hit areas.
     for (let x = endX - 1; x >= startX; x--)
       for (let y = startY; y < endY; y++) {
         if (t.get(x, y))
           drawTerrainDepth(
-            f,
+            this.surfaceBase,
             t,
             x,
             y,
@@ -1676,18 +1693,28 @@ export class WorldScene extends Phaser.Scene {
       endX,
       settlement.cutTrees,
     )) {
-      drawAlienTree(
-        f,
-        tree,
-        tree.x * 16 + 8 - this.camX + this.centerX,
-        tree.ground * 16 - this.camY + this.centerY,
-        this.elapsed,
-        this.treeHits.get(tree.id) ?? 0,
-      );
+      const x = tree.x * 16 + 8 + offsetX;
+      const y = tree.ground * 16 + offsetY;
+      const height = tree.height * 16;
+      const damage = this.treeHits.get(tree.id) ?? 0;
+      if (
+        !this.surfaceArt.sprite(
+          this,
+          "tree-" + tree.kind,
+          x + Math.sin(this.elapsed * 0.6 + tree.x),
+          y,
+          tree.crown * 35,
+          height + 12,
+          tree.variant === 1,
+          damage ? 0.85 : 1,
+          -0.6,
+        )
+      )
+        drawAlienTree(f, tree, x, y, this.elapsed, damage);
     }
     drawSettlement(
-      f,
-      this.building.settlement,
+      this.surfaceBase,
+      settlement,
       this.camX,
       this.camY,
       this.viewWidth,
@@ -1699,16 +1726,20 @@ export class WorldScene extends Phaser.Scene {
       for (let y = startY; y < endY; y++) {
         const tile = t.get(x, y);
         if (!tile) continue;
+        const sx = Math.floor(x * 16 + offsetX);
+        const sy = Math.floor(y * 16 + offsetY);
+        const textured = this.surfaceArt.tile(this, sx, sy, x, y);
         drawTerrainTile(
           f,
           material,
           g.planet.kind,
           x,
           y,
-          Math.floor(x * 16 + offsetX),
-          Math.floor(y * 16 + offsetY),
+          sx,
+          sy,
           tile,
           !t.get(x, y - 1),
+          textured,
         );
       }
     drawSettlement(
@@ -1720,25 +1751,49 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       "pieces",
       material,
+      (kind, x, y) => this.surfaceArt.prop(this, kind, x, y, 1),
     );
     const ruin = ruinAt(g.planet, t);
     if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
-    for (const fruit of this.fruit)
-      drawFruit(
-        f,
-        fruit,
-        Math.round(fruit.x - this.camX + this.centerX),
-        Math.round(fruit.y - this.camY + this.centerY),
-      );
+    for (const fruit of this.fruit) {
+      const x = Math.round(fruit.x + offsetX);
+      const y = Math.round(fruit.y + offsetY);
+      if (
+        !this.surfaceArt.sprite(
+          this,
+          "fruit-" + g.planet.kind,
+          x,
+          y + 8,
+          24,
+          20,
+        )
+      )
+        drawFruit(f, fruit, x, y);
+    }
     for (const animal of this.wildlife.animals.values()) {
       contactShadow(animal.x, animal.y + 12, animal.hostile ? 23 : 17);
-      drawAnimal(
-        f,
-        animal,
-        Math.round(animal.x + offsetX),
-        Math.round(animal.y + offsetY),
-        this.elapsed,
+      const x = Math.round(animal.x + offsetX);
+      const y = Math.round(animal.y + offsetY);
+      const stride = Math.sin(this.elapsed * 10 + animal.home);
+      const textured = this.surfaceArt.sprite(
+        this,
+        (animal.hostile ? "hostile-" : "peaceful-") + animal.kind,
+        x,
+        y + 12 - (animal.grounded ? Math.abs(stride) * 1.5 : 0),
+        animal.hostile ? 37 : 30,
+        animal.hostile ? 32 : 29,
+        animal.facing < 0,
       );
+      if (!textured) drawAnimal(f, animal, x, y, this.elapsed);
+      else if (animal.health < animal.maxHealth) {
+        f.fillStyle(0x233442).fillRect(x - 10, y - 21, 20, 2);
+        f.fillStyle(0xf19b82).fillRect(
+          x - 10,
+          y - 21,
+          (20 * animal.health) / animal.maxHealth,
+          2,
+        );
+      }
     }
     const landingX = sequence?.landingX ?? g.state.landingX;
     const shipX = landingX * 16 - this.camX + this.centerX;
@@ -1871,7 +1926,10 @@ export class WorldScene extends Phaser.Scene {
       };
       const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),
         sy = Math.round(cursor.y * 16 - this.camY + this.centerY);
-      if (!this.building.removing)
+      if (
+        !this.building.removing &&
+        !this.surfaceArt.prop(this, this.building.selected, sx, sy, 0.45)
+      )
         drawPiece(
           f,
           this.building.selected,

@@ -140,9 +140,13 @@ export function drawPiece(
     g.fillRect(x, y, 16, 16);
     g.fillStyle(material.trim, alpha * 0.25);
     g.fillRect(x + 1, y + 2, 5, 1);
+    g.fillRect(x + 9, y + 5, 6, 1);
+    g.fillRect(x + 1, y + 11, 4, 1);
     g.fillRect(x + 9, y + 10, 5, 1);
     g.fillStyle(material.shade, alpha * 0.65);
     g.fillRect(x + 7, y, 1, 16);
+    g.fillRect(x, y + 7, 16, 1);
+    g.fillRect(x + 12, y + 8, 1, 6);
     g.fillRect(x, y + 14, 16, 2);
     return;
   }
@@ -154,6 +158,13 @@ export function drawPiece(
     g.fillRect(x, y + 14, 16, 2);
     g.fillRect(x + 3, y + 6, 9, 1);
     g.fillRect(x + 9, y + 10, 5, 1);
+    g.fillStyle(material.trim, alpha * 0.48)
+      .fillRect(x + 1, y + 4, 6, 1)
+      .fillRect(x + 6, y + 7, 7, 1)
+      .fillRect(x + 2, y + 11, 8, 1);
+    g.fillStyle(material.shade, alpha * 0.7)
+      .fillRect(x + 2, y + 3, 1, 1)
+      .fillRect(x + 13, y + 12, 1, 1);
     return;
   }
   if (kind === "woodStairs") {
@@ -267,6 +278,7 @@ export function drawSettlement(
   height: number,
   layer: "walls" | "pieces",
   material: SurfaceMaterial,
+  drawProp?: (kind: BuildItem, x: number, y: number) => boolean,
 ) {
   const minX = Math.floor((camX - width / 2) / 16) - 1,
     maxX = Math.ceil((camX + width / 2) / 16) + 1;
@@ -281,16 +293,37 @@ export function drawSettlement(
             ? { kind: "woodWall" as const, facing: 1 as const }
             : undefined
           : data.pieces[key];
-      if (piece)
-        drawPiece(
-          g,
-          piece.kind,
-          Math.round(tx * 16 - camX + width / 2),
-          Math.round(ty * 16 - camY + height / 2),
-          material,
-          piece.facing,
-          1,
-          piece.kind === "woodWall" ? undefined : piece,
-        );
+      if (!piece) continue;
+      const x = Math.round(tx * 16 - camX + width / 2);
+      const y = Math.round(ty * 16 - camY + height / 2);
+      if (
+        !(piece.kind === "woodDoor" && piece.open) &&
+        drawProp?.(piece.kind, x, y)
+      ) {
+        if (piece.kind === "battery" || piece.kind === "oxygenGenerator") {
+          const level =
+            piece.kind === "battery"
+              ? (piece.energy ?? 0) / BATTERY_CAP
+              : (piece.oxygen ?? 0) / 100;
+          g.fillStyle(0x132635).fillRect(x + 3, y + 13, 10, 2);
+          g.fillStyle(0x88ecd6).fillRect(
+            x + 3,
+            y + 13,
+            Math.round(10 * Math.max(0, Math.min(1, level))),
+            1,
+          );
+        }
+        continue;
+      }
+      drawPiece(
+        g,
+        piece.kind,
+        x,
+        y,
+        material,
+        piece.facing,
+        1,
+        piece.kind === "woodWall" ? undefined : piece,
+      );
     }
 }

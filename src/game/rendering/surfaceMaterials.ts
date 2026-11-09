@@ -82,53 +82,61 @@ export function drawTerrainTile(
   y: number,
   tile: number,
   exposed: boolean,
+  textured: boolean,
 ) {
   const seed = (Math.imul(column, 374761393) ^ Math.imul(row, 668265263)) >>> 0;
   const a = 2 + (seed & 3);
   const b = 8 + ((seed >>> 7) & 3);
-  g.fillStyle(material.rock).fillRect(x, y, 16, 16);
-  g.fillStyle(material.shade, 0.48).fillRect(x, y + b + 2, 16, 14 - b);
-  g.fillStyle(material.vein, 0.55);
-  switch (biome) {
-    case 0:
-      g.fillRect(x + a, y + 3, 7, 2).fillRect(x + a - 1, y + 5, 4, 3);
-      break;
-    case 1:
-      g.fillRect(x, y + a, b, 1).fillRect(x + b - 1, y + a + 1, 17 - b, 1);
-      break;
-    case 2:
-      g.fillTriangle(x + a, y + 2, x + b + 2, y + 7, x + b, y + 13);
-      break;
-    case 3:
-      g.fillRect(x + a, y + 2, 2, 6).fillRect(x + a + 2, y + 7, 4, 1);
-      break;
-    case 4:
-      g.fillRect(x + a, y + 3, 5, 1)
-        .fillRect(x + a + 4, y + 4, 2, 4)
-        .fillRect(x + a + 6, y + 8, 5, 1);
-      break;
-    default:
-      g.fillRect(x + a, y + 3, 3, 2).fillRect(x + b, y + 6, 4, 2);
+  if (!textured) {
+    g.fillStyle(material.rock).fillRect(x, y, 16, 16);
+    g.fillStyle(material.shade, 0.48).fillRect(x, y + b + 2, 16, 14 - b);
+    g.fillStyle(material.vein, 0.55);
+    switch (biome) {
+      case 0:
+        g.fillRect(x + a, y + 3, 7, 2).fillRect(x + a - 1, y + 5, 4, 3);
+        break;
+      case 1:
+        g.fillRect(x, y + a, b, 1).fillRect(x + b - 1, y + a + 1, 17 - b, 1);
+        break;
+      case 2:
+        g.fillTriangle(x + a, y + 2, x + b + 2, y + 7, x + b, y + 13);
+        break;
+      case 3:
+        g.fillRect(x + a, y + 2, 2, 6).fillRect(x + a + 2, y + 7, 4, 1);
+        break;
+      case 4:
+        g.fillRect(x + a, y + 3, 5, 1)
+          .fillRect(x + a + 4, y + 4, 2, 4)
+          .fillRect(x + a + 6, y + 8, 5, 1);
+        break;
+      default:
+        g.fillRect(x + a, y + 3, 3, 2).fillRect(x + b, y + 6, 4, 2);
+    }
+    g.fillStyle(material.vein, 0.35)
+      .fillRect(x + b, y + 12, 2, 1)
+      .fillRect(x + 1, y + 9, 2, 1);
   }
-  g.fillStyle(material.vein, 0.35)
-    .fillRect(x + b, y + 12, 2, 1)
-    .fillRect(x + 1, y + 9, 2, 1);
   if (exposed) {
-    g.fillStyle(material.cap)
+    g.fillStyle(material.cap, textured ? 0.82 : 1)
       .fillRect(x, y, 16, 2)
       .fillRect(x + a, y + 2, b - a, 1);
   }
   const ore = oreColors[tile];
   if (!ore) return;
-  g.fillStyle(material.shade)
-    .fillRect(x + a - 1, y + 5, 6, 5)
-    .fillRect(x + b, y + 10, 5, 4);
+  g.fillStyle(material.shade, 0.86)
+    .fillRect(x + a - 1, y + 6, 6, 3)
+    .fillRect(x + a, y + 5, 4, 5)
+    .fillRect(x + b, y + 11, 5, 2)
+    .fillRect(x + b + 1, y + 10, 3, 4);
   g.fillStyle(ore);
   if (tile === 7 || tile === 8 || tile === 6) {
     g.fillTriangle(x + a, y + 9, x + a + 2, y + 3, x + a + 5, y + 8);
     g.fillTriangle(x + b, y + 13, x + b + 2, y + 8, x + b + 4, y + 12);
   } else {
-    g.fillRect(x + a, y + 6, 4, 3).fillRect(x + b + 1, y + 10, 3, 3);
+    g.fillRect(x + a, y + 7, 4, 2)
+      .fillRect(x + a + 1, y + 6, 2, 3)
+      .fillRect(x + b + 1, y + 11, 3, 2);
+    g.fillStyle(ore, 0.6).fillRect(x + a + 5, y + 8, 1, 1);
   }
   g.fillStyle(0xfff5df, 0.55)
     .fillRect(x + a + 1, y + 6, 2, 1)
