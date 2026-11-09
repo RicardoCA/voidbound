@@ -1427,19 +1427,26 @@ export class WorldScene extends Phaser.Scene {
         if (npc.hull <= 0) continue;
         const x = npc.x - this.camX + this.centerX;
         const y = npc.y - this.camY + this.centerY;
+        const { width, height } = this.shipVisualSize(npc.model);
+        const margin = Math.hypot(width, height) / 2 + 12;
         if (
-          x < -35 ||
-          x > this.viewWidth + 35 ||
-          y < -35 ||
-          y > this.viewHeight + 35
+          x < -margin ||
+          x > this.viewWidth + margin ||
+          y < -margin ||
+          y > this.viewHeight + margin
         )
           continue;
         this.drawShip(x, y, npc.angle, npc.engaged, npc.model);
+        const top =
+          y -
+          (Math.abs(Math.sin(npc.angle)) * width +
+            Math.abs(Math.cos(npc.angle)) * height) /
+            2;
         f.fillStyle(npc.engaged || npc.role === "pirate" ? 0xff8c78 : 0xe5bb77);
-        f.fillRect(x - 11, y - 20, (22 * npc.hull) / npc.maxHull, 2);
+        f.fillRect(x - 11, top - 6, (22 * npc.hull) / npc.maxHull, 2);
         if (npc.shield > 0) {
           f.fillStyle(0x8ad7ff);
-          f.fillRect(x - 11, y - 24, npc.shield * 0.7, 2);
+          f.fillRect(x - 11, top - 10, npc.shield * 0.7, 2);
         }
       }
       for (const wreck of this.nearbyWrecks()) {
@@ -1572,6 +1579,24 @@ export class WorldScene extends Phaser.Scene {
       .setVisible(true);
   }
 
+  private shipVisualSize(
+    model: ShipModelId,
+    onSurface = false,
+    pirate = false,
+  ) {
+    const family = shipModels[model].hullFamily;
+    const wide =
+      !pirate &&
+      (family === "atlas" || family === "mammoth" || family === "bastion");
+    const widths = onSurface
+      ? { light: 92, wide: 110 }
+      : { light: 42, wide: 52 };
+    const width = wide ? widths.wide : widths.light;
+    const frame = this.textures.getFrame("hull:" + (pirate ? "raider" : model));
+    const height = frame ? (frame.height / frame.width) * width : width * 0.6;
+    return { width, height };
+  }
+
   private drawShip(
     x: number,
     y: number,
@@ -1585,29 +1610,27 @@ export class WorldScene extends Phaser.Scene {
   ) {
     const cosine = Math.cos(angle),
       sine = Math.sin(angle);
-    const point = (px: number, py: number) => ({
-      x: Math.round(x + scale * (px * cosine - py * sine)),
-      y: Math.round(y + scale * (px * sine + py * cosine)),
+    const point = (px: number, py: number, factor = scale) => ({
+      x: Math.round(x + factor * (px * cosine - py * sine)),
+      y: Math.round(y + factor * (px * sine + py * cosine)),
     });
     const family = pirate ? "raider" : shipModels[model].hullFamily;
     const texture = "hull:" + (pirate ? "raider" : model);
+    const onSurface =
+      f !== this.flightShipGfx && this.store.state.mode !== "space";
+    const { width, height } = this.shipVisualSize(model, onSurface, pirate);
     if (this.textures.exists(texture)) {
       const i = this.usedShipSprites++;
       const sprite = (this.shipSprites[i] ??= this.add.image(0, 0, texture));
       sprite.setTexture(texture);
-      const width =
-        (family === "atlas" || family === "mammoth" || family === "bastion"
-          ? 64
-          : 54) * scale;
-      const height = (sprite.frame.height / sprite.frame.width) * width;
       sprite
         .setPosition(Math.round(x), Math.round(y))
         .setRotation(angle)
-        .setDisplaySize(width, height)
-        .setDepth(f === this.flightShipGfx ? 2.1 : 0.5)
+        .setDisplaySize(width * scale, height * scale)
+        .setDepth(f === this.flightShipGfx ? 2.1 : onSurface ? -0.03 : 0.5)
         .setVisible(true);
       if (thrust) {
-        const tail = -(width / scale) * 0.47;
+        const tail = -width * 0.47;
         const amber = family === "atlas" || family === "bastion";
         const cinematic = this.store.inSequence;
         const length = (cinematic ? 23 : 11) + Math.sin(this.elapsed * 55) * 4;
@@ -1644,6 +1667,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const { hull, details } = shipArt(model);
+    const fallbackScale = (scale * width) / 44;
     const drawPlates = (plates: typeof hull, offset: number) => {
       for (const plate of plates) {
         const left = plate.x - 22,
@@ -1651,10 +1675,10 @@ export class WorldScene extends Phaser.Scene {
         const top = plate.y * (5 / 6) - 14,
           bottom = top + plate.h * (5 / 6);
         const points = [
-          point(left, top),
-          point(right, top),
-          point(right, bottom),
-          point(left, bottom),
+          point(left, top, fallbackScale),
+          point(right, top, fallbackScale),
+          point(right, bottom, fallbackScale),
+          point(left, bottom, fallbackScale),
         ];
         if (offset)
           for (const vertex of points) {
@@ -1673,7 +1697,11 @@ export class WorldScene extends Phaser.Scene {
     if (thrust) {
       f.fillStyle(0x7de3ee, 0.8);
       f.fillPoints(
-        [point(-22, -3), point(-34 - Math.random() * 10, 0), point(-22, 3)],
+        [
+          point(-22, -3, fallbackScale),
+          point(-34 - Math.random() * 10, 0, fallbackScale),
+          point(-22, 3, fallbackScale),
+        ],
         true,
       );
     }
@@ -1924,7 +1952,13 @@ export class WorldScene extends Phaser.Scene {
     }
     const landingX = sequence?.landingX ?? g.state.landingX;
     const shipX = landingX * 16 - this.camX + this.centerX;
-    const shipY = t.height(landingX) * 16 - 12 - this.camY + this.centerY;
+    const groundY = t.height(landingX) * 16 + offsetY;
+    const { width: shipWidth, height: shipHeight } = this.shipVisualSize(
+      g.state.activeShip.model,
+      true,
+    );
+    const gearOffset = shipHeight / 2 - 7;
+    const shipY = groundY - (shipHeight / 2 + 5);
     if (sequence?.kind === "takeoff") {
       const elapsed = sequence.elapsed;
       const lift = this.takeoffLift(elapsed);
@@ -1933,21 +1967,21 @@ export class WorldScene extends Phaser.Scene {
       const scale = 1 - 0.36 * lift;
       f.fillStyle(0x101a29, 0.38 * (1 - lift)).fillEllipse(
         shipX,
-        shipY + 11,
-        36 + 24 * lift,
+        groundY - 1,
+        shipWidth * 0.64 + 24 * lift,
         4,
       );
       drawGroundWake(
         f,
         shipX,
-        shipY + 12,
+        groundY,
         Math.min(1, elapsed / 1.65),
         biome.ground,
       );
       drawLandingGear(
         f,
         x,
-        y,
+        y + gearOffset * scale,
         scale,
         Phaser.Math.Clamp((0.9 - elapsed) / 0.42, 0, 1),
       );
@@ -1974,14 +2008,14 @@ export class WorldScene extends Phaser.Scene {
       );
       f.fillEllipse(
         shipX - 47 * altitude,
-        shipY + 11,
-        38 + altitude * 24,
+        groundY - 1,
+        shipWidth * 0.64 + altitude * 24,
         5 + altitude * 6,
       );
       drawLandingGear(
         f,
         x,
-        y,
+        y + gearOffset * scale,
         scale,
         Phaser.Math.Clamp((descent - 0.58) / 0.24, 0, 1),
       );
@@ -1998,13 +2032,13 @@ export class WorldScene extends Phaser.Scene {
       drawGroundWake(
         f,
         shipX,
-        shipY + 12,
+        groundY,
         Math.max(0, (descent - 0.77) / 0.23),
         biome.ground,
       );
     } else {
-      contactShadow(landingX * 16, shipY - offsetY + 12, 36);
-      drawLandingGear(f, shipX, shipY, 1, 1);
+      contactShadow(landingX * 16, groundY - offsetY, shipWidth * 0.64);
+      drawLandingGear(f, shipX, shipY + gearOffset, 1, 1);
       this.drawShip(shipX, shipY, 0, false, undefined, f, 1, 3);
       if (sequence?.kind === "disembark") {
         const progress = Math.min(
@@ -2017,13 +2051,13 @@ export class WorldScene extends Phaser.Scene {
         const ramp = Math.min(1, progress / 0.18);
         f.fillStyle(0x71e3c7, ramp * 0.26).fillTriangle(
           shipX + 11,
-          shipY,
+          groundY - 12,
           shipX + 21,
-          shipY + 13,
+          groundY + 1,
           shipX + 37,
-          shipY + 13,
+          groundY + 1,
         );
-        drawBoardingRamp(f, shipX + 11, shipY + 4, ramp);
+        drawBoardingRamp(f, shipX + 11, groundY - 8, ramp);
         if (progress >= 0.18)
           this.drawAstronaut(
             Math.round(worldX - this.camX + this.centerX),

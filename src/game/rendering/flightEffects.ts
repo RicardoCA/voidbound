@@ -15,13 +15,13 @@ export function drawLandingGear(
     const leg = x + offset * scale;
     g.lineStyle(3 * scale, 0x172639).lineBetween(
       leg,
-      y + 5 * scale,
+      y - 5 * scale,
       leg + 2 * scale,
       foot,
     );
     g.lineStyle(scale, 0x9cb2bf).lineBetween(
       leg,
-      y + 5 * scale,
+      y - 5 * scale,
       leg + 2 * scale,
       foot,
     );
