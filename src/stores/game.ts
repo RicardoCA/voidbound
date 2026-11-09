@@ -3,6 +3,12 @@ import {
   blackHoleDestination,
   blackHolePull,
 } from "../universe/blackHoles";
+import {
+  cycleWeapon,
+  isWeaponModule,
+  selectedWeapon,
+  shipWeapons,
+} from "../combat/weapons";
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
@@ -621,6 +627,23 @@ export const useGame = defineStore("game", () => {
     void save();
     return true;
   }
+  const activeWeapon = computed(() => shipWeapons[selectedWeapon(state.value)]);
+  const canSwitchWeapon = computed(() =>
+    state.value.upgrades.some(isWeaponModule),
+  );
+  function switchWeapon() {
+    if (
+      state.value.mode !== "space" ||
+      flightCabin.value ||
+      panel.value ||
+      paused.value ||
+      busy.value ||
+      inSequence.value ||
+      !cycleWeapon(state.value)
+    )
+      return;
+    void save();
+  }
   function use(id: Item, fromBackpack = onSurface.value) {
     const s = state.value,
       upgrades: Item[] = [
@@ -632,7 +655,7 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (isHeatDeflector(id)) upgrades.push(id);
+    if (isHeatDeflector(id) || isWeaponModule(id)) upgrades.push(id);
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
     if (id === "rawMeat") refreshFood();
@@ -1324,6 +1347,9 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     flightContact,
+    activeWeapon,
+    canSwitchWeapon,
+    switchWeapon,
     flightTarget,
     interactFlightTarget,
     stationContact,

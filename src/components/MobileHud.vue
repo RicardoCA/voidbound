@@ -127,6 +127,15 @@ function pause() {
         <button class="flight-action" @click="open('route')">
           Traçar rota
         </button>
+        <button
+          class="flight-action"
+          :disabled="!g.canSwitchWeapon"
+          :aria-label="'Trocar arma. Arma ativa: ' + g.activeWeapon.name"
+          @click="g.switchWeapon"
+        >
+          {{ g.activeWeapon.label }}
+          <span v-if="g.canSwitchWeapon" aria-hidden="true">↻</span>
+        </button>
       </template>
       <button
         v-if="!cabin && !piloting"

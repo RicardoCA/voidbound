@@ -555,6 +555,15 @@ function minutes() {
           <nav v-if="piloting" aria-label="Controles da cabine">
             <button @click="g.standInFlight">Levantar</button>
             <button @click="open('route')">Traçar rota</button>
+            <button
+              :disabled="!g.canSwitchWeapon"
+              :aria-label="'Trocar arma. Arma ativa: ' + g.activeWeapon.name"
+              :title="g.activeWeapon.name"
+              @click="g.switchWeapon"
+            >
+              <span>{{ g.activeWeapon.label }}</span
+              ><kbd v-if="g.canSwitchWeapon">Q</kbd>
+            </button>
           </nav>
           <nav v-else>
             <button

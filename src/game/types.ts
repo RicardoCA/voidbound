@@ -1,3 +1,8 @@
+import {
+  weaponModules,
+  type ShipWeapon,
+  type WeaponModule,
+} from "../combat/weapons";
 import type { BlackHole } from "../universe/blackHoles";
 import {
   deflectorFor,
@@ -10,6 +15,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | WeaponModule
   | HeatDeflector
   | "stone"
   | "stick"
@@ -135,6 +141,7 @@ export interface Settlement {
 }
 export type ShipModelId = keyof typeof import("../fleet/models").shipModels;
 export interface ShipState {
+  weapon?: ShipWeapon;
   x: number;
   y: number;
   angle: number;
@@ -208,10 +215,26 @@ export interface Save {
   time: number;
   landingX: number;
 }
-export const items: Record<
-  Item,
-  { name: string; color: string; icon: string; rarity: string; stack: number }
-> = {
+type ItemDetails = {
+  name: string;
+  color: string;
+  icon: string;
+  rarity: string;
+  stack: number;
+};
+export const items: Record<Item, ItemDetails> = {
+  ...(Object.fromEntries(
+    Object.entries(weaponModules).map(([id, weapon]) => [
+      id,
+      {
+        name: weapon.name,
+        color: weapon.color,
+        icon: "⌖",
+        rarity: "Armamento",
+        stack: 1,
+      },
+    ]),
+  ) as Record<WeaponModule, ItemDetails>),
   ...(Object.fromEntries(
     starKinds.map((kind) => [
       deflectorFor(kind),
@@ -223,10 +246,7 @@ export const items: Record<
         stack: 1,
       },
     ]),
-  ) as Record<
-    HeatDeflector,
-    { name: string; color: string; icon: string; rarity: string; stack: number }
-  >),
+  ) as Record<HeatDeflector, ItemDetails>),
   basaltBerry: {
     name: "Baga de basalto",
     color: "#cf93e7",
