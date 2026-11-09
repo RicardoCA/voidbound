@@ -56,7 +56,7 @@ import {
 import { SurfaceArt } from "../rendering/surfaceArt";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
 import { solidCell, stairFloor, stepSurface } from "../physics/surface";
-import { footprint } from "../../construction/pieces";
+import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
@@ -1958,11 +1958,13 @@ export class WorldScene extends Phaser.Scene {
       const valid =
         this.building.removing || !this.building.errorAt(cursor.x, cursor.y);
       f.lineStyle(1, valid ? 0x9cf0cf : 0xf09d86, 0.9);
+      const kind = this.building.selected;
+      const door = kind === "woodDoor";
       f.strokeRect(
         sx,
-        sy - (this.building.selected === "woodDoor" ? 16 : 0),
-        16,
-        footprint(this.building.selected, cursor.x, cursor.y).length * 16,
+        sy - (door ? 16 : 0),
+        16 * (isCabinet(kind) ? cabinetWidths[kind] : 1),
+        door ? 32 : 16,
       );
     }
   }

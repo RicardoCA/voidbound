@@ -19,16 +19,21 @@ import {
   placementError,
   placePiece,
   removePiece,
-  keyAt,
   inReach,
   transfer,
   addBatch,
-  CABINET_SLOTS,
+  cabinetCapacity,
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
 import { BATTERY_CAP } from "../construction/habitat";
-import { pieceAt, footprint, overlapsActor } from "../construction/pieces";
+import {
+  pieceAt,
+  footprint,
+  overlapsActor,
+  isCabinet,
+  cabinetWidths,
+} from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
     enabled = ref(false),
@@ -46,6 +51,21 @@ export const useConstruction = defineStore("construction", () => {
   const terrain = computed(
     () => new Terrain(g.planet, g.state.changes[g.planet.id] ?? {}),
   );
+  const containerKind = computed(() => {
+    const cabinet = activeCabinet.value;
+    if (cabinet?.planetId !== g.planet.id) return undefined;
+    const kind = settlement.value.pieces[cabinet.key]?.kind;
+    return isCabinet(kind) ? kind : undefined;
+  });
+  const containerCapacity = computed(() =>
+    containerKind.value ? cabinetCapacity(containerKind.value) : 0,
+  );
+  function cabinetInReach(key: string) {
+    const kind = settlement.value.pieces[key]?.kind;
+    if (!isCabinet(kind)) return false;
+    const [x, y] = key.split(",").map(Number);
+    return inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
+  }
   const container = computed(() =>
     activeCabinet.value?.planetId === g.planet.id
       ? settlement.value.cabinets[activeCabinet.value.key]
@@ -96,16 +116,17 @@ export const useConstruction = defineStore("construction", () => {
     const ctx = context(),
       error = placementError(ctx, selected.value, x, y, facing.value);
     if (error) return error;
+    const cells = footprint(selected.value, x, y);
     if (
       selected.value !== "woodWall" &&
       treesInRange(
         g.planet,
         terrain.value,
         x - 1,
-        x + 1,
+        Math.max(...cells.map((cell) => cell.x)) + 1,
         settlement.value.cutTrees,
       ).some((tree) =>
-        footprint(selected.value, x, y).some((cell) =>
+        cells.some((cell) =>
           treeContains(tree, cell.x * 16 + 8, cell.y * 16 + 8),
         ),
       )
@@ -172,11 +193,10 @@ export const useConstruction = defineStore("construction", () => {
   function openCabinet(key: string) {
     if (
       g.state.mode !== "surface" ||
-      settlement.value.pieces[key]?.kind !== "cabinet"
+      !isCabinet(settlement.value.pieces[key]?.kind)
     )
       return false;
-    const [x, y] = key.split(",").map(Number);
-    if (!inReach(g.state.player, x!, y!, 76)) {
+    if (!cabinetInReach(key)) {
       g.notify("Aproxime-se do armário para abri-lo.");
       return false;
     }
@@ -227,7 +247,7 @@ export const useConstruction = defineStore("construction", () => {
       toggleDoor(found.key);
       return true;
     }
-    if (found.piece.kind === "cabinet") {
+    if (isCabinet(found.piece.kind)) {
       openCabinet(found.key);
       return true;
     }
@@ -319,18 +339,17 @@ export const useConstruction = defineStore("construction", () => {
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
       if (
-        ![
-          "cabinet",
-          "woodDoor",
-          "campfire",
-          "battery",
-          "oxygenGenerator",
-        ].includes(piece.kind)
+        !isCabinet(piece.kind) &&
+        !["woodDoor", "campfire", "battery", "oxygenGenerator"].includes(
+          piece.kind,
+        )
       )
         continue;
       const [x, y] = id.split(",").map(Number),
         d = Math.hypot(
-          x! * 16 + 8 - g.state.player.x,
+          x! * 16 +
+            (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
+            g.state.player.x,
           y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
       if (d < distance) {
@@ -348,8 +367,7 @@ export const useConstruction = defineStore("construction", () => {
     const cabinet = activeCabinet.value;
     if (!cabinet || cabinet.planetId !== g.planet.id || !container.value)
       return false;
-    const [x, y] = cabinet.key.split(",").map(Number);
-    if (g.state.mode !== "surface" || !inReach(g.state.player, x!, y!, 76))
+    if (g.state.mode !== "surface" || !cabinetInReach(cabinet.key))
       return false;
     const source: Inventory =
         direction === "deposit" ? g.state.backpack : container.value,
@@ -361,7 +379,7 @@ export const useConstruction = defineStore("construction", () => {
         destination,
         id,
         quantity,
-        direction === "deposit" ? CABINET_SLOTS : BACKPACK_SLOTS,
+        direction === "deposit" ? containerCapacity.value : BACKPACK_SLOTS,
       )
     ) {
       g.notify(
@@ -378,7 +396,7 @@ export const useConstruction = defineStore("construction", () => {
     cursor.value = { x, y };
   }
   function cabinetAt(x: number, y: number) {
-    return settlement.value.pieces[keyAt(x, y)]?.kind === "cabinet";
+    return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);
   }
   watch(
     () => [g.state, g.state.mode, g.planet.id],
@@ -401,6 +419,8 @@ export const useConstruction = defineStore("construction", () => {
     settlement,
     terrain,
     container,
+    containerKind,
+    containerCapacity,
     activeCabinet,
     selectedCount,
     openPalette,

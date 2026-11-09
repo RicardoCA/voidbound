@@ -1,3 +1,4 @@
+import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
@@ -259,6 +260,11 @@ export function drawPiece(
     g.fillRect(x + 4, y + 13, Math.round((8 * (state?.oxygen ?? 0)) / 100), 1);
     return;
   }
+  if (isCabinet(kind) && kind !== "cabinet") {
+    for (let i = 0; i < cabinetWidths[kind]; i++)
+      drawPiece(g, "cabinet", x + i * 16, y, material, facing, alpha);
+    return;
+  }
   g.fillRect(x + 1, y + 1, 14, 15);
   g.fillStyle(material.shade, alpha);
   g.fillRect(x + 3, y + 3, 10, 11);
@@ -285,7 +291,8 @@ export function drawSettlement(
     state?: PlacedPiece,
   ) => boolean,
 ) {
-  const minX = Math.floor((camX - width / 2) / 16) - 1,
+  const minX =
+      Math.floor((camX - width / 2) / 16) - cabinetWidths.cabinetTriple,
     maxX = Math.ceil((camX + width / 2) / 16) + 1;
   const minY = Math.max(0, Math.floor((camY - height / 2) / 16) - 1),
     maxY = Math.min(63, Math.ceil((camY + height / 2) / 16) + 1);

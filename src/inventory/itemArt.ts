@@ -253,6 +253,21 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M11 8h2v11h-2zM8 12h2v2H8zM14 12h2v2h-2z",
     accent: "#c7b27e",
   },
+  cabinetDouble: {
+    body: "M2 7h20v12H2z",
+    shade: "M3 10h18v8H3z",
+    light: "M3 7h18v2H3z",
+    detail: "M11 10h2v8h-2zM7 13h2v2H7zM15 13h2v2h-2z",
+    accent: "#c7b27e",
+  },
+  cabinetTriple: {
+    body: "M1 8h22v11H1z",
+    shade: "M2 11h20v7H2z",
+    light: "M2 8h20v2H2z",
+    detail:
+      "M8 11h1v7H8zM15 11h1v7h-1zM5 13h2v2H5zM12 13h2v2h-2zM19 13h2v2h-2z",
+    accent: "#c7b27e",
+  },
   woodDoor: {
     body: "M5 3h14v18H5z",
     shade: "M7 6h10v13H7z",

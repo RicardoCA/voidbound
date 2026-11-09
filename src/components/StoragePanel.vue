@@ -6,7 +6,6 @@ import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { items, type Item, type Inventory } from "../game/types";
 import { slots } from "../inventory/inventory";
-import { CABINET_SLOTS } from "../construction/building";
 const g = useGame(),
   b = useConstruction(),
   amount = ref<"1" | "10" | "all">("1");
@@ -22,7 +21,7 @@ const lists = computed(() => [
     id: "withdraw" as const,
     title: "Armário no planeta",
     data: b.container ?? {},
-    capacity: CABINET_SLOTS,
+    capacity: b.containerCapacity,
     action: "Retirar",
   },
 ]);
@@ -39,7 +38,7 @@ function quantity(available: number) {
     <div class="dialog-heading">
       <div>
         <div class="eyebrow">ARMAZENAMENTO LOCAL / {{ g.planet.name }}</div>
-        <h2>Armário planetário</h2>
+        <h2>{{ items[b.containerKind ?? "cabinet"].name }}</h2>
       </div>
       <button class="close" aria-label="Fechar armário" @click="g.panel = ''">
         ×

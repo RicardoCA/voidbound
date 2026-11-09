@@ -15,6 +15,10 @@ const descriptions = {
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
   cabinet:
     "16 slots de armazenamento exclusivo deste planeta. E ou toque abre.",
+  cabinetDouble:
+    "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
+  cabinetTriple:
+    "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
   woodDoor:
     "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
   solarPanel:

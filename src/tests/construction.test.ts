@@ -16,9 +16,15 @@ import {
 } from "../construction/building";
 import { stepSurface, solidCell, type Actor } from "../game/physics/surface";
 import { craft, recipes } from "../crafting/recipes";
+import { listBases } from "../construction/catalog";
 import { SaveDatabase } from "../persistence/database";
 import { migrateSave, type LegacySave } from "../persistence/migrations";
-import type { Inventory, Save, Settlement } from "../game/types";
+import {
+  items,
+  type Inventory,
+  type Save,
+  type Settlement,
+} from "../game/types";
 import { audio } from "../game/systems/audio";
 audio.enabled = false;
 beforeEach(() => setActivePinia(createPinia()));
@@ -146,6 +152,43 @@ describe("Construção e armazenamento transacionais", () => {
     expect(g.state.backpack).toEqual({ wood: 20, cabinet: 1 });
     expect(data.cabinets["4,28"]).toBeUndefined();
   });
+  it.each([
+    ["cabinetDouble", 2, 32],
+    ["cabinetTriple", 3, 48],
+  ] as const)(
+    "fabrica e instala %s com o tamanho e a capacidade corretos",
+    async (kind, width, capacity) => {
+      const { ctx, g, data } = setup();
+      const b = useConstruction();
+      Object.assign(g.state.backpack, { wood: width * 6, iron: width * 2 });
+      g.make(kind);
+      expect(g.state.backpack).toEqual({ [kind]: 1 });
+      expect(placePiece(ctx, kind, 4, 28)).toBeUndefined();
+      const edge = 4 + width - 1;
+      expect(b.cabinetAt(edge, 28)).toBe(true);
+      expect(placePiece(ctx, "woodBlock", edge, 28)).toContain("Já existe");
+      expect(b.interactAt(edge, 28)).toBe(true);
+      expect(b.containerCapacity).toBe(capacity);
+      data.cabinets["4,28"]!.iron = items.iron.stack * capacity - 1;
+      g.state.backpack.iron = 2;
+      expect(b.moveItem("deposit", "iron", 2)).toBe(false);
+      expect(b.moveItem("deposit", "iron", 1)).toBe(true);
+      expect(removePiece(ctx, edge, 28)).toContain("Esvazie");
+      const db = new SaveDatabase(`large-cabinet-${crypto.randomUUID()}`);
+      try {
+        await db.write(g.state);
+        const saved = (await db.read())!;
+        expect(listBases(saved)[0]?.cabinets[0]).toMatchObject({
+          kind,
+          capacity,
+          usedSlots: capacity,
+          inventory: { iron: items.iron.stack * capacity },
+        });
+      } finally {
+        await db.delete();
+      }
+    },
+  );
   it("recusa transferência sem espaço ou com quantidade inválida mantendo os dois lados", () => {
     const source: Inventory = { wood: 50 },
       dest: Inventory = { iron: 99 };

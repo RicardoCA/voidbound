@@ -6,6 +6,8 @@ import {
   type Save,
   type StarSystem,
 } from "../game/types";
+import { cabinetCapacity } from "./building";
+import { isCabinet, type CabinetKind } from "./pieces";
 import { slots } from "../inventory/inventory";
 import { systemAt } from "../universe/generator";
 import { nearestLanding } from "../universe/landings";
@@ -16,6 +18,8 @@ export interface CabinetSummary {
   inventory: Inventory;
   units: number;
   usedSlots: number;
+  capacity: number;
+  kind: CabinetKind;
   landing: ReturnType<typeof nearestLanding>;
 }
 export interface BaseSummary {
@@ -70,7 +74,7 @@ export function listBases(save: Save): BaseSummary[] {
     const inventory: Inventory = {},
       cabinets: CabinetSummary[] = [];
     for (const [key, piece] of Object.entries(settlement.pieces)) {
-      if (piece.kind !== "cabinet") continue;
+      if (!isCabinet(piece.kind)) continue;
       const match = /^(-?\d+),(-?\d+)$/.exec(key);
       if (!match) continue;
       const x = Number(match[1]),
@@ -85,6 +89,8 @@ export function listBases(save: Save): BaseSummary[] {
         inventory: content,
         units,
         usedSlots: slots(content),
+        capacity: cabinetCapacity(piece.kind),
+        kind: piece.kind,
         landing: nearestLanding(x),
       });
       for (const [id, n] of Object.entries(content))

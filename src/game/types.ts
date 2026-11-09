@@ -38,6 +38,8 @@ export type Item =
   | "woodWall"
   | "woodStairs"
   | "cabinet"
+  | "cabinetDouble"
+  | "cabinetTriple"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
@@ -75,6 +77,8 @@ export type BuildItem =
   | "woodWall"
   | "woodStairs"
   | "cabinet"
+  | "cabinetDouble"
+  | "cabinetTriple"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
@@ -422,6 +426,20 @@ export const items: Record<
   },
   cabinet: {
     name: "Armário planetário",
+    color: "#b6bd9c",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  cabinetDouble: {
+    name: "Armário planetário duplo",
+    color: "#b6bd9c",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  cabinetTriple: {
+    name: "Armário planetário triplo",
     color: "#b6bd9c",
     icon: "▤",
     rarity: "Construção",

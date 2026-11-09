@@ -6,7 +6,15 @@ import type {
   Settlement,
 } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
-import { keyAt, pieceAt, footprint, overlapsActor } from "./pieces";
+import {
+  cabinetWidths,
+  isCabinet,
+  keyAt,
+  pieceAt,
+  footprint,
+  overlapsActor,
+  type CabinetKind,
+} from "./pieces";
 export { keyAt } from "./pieces";
 import { add, consume, slots } from "../inventory/inventory";
 export const buildItems: BuildItem[] = [
@@ -14,6 +22,8 @@ export const buildItems: BuildItem[] = [
   "woodWall",
   "woodStairs",
   "cabinet",
+  "cabinetDouble",
+  "cabinetTriple",
   "woodDoor",
   "solarPanel",
   "campfire",
@@ -22,6 +32,9 @@ export const buildItems: BuildItem[] = [
 ];
 export const CABINET_SLOTS = 16,
   BUILD_RANGE = 96;
+export function cabinetCapacity(kind: CabinetKind) {
+  return CABINET_SLOTS * cabinetWidths[kind];
+}
 export function emptySettlement(): Settlement {
   return { pieces: {}, walls: {}, cabinets: {}, cutTrees: [] };
 }
@@ -124,18 +137,21 @@ export function placementError(
   if (!supported && !stairSupport)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
-    [
-      "campfire",
-      "cabinet",
-      "woodDoor",
-      "solarPanel",
-      "battery",
-      "oxygenGenerator",
-    ].includes(kind) &&
-    !(
-      terrain.get(x, y + 1) ||
-      settlement.pieces[keyAt(x, y + 1)]?.kind === "woodBlock"
-    )
+    (isCabinet(kind) ||
+      [
+        "campfire",
+        "woodDoor",
+        "solarPanel",
+        "battery",
+        "oxygenGenerator",
+      ].includes(kind)) &&
+    !cells
+      .filter((cell) => cell.y === y)
+      .every(
+        (cell) =>
+          terrain.get(cell.x, y + 1) ||
+          settlement.pieces[keyAt(cell.x, y + 1)]?.kind === "woodBlock",
+      )
   )
     return "Esta peça precisa de chão firme logo abaixo.";
   if ((ctx.inventory[kind] ?? 0) < 1)
@@ -162,7 +178,7 @@ export function placePiece(
       ...(kind === "battery" ? { energy: 0 } : {}),
       ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
     };
-    if (kind === "cabinet") ctx.settlement.cabinets[key] = {};
+    if (isCabinet(kind)) ctx.settlement.cabinets[key] = {};
   }
 }
 export function removePiece(
@@ -181,7 +197,7 @@ export function removePiece(
     : located?.piece.kind;
   if (!kind)
     return "Nenhuma peça nesta camada. Escolha Parede para desmontar o fundo.";
-  if (kind === "cabinet" && slots(ctx.settlement.cabinets[key] ?? {}) > 0)
+  if (isCabinet(kind) && slots(ctx.settlement.cabinets[key] ?? {}) > 0)
     return "Esvazie o armário antes de desmontá-lo.";
   if (!add(ctx.inventory, kind, 1, ctx.capacity))
     return "Carga cheia: não há espaço para recuperar a peça.";

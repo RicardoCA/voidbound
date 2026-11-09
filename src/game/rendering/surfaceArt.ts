@@ -1,3 +1,4 @@
+import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import type Phaser from "phaser";
 import type { BuildItem, PlacedPiece } from "../types";
 
@@ -237,6 +238,25 @@ export class SurfaceArt {
         depth,
         materials,
       );
+    }
+    if (isCabinet(kind)) {
+      for (let i = 0; i < cabinetWidths[kind]; i++) {
+        if (
+          !this.sprite(
+            scene,
+            "cabinet",
+            x + 8 + i * 16,
+            y + 16,
+            16,
+            16,
+            false,
+            alpha,
+            -0.02,
+          )
+        )
+          return false;
+      }
+      return true;
     }
     const door = kind === "woodDoor";
     if (door && state?.open) return this.openDoor(scene, x, y, state.facing);
