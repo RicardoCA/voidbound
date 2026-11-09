@@ -6,6 +6,7 @@ import { useConstruction } from "../stores/construction";
 import { emptySettlement, settlementFor } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import { fruitsNear, Wildlife } from "../survival/wildlife";
+import { meatShelfLife } from "../survival/perishables";
 import { PLANET_DAY } from "../construction/habitat";
 import { SaveDatabase } from "../persistence/database";
 import { migrateSave } from "../persistence/migrations";
@@ -348,4 +349,24 @@ describe("conservação da carne e descanso planetário", () => {
     }
     expect(g.state.backpack.rawMeat).toBeUndefined();
   });
+});
+
+it("mostra o lote de carne mais próximo do vencimento com o relógio de cada armazenamento", () => {
+  const inventory = {
+    rawMeat: 2,
+    meatBatches: [
+      { amount: 1, expires: PLANET_DAY / 2 },
+      { amount: 1, expires: PLANET_DAY },
+    ],
+  };
+  expect(meatShelfLife(inventory, PLANET_DAY / 4)).toEqual({
+    percent: 25,
+    label: "6 h 00 min",
+  });
+  expect(meatShelfLife(inventory, PLANET_DAY * 2, true)).toEqual({
+    percent: 50,
+    label: "12 h 00 min",
+  });
+  expect(meatShelfLife(inventory, PLANET_DAY / 2)?.label).toBe("Vencida");
+  expect(meatShelfLife({ rawMeat: 1 }, 5)?.label).toBe("24 h 00 min");
 });

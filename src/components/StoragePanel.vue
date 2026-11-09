@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
@@ -13,10 +14,7 @@ const lists = computed(() => [
   {
     id: "deposit" as const,
     title: "Sua mochila",
-    data:
-      b.containerKind === "fridge"
-        ? { rawMeat: g.state.backpack.rawMeat }
-        : g.state.backpack,
+    data: g.state.backpack,
     capacity: BACKPACK_SLOTS,
     action: "Guardar",
   },
@@ -31,8 +29,10 @@ const lists = computed(() => [
     action: "Retirar",
   },
 ]);
-const entries = (inventory: Inventory) =>
-  inventoryEntries(inventory).filter(([, n]) => n > 0);
+const entries = (inventory: Inventory, meatOnly: boolean) =>
+  inventoryEntries(inventory).filter(
+    ([id, n]) => n > 0 && (!meatOnly || id === "rawMeat"),
+  );
 function quantity(available: number) {
   return amount.value === "all"
     ? available
@@ -71,11 +71,22 @@ function quantity(available: number) {
           <h3>{{ list.title }}</h3>
           <span>{{ slots(list.data) }} / {{ list.capacity }} slots</span>
         </div>
-        <p v-if="!entries(list.data).length" class="storage-empty">
+        <p
+          v-if="
+            !entries(
+              list.data,
+              b.containerKind === 'fridge' && list.id === 'deposit',
+            ).length
+          "
+          class="storage-empty"
+        >
           Nenhum item guardado aqui.
         </p>
         <div
-          v-for="[id, n] in entries(list.data)"
+          v-for="[id, n] in entries(
+            list.data,
+            b.containerKind === 'fridge' && list.id === 'deposit',
+          )"
           :key="id"
           class="storage-row"
         >
@@ -83,6 +94,15 @@ function quantity(available: number) {
           <div>
             <b>{{ items[id].name }}</b
             ><small>{{ n }} unidades</small>
+            <MeatShelfLife
+              v-if="id === 'rawMeat'"
+              :inventory="list.data"
+              :time="g.state.time"
+              :in-fridge="
+                list.id === 'withdraw' && b.containerKind === 'fridge'
+              "
+              :paused="list.id === 'withdraw' && b.fridgePowered"
+            />
           </div>
           <button
             class="secondary"

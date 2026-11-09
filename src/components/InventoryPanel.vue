@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
@@ -122,6 +123,11 @@ function canUse(id: Item) {
                 ? "USAR / INSTALAR"
                 : items[id].rarity
         }}</small>
+        <MeatShelfLife
+          v-if="id === 'rawMeat'"
+          :inventory="source"
+          :time="g.state.time"
+        />
       </button>
       <div
         v-for="n in Math.max(0, 12 - inventory.length)"
@@ -147,6 +153,11 @@ function canUse(id: Item) {
         <div>
           <b>{{ items[id].name }}</b
           ><small>{{ n }} unidades</small>
+          <MeatShelfLife
+            v-if="id === 'rawMeat'"
+            :inventory="source"
+            :time="g.state.time"
+          />
         </div>
         <button
           class="secondary"
