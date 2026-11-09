@@ -1,3 +1,4 @@
+import { scannerIds, shipScanners } from "../combat/shipScanners";
 import { weaponModules, type WeaponModule } from "../combat/weapons";
 import { deflectorFor, starKinds } from "../universe/stars";
 import type { Item, Inventory } from "../game/types";
@@ -26,6 +27,12 @@ export const recipes: Recipe[] = [
   ...(Object.keys(weaponModules) as WeaponModule[]).map((id): Recipe => ({
     id,
     cost: weaponModules[id].cost,
+    unlock: 0,
+    station: "ship",
+  })),
+  ...scannerIds.map((id): Recipe => ({
+    id,
+    cost: shipScanners[id].cost,
     unlock: 0,
     station: "ship",
   })),

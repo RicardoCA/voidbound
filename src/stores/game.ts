@@ -11,6 +11,11 @@ import {
   shipWeapons,
   type WeaponModule,
 } from "../combat/weapons";
+import {
+  canCraftScanner,
+  isShipScanner,
+  type ScannerContact,
+} from "../combat/shipScanners";
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
@@ -198,6 +203,7 @@ export const useGame = defineStore("game", () => {
     blackHoleTransit = ref<{ elapsed: number; x: number; y: number }>(),
     speed = ref(0),
     flightContact = ref<FlightContact>(),
+    shipScanContacts = ref<ScannerContact[]>([]),
     stationContact = ref<string>(),
     cabinContact = ref<CabinEquipment>(),
     trading = ref(false);
@@ -581,6 +587,10 @@ export const useGame = defineStore("game", () => {
       notify("Entre na nave para acessar a estação de fabricação.");
       return;
     }
+    if (!canCraftScanner(state.value, id)) {
+      notify("Adquira o projeto do scanner na estação correspondente.");
+      return;
+    }
     if (!canCraftWeapon(state.value, id)) {
       notify("Compre o projeto no armeiro de uma estação clandestina.");
       return;
@@ -675,7 +685,8 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (isHeatDeflector(id) || isWeaponModule(id)) upgrades.push(id);
+    if (isHeatDeflector(id) || isWeaponModule(id) || isShipScanner(id))
+      upgrades.push(id);
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
     if (id === "rawMeat") refreshFood();
@@ -1367,6 +1378,7 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     flightContact,
+    shipScanContacts,
     activeWeapon,
     canSwitchWeapon,
     switchWeapon,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isWeaponModule } from "../combat/weapons";
+import { isShipScanner } from "../combat/shipScanners";
 import { isHeatDeflector } from "../universe/stars";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
@@ -37,6 +38,7 @@ function canUse(id: Item) {
   return (
     isWeaponModule(id) ||
     isHeatDeflector(id) ||
+    isShipScanner(id) ||
     [
       "repair",
       "fuel",
