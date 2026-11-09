@@ -137,6 +137,15 @@ try {
     timeout: 15000,
   });
   await touch("touchEnd", []);
+  const brake = await page
+    .getByRole("button", { name: "Frear nave" })
+    .boundingBox();
+  assert.ok(brake);
+  await touch("touchStart", [
+    { x: brake.x + brake.width / 2, y: brake.y + brake.height / 2, id: 3 },
+  ]);
+  await page.waitForTimeout(2400);
+  await touch("touchEnd", []);
   await page.getByRole("button", { name: "Escanear planeta" }).tap();
   await page.waitForFunction(
     () => window.__game.flightTarget.action === "orbit",

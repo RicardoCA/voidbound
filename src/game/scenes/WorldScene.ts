@@ -321,6 +321,7 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    g.advancePlanetScan(this.game.loop.rawDelta / 1000);
     for (let i = 0; i < this.usedShipSprites; i++)
       this.shipSprites[i]!.setVisible(false);
     this.usedShipSprites = 0;

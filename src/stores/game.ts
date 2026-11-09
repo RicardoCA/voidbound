@@ -50,6 +50,7 @@ import { planetAddress } from "../construction/catalog";
 import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
 export const BACKPACK_SLOTS = 24;
+export const PLANET_SCAN_SECONDS = 10;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
 export const SURFACE_SEQUENCE_DURATION = {
@@ -172,6 +173,7 @@ export const useGame = defineStore("game", () => {
     started = ref(false),
     surfaceSequence = ref<SurfaceSequence>(),
     dockingSequence = ref<{ elapsed: number }>(),
+    planetScan = ref<{ index: number; name: string; elapsed: number }>(),
     panel = ref(""),
     paused = ref(false),
     notice = ref("Sinal de emergência detectado. Explore o planeta próximo."),
@@ -215,6 +217,7 @@ export const useGame = defineStore("game", () => {
     () => {
       routeIndex.value = undefined;
       standingInFlight.value = false;
+      planetScan.value = undefined;
     },
     { flush: "sync" },
   );
@@ -910,24 +913,57 @@ export const useGame = defineStore("game", () => {
     else
       notify("Aproxime-se de um planeta, anomalia ou estação para interagir.");
   }
-  function scanPlanet(index: number) {
+  function canScanPlanet(index: number) {
     const s = state.value;
-    const target = system.value.planets[index];
-    if (!target || trading.value || busy.value) return;
+    if (s.mode !== "space")
+      return (
+        ["orbit", "interior", "surface"].includes(s.mode) &&
+        s.planetIndex === index
+      );
     const pos = planetPosition(index);
-    const reachable =
-      s.mode === "space"
-        ? Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s)
-        : ["orbit", "interior", "surface"].includes(s.mode) &&
-          s.planetIndex === index;
-    if (!reachable) {
-      notify("Aproxime-se do planeta para escanear.");
+    return Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s);
+  }
+  function scanPlanet(index: number) {
+    const target = system.value.planets[index];
+    if (
+      !target ||
+      !started.value ||
+      paused.value ||
+      trading.value ||
+      busy.value ||
+      inSequence.value ||
+      planetScan.value
+    )
       return;
-    }
-    if (!cataloguePlanet(s, system.value, target)) {
+    if (state.value.progression.cataloguedPlanets[target.id]) {
       notify("Planeta já catalogado.");
       return;
     }
+    if (!canScanPlanet(index)) {
+      notify("Aproxime-se do planeta para escanear.");
+      return;
+    }
+    planetScan.value = { index, name: target.name, elapsed: 0 };
+    notify(`Escaneando ${target.name}…`);
+  }
+  function advancePlanetScan(dt: number) {
+    const scan = planetScan.value;
+    if (!scan || paused.value) return;
+    const target = system.value.planets[scan.index];
+    if (
+      !target ||
+      busy.value ||
+      inSequence.value ||
+      !canScanPlanet(scan.index)
+    ) {
+      planetScan.value = undefined;
+      notify("Escaneamento interrompido. Volte ao alcance do planeta.");
+      return;
+    }
+    scan.elapsed += dt;
+    if (scan.elapsed < PLANET_SCAN_SECONDS) return;
+    planetScan.value = undefined;
+    if (!cataloguePlanet(state.value, system.value, target)) return;
     notify(`${target.name} catalogado.`);
     void save();
   }
@@ -1245,6 +1281,8 @@ export const useGame = defineStore("game", () => {
     mineTerrain,
     mineAsteroid,
     scanPlanet,
+    planetScan,
+    advancePlanetScan,
     scanSignal,
     make,
     use,

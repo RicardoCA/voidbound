@@ -21,6 +21,7 @@ import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
 import BaseRegistry from "../components/BaseRegistry.vue";
 import OrbitConsole from "../components/OrbitConsole.vue";
+import PlanetScanProgress from "../components/PlanetScanProgress.vue";
 import FlightRouteConsole from "../components/FlightRouteConsole.vue";
 import { useGame } from "../stores/game";
 import { releaseControls } from "../game/input";
@@ -743,6 +744,12 @@ function minutes() {
             <button class="secondary" @click="g.panel = ''">Não</button>
           </div>
         </section>
+      </div>
+      <div
+        v-if="g.planetScan && !g.panel && !g.paused"
+        class="surface-sequence-caption"
+      >
+        <PlanetScanProgress />
       </div>
       <div
         v-if="g.inSequence && !g.paused"

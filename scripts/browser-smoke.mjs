@@ -36,6 +36,7 @@ try {
     timeout: 15000,
   });
   await page.keyboard.up("w");
+  await page.keyboard.press("s", { delay: 2400 });
   await page.keyboard.press("e", { delay: 100 });
   await page.waitForFunction(
     () => window.__game.flightTarget.action === "orbit",
