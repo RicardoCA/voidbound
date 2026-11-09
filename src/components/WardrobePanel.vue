@@ -5,12 +5,14 @@ import { astronautArt } from "../wardrobe/astronautArt";
 import {
   buyClothing,
   clothing,
+  clothingCatalog,
   equipClothing,
   type ClothingId,
   type ClothingSlot,
 } from "../wardrobe/clothing";
 
 const g = useGame();
+const props = defineProps<{ clandestine: boolean }>();
 const slots = {
   hat: "Bonés",
   shirt: "Camisetas",
@@ -19,9 +21,10 @@ const slots = {
   helmet: "Capacetes",
 };
 const selectedSlot = ref<ClothingSlot>("hat");
-const catalog = Object.keys(clothing) as ClothingId[];
 const choices = computed(() =>
-  catalog.filter((id) => clothing[id].slot === selectedSlot.value),
+  clothingCatalog(props.clandestine).filter(
+    (id) => clothing[id].slot === selectedSlot.value,
+  ),
 );
 const owned = (id: ClothingId) => g.state.wardrobe?.owned.includes(id) ?? false;
 const equipped = (id: ClothingId) =>
@@ -42,6 +45,9 @@ async function equip(id: ClothingId) {
 
 <template>
   <section class="station-form" aria-label="Loja de vestuário">
+    <p v-if="clandestine">
+      Coleção Bandeira Negra · Exclusiva das estações clandestinas.
+    </p>
     <p>
       Escolha uma peça, compre com créditos e equipe no guarda-roupa. O boné
       fica sobre o capacete. A categoria Óculos troca a viseira.

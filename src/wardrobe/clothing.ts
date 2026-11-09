@@ -1,3 +1,4 @@
+import { systemAt } from "../universe/generator";
 import type { Save } from "../game/types";
 
 export type ClothingSlot = "hat" | "shirt" | "pants" | "visor" | "helmet";
@@ -9,8 +10,128 @@ interface Clothing {
   color: number;
   trim: number;
   skull?: boolean;
+  clandestine?: true;
   shell?: "scout" | "armored" | "industrial";
 }
+
+const pirateCollections = [
+  {
+    id: "ash",
+    name: "Cinzas de Órion",
+    color: 0x433b44,
+    trim: 0xdd9169,
+    price: 275,
+    shell: "industrial",
+    skull: true,
+  },
+  {
+    id: "ghost",
+    name: "Fantasma Lunar",
+    color: 0x747a8c,
+    trim: 0xcbe3ec,
+    price: 290,
+    shell: "scout",
+    skull: true,
+  },
+  {
+    id: "venom",
+    name: "Veneno de Vácuo",
+    color: 0x2d4633,
+    trim: 0xa3dd58,
+    price: 305,
+    shell: "industrial",
+  },
+  {
+    id: "abyss",
+    name: "Abismo Índigo",
+    color: 0x2d315e,
+    trim: 0x8585ff,
+    price: 320,
+    shell: "armored",
+  },
+  {
+    id: "ember",
+    name: "Brasa Clandestina",
+    color: 0x65332a,
+    trim: 0xffb054,
+    price: 335,
+    shell: "industrial",
+  },
+  {
+    id: "specter",
+    name: "Espectro Violeta",
+    color: 0x523159,
+    trim: 0xe784dc,
+    price: 350,
+    shell: "scout",
+    skull: true,
+  },
+  {
+    id: "rogue",
+    name: "Renegado Solar",
+    color: 0x68603a,
+    trim: 0xf8d783,
+    price: 365,
+    shell: "armored",
+  },
+  {
+    id: "tide",
+    name: "Maré Sombria",
+    color: 0x24515c,
+    trim: 0x72e4d5,
+    price: 380,
+    shell: "scout",
+  },
+  {
+    id: "reaver",
+    name: "Dente Carmesim",
+    color: 0x601d31,
+    trim: 0xff5864,
+    price: 395,
+    shell: "armored",
+    skull: true,
+  },
+] as const satisfies readonly {
+  id: string;
+  name: string;
+  color: number;
+  trim: number;
+  price: number;
+  shell: NonNullable<Clothing["shell"]>;
+  skull?: true;
+}[];
+
+const piratePieces = {
+  hat: { name: "Boné", premium: 0 },
+  shirt: { name: "Camiseta", premium: 120 },
+  pants: { name: "Calça", premium: 50 },
+  visor: { name: "Viseira", premium: 100 },
+  helmet: { name: "Capacete", premium: 260 },
+} satisfies Record<ClothingSlot, { name: string; premium: number }>;
+
+type PirateClothingId =
+  `pirate-${(typeof pirateCollections)[number]["id"]}-${ClothingSlot}`;
+const pirateClothing = Object.fromEntries(
+  pirateCollections.flatMap((collection) =>
+    (Object.keys(piratePieces) as ClothingSlot[]).map((slot) => {
+      const piece = piratePieces[slot];
+      return [
+        `pirate-${collection.id}-${slot}`,
+        {
+          name: `${piece.name} ${collection.name}`,
+          slot,
+          price: collection.price + piece.premium,
+          color: collection.color,
+          trim: collection.trim,
+          clandestine: true,
+          ...(slot === "helmet" && { shell: collection.shell }),
+          ...("skull" in collection &&
+            (slot === "hat" || slot === "shirt") && { skull: true }),
+        } satisfies Clothing,
+      ];
+    }),
+  ),
+) as Record<PirateClothingId, Clothing>;
 
 export const clothing = {
   auroraCap: {
@@ -357,6 +478,50 @@ export const clothing = {
     trim: 0x8e78b5,
     shell: "industrial",
   },
+  voidRaiderCap: {
+    name: "Boné Bandeira Negra",
+    slot: "hat",
+    price: 260,
+    color: 0x201725,
+    trim: 0xf4c79d,
+    skull: true,
+    clandestine: true,
+  },
+  voidRaiderShirt: {
+    name: "Camiseta Caveira Rubra",
+    slot: "shirt",
+    price: 380,
+    color: 0x622c3d,
+    trim: 0xff9a79,
+    skull: true,
+    clandestine: true,
+  },
+  voidRaiderPants: {
+    name: "Calça Saqueadora",
+    slot: "pants",
+    price: 310,
+    color: 0x29202f,
+    trim: 0xc17a45,
+    clandestine: true,
+  },
+  voidRaiderVisor: {
+    name: "Viseira Sangue Estelar",
+    slot: "visor",
+    price: 360,
+    color: 0x551b31,
+    trim: 0xff677c,
+    clandestine: true,
+  },
+  voidRaiderHelmet: {
+    name: "Capacete Abordagem",
+    slot: "helmet",
+    price: 520,
+    color: 0x3f2739,
+    trim: 0xeaa16a,
+    shell: "armored",
+    clandestine: true,
+  },
+  ...pirateClothing,
 } satisfies Record<string, Clothing>;
 
 export type ClothingId = keyof typeof clothing;
@@ -366,8 +531,20 @@ export interface Wardrobe {
   equipped: Outfit;
 }
 
+const clothingIds = Object.keys(clothing) as ClothingId[];
+
+export function clothingCatalog(clandestine: boolean) {
+  return clothingIds.filter(
+    (id) => "clandestine" in clothing[id] === clandestine,
+  );
+}
+
 export function buyClothing(state: Save, id: ClothingId) {
   const item = clothing[id];
+  const station = systemAt(state.seed, state.systemX, state.systemY).station;
+  if (state.mode !== "docked" || !station) return "Acople para comprar roupas.";
+  if ("clandestine" in item !== (station.kind === "clandestine"))
+    return "Esta peça pertence ao catálogo de outra estação.";
   if (state.wardrobe?.owned.includes(id)) return "Você já possui essa peça.";
   if (state.credits < item.price) return "Créditos insuficientes.";
   const wardrobe = (state.wardrobe ??= { owned: [], equipped: {} });

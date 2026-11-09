@@ -11,6 +11,12 @@ import {
 import { SaveDatabase } from "../persistence/database";
 import { migrateSave } from "../persistence/migrations";
 import { stationServicesFor } from "../game/station/services";
+import {
+  buyClothing,
+  clothing,
+  clothingCatalog,
+  equipClothing,
+} from "../wardrobe/clothing";
 import { useGame } from "../stores/game";
 
 describe("pirataria espacial", () => {
@@ -111,6 +117,34 @@ describe("pirataria espacial", () => {
     }
   });
 
+  it("vende roupas piratas apenas pelo catálogo clandestino e equipa a peça comprada", () => {
+    setActivePinia(createPinia());
+    const s = useGame().state;
+    s.mode = "docked";
+    expect(
+      stationServicesFor(false).some(({ id }) => id === "pirate-clothing"),
+    ).toBe(false);
+    const clandestine = clothingCatalog(true);
+    const regular = clothingCatalog(false);
+    expect(clandestine).toHaveLength(50);
+    for (const slot of ["hat", "shirt", "pants", "visor", "helmet"]) {
+      expect(
+        clandestine.filter((id) => clothing[id].slot === slot),
+      ).toHaveLength(10);
+    }
+    expect(clandestine.some((id) => regular.includes(id))).toBe(false);
+    expect(clothingCatalog(false)).not.toContain("voidRaiderCap");
+    expect(buyClothing(s, "voidRaiderCap")).toBeTruthy();
+    expect(s.credits).toBe(500);
+    s.systemX = 1;
+    expect(buyClothing(s, "auroraCap")).toBeTruthy();
+    expect(buyClothing(s, "voidRaiderCap")).toBeUndefined();
+    expect(buyClothing(s, "voidRaiderCap")).toBeTruthy();
+    expect(s.credits).toBe(240);
+    expect(equipClothing(s, "voidRaiderCap")).toBeUndefined();
+    expect(s.wardrobe?.equipped.hat).toBe("voidRaiderCap");
+  });
+
   it("paga um contrato clandestino apenas uma vez", () => {
     setActivePinia(createPinia());
     const g = useGame(),
@@ -142,6 +176,7 @@ describe("pirataria espacial", () => {
       "contracts",
       "law",
       "black-market",
+      "pirate-clothing",
     ]);
     expect(
       stationServicesFor(true).some((service) => service.id === "black-market"),

@@ -134,6 +134,13 @@ export function drawStationCounter(
     rect(0x886846, 11, -23, 11, 7);
     rect(0xc9975e, 12, -22, 9, 1);
     rect(0x4b3c35, 15, -22, 2, 6);
+  } else if (service === "pirate-clothing") {
+    rect(0x221b2b, 9, -27, 14, 12);
+    rect(0x70404a, 10, -25, 12, 9);
+    rect(color, 11, -24, 10, 2);
+    rect(0xf2d0a8, 14, -21, 5, 3);
+    rect(0x221b2b, 15, -20, 1, 1);
+    rect(0x221b2b, 17, -20, 1, 1);
   } else if (service === "workshop" || service === "fuel") {
     rect(0x243746, 11, -25, 11, 10);
     rect(0x667b80, 12, -25, 8, 9);

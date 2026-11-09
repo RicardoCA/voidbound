@@ -21,6 +21,7 @@ const counters = [
   { x: -146, y: 121 },
   { x: -146, y: 34 },
   { x: -263, y: 78 },
+  { x: -151, y: -54 }, // Pirate clothier uses the vacant regular-market bay.
 ] as const;
 function countersFor(clandestine: boolean) {
   return stationServicesFor(clandestine).map((npc) => {
