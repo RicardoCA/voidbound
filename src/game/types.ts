@@ -4,6 +4,7 @@ import {
   type RestrictedWeapon,
   type WeaponModule,
 } from "../combat/weapons";
+import { shipScanners, type ShipScanner } from "../combat/shipScanners";
 import type { BlackHole } from "../universe/blackHoles";
 import {
   deflectorFor,
@@ -16,6 +17,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | ShipScanner
   | WeaponModule
   | HeatDeflector
   | "stone"
@@ -187,6 +189,7 @@ export interface Save {
   credits: number;
   wardrobe?: Wardrobe;
   weaponBlueprints?: RestrictedWeapon[];
+  scannerBlueprints?: ShipScanner[];
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
   nextShipId: number;
@@ -226,6 +229,18 @@ type ItemDetails = {
   stack: number;
 };
 export const items: Record<Item, ItemDetails> = {
+  cargoScanner: {
+    ...shipScanners.cargoScanner,
+    icon: "▣",
+    rarity: "Melhoria",
+    stack: 1,
+  },
+  wantedScanner: {
+    ...shipScanners.wantedScanner,
+    icon: "⌖",
+    rarity: "Melhoria",
+    stack: 1,
+  },
   ...(Object.fromEntries(
     Object.entries(weaponModules).map(([id, weapon]) => [
       id,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { canCraftScanner, isShipScanner } from "../combat/shipScanners";
 import {
   canCraftWeapon,
   isWeaponModule,
@@ -26,7 +27,9 @@ const tab = ref("all"),
         (tab.value === "weapons"
           ? isWeaponModule(r.id)
           : !isWeaponModule(r.id) &&
-            (tab.value === "upgrades" ? r.unlock > 0 : r.unlock === 0)),
+            (tab.value === "upgrades"
+              ? r.unlock > 0 || isShipScanner(r.id)
+              : r.unlock === 0 && !isShipScanner(r.id))),
     ),
   );
 function affordable(cost: Partial<Record<Item, number>>) {
@@ -94,13 +97,14 @@ function affordable(cost: Partial<Record<Item, number>>) {
             (!inShip &&
               !(g.state.mode === 'surface' && r.station === 'hand')) ||
             !canCraftWeapon(g.state, r.id) ||
+            !canCraftScanner(g.state, r.id) ||
             !affordable(r.cost) ||
             g.state.mission < r.unlock
           "
           @click="g.make(r.id)"
         >
           {{
-            !canCraftWeapon(g.state, r.id)
+            !canCraftWeapon(g.state, r.id) || !canCraftScanner(g.state, r.id)
               ? "PROJETO RESTRITO"
               : g.state.mission < r.unlock
                 ? "MISSÃO 05"

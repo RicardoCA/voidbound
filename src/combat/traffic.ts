@@ -26,6 +26,7 @@ export interface SpaceNpc extends Point {
   name: string;
   faction: string;
   assaultReported?: boolean;
+  wantedLevel?: number;
   model: ShipModelId;
   angle: number;
   vx: number;
@@ -170,6 +171,7 @@ export function trafficFor(system: StarSystem, piracy: Piracy): SpaceNpc[] {
           entry.role === "pirate" || entry.role === "miner"
             ? "Independentes"
             : "Consórcio de Trânsito",
+        wantedLevel: entry.role === "pirate" ? 1 + (hash(id) % 5) : 0,
         engaged: false,
         fireAt: 0,
       },

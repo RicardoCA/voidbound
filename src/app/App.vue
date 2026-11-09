@@ -16,6 +16,8 @@ import HabitatStatus from "../components/HabitatStatus.vue";
 import BuildToolbar from "../components/BuildToolbar.vue";
 import StoragePanel from "../components/StoragePanel.vue";
 import { useConstruction } from "../stores/construction";
+import { isShipScanner } from "../combat/shipScanners";
+import ShipScannerPanel from "../components/ShipScannerPanel.vue";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
@@ -558,6 +560,12 @@ function minutes() {
             <button @click="g.standInFlight">Levantar</button>
             <button @click="open('route')">Traçar rota</button>
             <button
+              v-if="g.state.upgrades.some(isShipScanner)"
+              @click="open('ship-scanner')"
+            >
+              Scanner de naves <kbd>X</kbd>
+            </button>
+            <button
               :disabled="!g.canSwitchWeapon"
               :aria-label="'Trocar arma. Arma ativa: ' + g.activeWeapon.name"
               :title="g.activeWeapon.name"
@@ -704,6 +712,13 @@ function minutes() {
             </button>
           </div>
           <LocalRadar />
+          <button
+            v-if="piloting && g.state.upgrades.some(isShipScanner)"
+            class="secondary"
+            @click="open('ship-scanner')"
+          >
+            Scanner de naves
+          </button>
           <p>
             ▲ Sua nave · ● Planeta
             <template v-if="g.system.station"
@@ -726,6 +741,7 @@ function minutes() {
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
+        <ShipScannerPanel v-else-if="piloting && g.panel === 'ship-scanner'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
         <section v-else-if="surface && g.panel === 'bases'" class="dialog">

@@ -1,3 +1,4 @@
+import { isShipScanner, scannerContacts } from "../../combat/shipScanners";
 import { starClasses } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
@@ -280,6 +281,17 @@ export class WorldScene extends Phaser.Scene {
         !this.store.paused
       )
         queuePulse("interact");
+      if (
+        e.code === "KeyX" &&
+        this.store.state.mode === "space" &&
+        !this.store.flightCabin &&
+        !this.store.paused &&
+        (!this.store.panel || this.store.panel === "ship-scanner") &&
+        this.store.state.upgrades.some(isShipScanner)
+      ) {
+        this.store.panel = this.store.panel ? "" : "ship-scanner";
+        releaseControls();
+      }
       if (e.code === "KeyQ") this.store.switchWeapon();
       if (
         e.code === "KeyF" &&
@@ -472,6 +484,7 @@ export class WorldScene extends Phaser.Scene {
       this.combatState = s;
       this.combat.reset(s, g.system);
       g.flightContact = undefined;
+      g.shipScanContacts = [];
       this.contactAt = 0;
       this.lastSystem = g.system.id;
       const r = random(hash(g.system.id + ":asteroids"));
@@ -850,6 +863,9 @@ export class WorldScene extends Phaser.Scene {
   private updateFlightContact() {
     const g = this.store;
     const ship = g.state.ship;
+    g.shipScanContacts = g.state.upgrades.some(isShipScanner)
+      ? scannerContacts(ship, this.combat.npcs)
+      : [];
     const wreck = this.closestWreck(520);
     const npc = this.combat.target(ship, 670);
     const target = wreck ?? npc;

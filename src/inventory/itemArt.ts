@@ -16,6 +16,20 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  cargoScanner: {
+    body: "M3 7h18v12H3zM8 4h8v3H8z",
+    shade: "M3 15h18v4H3z",
+    light: "M5 8h14v2H5z",
+    detail: "M7 11h10v1H7zM7 13h10v1H7zM7 15h10v1H7z",
+    accent: "#f2b072",
+  },
+  wantedScanner: {
+    body: "M5 3h14v18H5z",
+    shade: "M14 4h4v16h-4z",
+    light: "M7 5h10v2H7z",
+    detail: "M11 9h2v7h-2zM9 11h6v2H9zM8 17h8v1H8z",
+    accent: "#86d9ff",
+  },
   ...(Object.fromEntries(
     Object.entries(weaponModules).map(([id, weapon]) => [
       id,

@@ -4,6 +4,7 @@ import { useGame } from "../stores/game";
 import HangarPanel from "./HangarPanel.vue";
 import DealershipPanel from "./DealershipPanel.vue";
 import CriminalRecord from "./CriminalRecord.vue";
+import ScannerBlueprintPanel from "./ScannerBlueprintPanel.vue";
 import BlackMarket from "./BlackMarket.vue";
 import RestrictedArmsPanel from "./RestrictedArmsPanel.vue";
 import type { StationService } from "../game/station/services";
@@ -59,9 +60,18 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
       </div>
     </template>
     <template v-else>
-      <CriminalRecord v-if="section === 'law'" settle />
+      <template v-if="section === 'law'">
+        <ScannerBlueprintPanel
+          v-if="g.system.station?.kind === 'standard'"
+          scanner="wantedScanner"
+        />
+        <CriminalRecord settle />
+      </template>
       <BlackMarket v-else-if="section === 'black-market'" />
-      <RestrictedArmsPanel v-else-if="section === 'restricted-arms'" />
+      <template v-else-if="section === 'restricted-arms'">
+        <ScannerBlueprintPanel scanner="cargoScanner" />
+        <RestrictedArmsPanel />
+      </template>
       <ContractsBoard v-else-if="section === 'contracts'" />
       <ScienceJournal v-else-if="section === 'science'" sell />
       <MarketPanel v-else-if="section === 'market'" />
