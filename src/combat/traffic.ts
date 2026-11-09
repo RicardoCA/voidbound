@@ -6,16 +6,14 @@ import { consume } from "../inventory/inventory";
 import { awardCareerXP, careerLevel } from "../progression/careers";
 import { systemAt } from "../universe/generator";
 
-const trafficRoles = [
-  "freighter",
-  "miner",
-  "escort",
-  "pirate",
-  "police",
-  "bounty",
-  "elite",
-] as const;
-export type TrafficRole = (typeof trafficRoles)[number];
+export type TrafficRole =
+  | "freighter"
+  | "miner"
+  | "escort"
+  | "pirate"
+  | "police"
+  | "bounty"
+  | "elite";
 export interface Point {
   x: number;
   y: number;
@@ -27,6 +25,7 @@ export interface SpaceNpc extends Point {
   faction: string;
   assaultReported?: boolean;
   wantedLevel?: number;
+  bountyTarget?: true;
   model: ShipModelId;
   angle: number;
   vx: number;
@@ -268,10 +267,9 @@ export function damageNpcHull(
 }
 
 export function systemWrecks(systemId: string, piracy: Piracy) {
-  return trafficRoles.flatMap((role) => {
-    const wreck = piracy.wrecks[`${systemId}:traffic:${role}`];
-    return wreck && !wreck.recovered ? [wreck] : [];
-  });
+  return Object.values(piracy.wrecks).filter(
+    (wreck) => wreck.systemId === systemId && !wreck.recovered,
+  );
 }
 
 export const SALVAGE_RANGE = 95;

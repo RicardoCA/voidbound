@@ -2,7 +2,12 @@ import type { Crime } from "../combat/law";
 import type { Piracy } from "../combat/traffic";
 import type { ContractRecord } from "./contracts";
 import type { Discovery } from "./exploration";
-export const careerIds = ["explorer", "miner", "pirate"] as const;
+export const careerIds = [
+  "explorer",
+  "miner",
+  "pirate",
+  "bountyHunter",
+] as const;
 export type CareerId = (typeof careerIds)[number];
 export const CAREER_LEVEL_CAP = 30;
 
@@ -37,6 +42,16 @@ export const careerDefinitions = {
       "Lenda Fora da Lei",
     ],
   },
+  bountyHunter: {
+    name: "Caçador de recompensas",
+    ranks: [
+      "Rastreador",
+      "Caçador Licenciado",
+      "Interceptador",
+      "Marechal de Fronteira",
+      "Lenda das Recompensas",
+    ],
+  },
 } satisfies Record<CareerId, { name: string; ranks: string[] }>;
 
 interface CareerActivity {
@@ -68,6 +83,7 @@ export function newProgression(): Progression {
       explorer: { xp: 0, history: [] },
       miner: { xp: 0, history: [] },
       pirate: { xp: 0, history: [] },
+      bountyHunter: { xp: 0, history: [] },
     },
     cataloguedPlanets: {},
     discoveries: {},

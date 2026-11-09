@@ -1,15 +1,16 @@
-import { hasBlackMarket } from "../combat/traffic";
+import { hasBlackMarket, type SpaceNpc } from "../combat/traffic";
 import { items, type Save, type StarSystem } from "../game/types";
 import { consume } from "../inventory/inventory";
 import { hash } from "../game/procedural/random";
 import { systemAt } from "../universe/generator";
-import { awardCareerXP, careerLevel } from "./careers";
+import { awardCareerXP, careerLevel, type CareerId } from "./careers";
 import { anomalyAt } from "./exploration";
 
 export type ContractStatus =
   "AVAILABLE" | "ACTIVE" | "COMPLETED" | "FAILED" | "CLAIMED";
 type ContractGoal =
   | { kind: "discovery"; id: string; name: string }
+  | { kind: "bounty"; targetId: string; name: string }
   | {
       kind: "delivery";
       item: "iron" | "copper" | "titanium" | "crystal" | "sealedCargo";
@@ -18,7 +19,7 @@ type ContractGoal =
 export interface Contract {
   id: string;
   stationId: string;
-  career: "explorer" | "miner" | "pirate";
+  career: CareerId;
   title: string;
   sector: { x: number; y: number };
   goal: ContractGoal;
@@ -135,6 +136,31 @@ export function contractOffers(state: Save, system: StarSystem): Contract[] {
       difficulty: 3,
     });
   }
+  const level = careerLevel(
+    "bountyHunter",
+    state.progression.careers.bountyHunter.xp,
+  ).level;
+  const advanced = level >= 7;
+  const bountyId = `${stationId}:bounty:${cycle}`;
+  const aliases = [
+    "Lobo Rubro",
+    "Víbora Cega",
+    "Fantasma de Ferro",
+    "Corvo do Vazio",
+    "Dente de Cinzas",
+  ];
+  const fugitive = aliases[seed % aliases.length]!;
+  offers.push({
+    id: bountyId,
+    stationId,
+    career: "bountyHunter",
+    title: `Recompensa por ${fugitive}`,
+    sector,
+    goal: { kind: "bounty", targetId: `${bountyId}:target`, name: fugitive },
+    credits: advanced ? 24_000 : 8_500,
+    xp: advanced ? 650 : 300,
+    difficulty: advanced ? 2 : 1,
+  });
   return offers.filter((offer) => !Object.hasOwn(accepted, offer.id));
 }
 
@@ -151,8 +177,53 @@ export function contractStatus(
   const done =
     goal.kind === "discovery"
       ? Boolean(state.progression.discoveries[goal.id])
-      : (state.inventory[goal.item] ?? 0) >= goal.quantity;
+      : goal.kind === "bounty"
+        ? Object.hasOwn(state.progression.piracy.wrecks, goal.targetId)
+        : (state.inventory[goal.item] ?? 0) >= goal.quantity;
   return done ? "COMPLETED" : "ACTIVE";
+}
+
+export function bountyTargets(state: Save, system: StarSystem): SpaceNpc[] {
+  const station = system.station;
+  if (!station) return [];
+  return Object.values(state.progression.contracts).flatMap((contract) => {
+    const { goal } = contract;
+    if (
+      goal.kind !== "bounty" ||
+      contract.stationId !== station.id ||
+      contractStatus(state, contract) !== "ACTIVE"
+    )
+      return [];
+    const seed = hash(goal.targetId);
+    const home = {
+      x: station.x - 275 - (seed % 150),
+      y: station.y + 135 + (seed % 180),
+    };
+    const advanced = contract.difficulty > 1;
+    const hull = advanced ? 155 : 80;
+    return [
+      {
+        id: goal.targetId,
+        role: "pirate",
+        bountyTarget: true,
+        name: goal.name,
+        model: advanced ? "bastion" : "viper",
+        faction: "Independentes",
+        home,
+        ...home,
+        hull,
+        maxHull: hull,
+        shield: advanced ? 55 : 20,
+        wantedLevel: advanced ? 5 : 3,
+        angle: 0,
+        vx: 0,
+        vy: 0,
+        cargo: { sealedCargo: advanced ? 5 : 2 },
+        engaged: false,
+        fireAt: 0,
+      },
+    ];
+  });
 }
 
 function dockedAt(state: Save, stationId: string, career?: Contract["career"]) {

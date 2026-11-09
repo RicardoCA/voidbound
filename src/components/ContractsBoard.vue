@@ -88,6 +88,10 @@ async function apply(
         {{ items[contract.goal.item].name }}. Na carga ativa:
         {{ g.state.inventory[contract.goal.item] ?? 0 }}.
       </p>
+      <p v-else-if="contract.goal.kind === 'bounty'">
+        Abata {{ contract.goal.name }} neste sistema e volte a esta estação para
+        receber a recompensa. O alvo é identificado no HUD de voo.
+      </p>
       <p v-else>
         Catalogue {{ contract.goal.name }} pelo scanner ou em um pouso
         planetário.

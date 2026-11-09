@@ -1,3 +1,4 @@
+import { bountyTargets } from "../progression/contracts";
 import { selectedWeapon, shipWeapons } from "./weapons";
 import { reportCrime, wantedStatus } from "./law";
 import type { Save, StarSystem } from "../game/types";
@@ -140,7 +141,13 @@ export class SpaceCombat {
     const ship = state.ship;
     const weapon = shipWeapons[selectedWeapon(state)];
     if (state.time < this.nextShot || ship.energy < weapon.energy) return false;
-    const target = this.target(ship, weapon.range);
+    const target =
+      this.npcs.find(
+        (npc) =>
+          npc.bountyTarget &&
+          npc.hull > 0 &&
+          distance(ship, npc) < weapon.range,
+      ) ?? this.target(ship, weapon.range);
     const flightTime = target ? distance(ship, target) / weapon.speed : 0;
     const aim = target
       ? {
@@ -204,11 +211,24 @@ export class SpaceCombat {
     };
   }
 
+  private updateBountyTargets(state: Save, system: StarSystem) {
+    const active = bountyTargets(state, system);
+    this.npcs = this.npcs.filter(
+      (npc) =>
+        !npc.bountyTarget || active.some((target) => target.id === npc.id),
+    );
+    for (const target of active)
+      if (!this.npcs.some((npc) => npc.id === target.id))
+        this.npcs.push(target);
+  }
+
   update(state: Save, system: StarSystem, dt: number) {
     const ship = state.ship;
     const { level, security } = wantedStatus(state, system);
     this.updateEnforcement(state, system, level, security);
+    this.updateBountyTargets(state, system);
     let crimeReported = false;
+    let bountyCompleted = false;
     const impacts: Point[] = [];
     let destroyed = false,
       playerDisabled = false;
@@ -290,7 +310,10 @@ export class SpaceCombat {
       if (!impact) continue;
       impacts.push(impact);
       ship.hull = Math.max(0, ship.hull - impact.damage);
-      if (damageNpcHull(state, system, npc, impact.damage)) destroyed = true;
+      if (damageNpcHull(state, system, npc, impact.damage)) {
+        destroyed = true;
+        bountyCompleted ||= npc.bountyTarget === true;
+      }
       if (ship.hull <= 0) {
         playerDisabled = true;
         break;
@@ -341,6 +364,7 @@ export class SpaceCombat {
         }
         if (hitNpc(state, system, target, bolt.damage, bolt.shieldMultiplier)) {
           destroyed = true;
+          bountyCompleted ||= target.bountyTarget === true;
           if (target.role !== "pirate")
             crimeReported =
               reportCrime(
@@ -358,6 +382,12 @@ export class SpaceCombat {
     this.bolts = playerDisabled
       ? []
       : this.bolts.filter((bolt) => bolt.life > 0);
-    return { destroyed, playerDisabled, crimeReported, impacts };
+    return {
+      destroyed,
+      playerDisabled,
+      crimeReported,
+      impacts,
+      bountyCompleted,
+    };
   }
 }

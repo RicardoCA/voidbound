@@ -788,7 +788,9 @@ export class WorldScene extends Phaser.Scene {
     }
     if (encounter.destroyed) {
       g.notify(
-        "Nave destruída. Aproxime-se do destroço e interaja para recolher a carga.",
+        encounter.bountyCompleted
+          ? "Alvo abatido. Volte à estação emissora para receber a recompensa."
+          : "Nave destruída. Aproxime-se do destroço e interaja para recolher a carga.",
       );
       if (!encounter.impacts.length) void g.save();
     }
@@ -867,8 +869,13 @@ export class WorldScene extends Phaser.Scene {
       ? scannerContacts(ship, this.combat.npcs)
       : [];
     const wreck = this.closestWreck(520);
-    const npc = this.combat.target(ship, 670);
-    const target = wreck ?? npc;
+    const bounty = this.combat.npcs.find(
+      (npc) => npc.bountyTarget && npc.hull > 0,
+    );
+    const npc = bounty ?? this.combat.target(ship, 670);
+    const wreckInReach =
+      wreck && Math.hypot(wreck.x - ship.x, wreck.y - ship.y) <= SALVAGE_RANGE;
+    const target = wreckInReach ? wreck : (bounty ?? wreck ?? npc);
     if (!target) {
       g.flightContact = undefined;
       return;
@@ -877,10 +884,10 @@ export class WorldScene extends Phaser.Scene {
       dy = target.y - ship.y;
     const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
     g.flightContact = {
-      name: target.name,
+      name: target === bounty ? `Alvo procurado: ${target.name}` : target.name,
       distance: Math.round(Math.hypot(dx, dy)),
       bearing: ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]!,
-      wreck: Boolean(wreck),
+      wreck: target !== npc,
       ...(target === npc
         ? { hull: Math.ceil(npc.hull), shield: Math.ceil(npc.shield) }
         : {}),
