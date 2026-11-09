@@ -591,9 +591,9 @@ function minutes() {
               sobrevivente</label
             >
             <p>
-              No modo sobrevivente, morrer na superfície esvazia a mochila. Se
-              uma nave fora da proteção de emergência for destruída, você perde
-              a nave, a carga e a mochila.
+              No modo sobrevivente, morrer na superfície esvazia a mochila. Se o
+              casco zerar, você perde a carga e a mochila. A nave inicial e a
+              Sparrow de emergência são estabilizadas.
             </p>
             <p v-if="!g.autosaveEnabled">
               Use Salvar partida no menu de pausa para gravar seu progresso.

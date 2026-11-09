@@ -1065,6 +1065,10 @@ export const useGame = defineStore("game", () => {
   function handleHullFailure(emergencyMessage: string) {
     const s = state.value;
     if (s.ship.hull > 0) return false;
+    if (survivorEnabled.value) {
+      s.inventory = {};
+      s.backpack = {};
+    }
     if (
       !survivorEnabled.value ||
       (s.activeShip.id === "ship-1" && s.activeShip.model === "sparrow") ||
@@ -1076,7 +1080,11 @@ export const useGame = defineStore("game", () => {
         vy: 0,
         fuel: Math.max(s.ship.fuel, 15),
       });
-      notify(emergencyMessage);
+      notify(
+        survivorEnabled.value
+          ? `${emergencyMessage} Carga e mochila perdidas.`
+          : emergencyMessage,
+      );
       void save();
       return false;
     }
@@ -1103,8 +1111,6 @@ export const useGame = defineStore("game", () => {
       oxygen: 100,
       energy: 100,
     };
-    s.inventory = {};
-    s.backpack = {};
     s.upgrades = [...starter.equipment];
     restorePlayer();
     s.systemX = destination.x;

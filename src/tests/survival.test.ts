@@ -174,7 +174,7 @@ describe("modo sobrevivente e inventários isolados", () => {
     expect(cabinet["2,28"]).toEqual({ iron: 5 });
   });
 
-  it("preserva os itens com a opção desligada e estabiliza a nave inicial", () => {
+  it("preserva os itens ao zerar o casco com a opção desligada", () => {
     const g = surface();
     g.survivorEnabled = false;
     g.state.backpack = { copper: 2 };
@@ -182,15 +182,33 @@ describe("modo sobrevivente e inventários isolados", () => {
     g.tick(0);
     expect(g.state.backpack).toEqual({ copper: 2 });
     g.state.activeShip = { id: "ship-2", model: "atlas" };
+    g.state.inventory = { iron: 3 };
     g.state.ship.hull = 0;
     expect(g.handleHullFailure("Resgate")).toBe(false);
     expect(g.state.ship.hull).toBe(30);
-    g.survivorEnabled = true;
-    g.state.activeShip = { id: "ship-1", model: "sparrow" };
-    g.state.ship.hull = 0;
-    expect(g.handleHullFailure("Resgate")).toBe(false);
-    expect(g.state.ship.hull).toBe(30);
+    expect(g.state.inventory).toEqual({ iron: 3 });
     expect(g.state.backpack).toEqual({ copper: 2 });
+  });
+
+  it.each([
+    { id: "ship-1", model: "sparrow" },
+    { id: "ship-4", model: "sparrow", rescue: true },
+  ] as const)("estabiliza $id, mas esvazia a carga e a mochila", (ship) => {
+    const g = surface();
+    g.state.mode = "space";
+    g.state.activeShip = ship;
+    g.state.inventory = { iron: 3 };
+    g.state.backpack = { copper: 2 };
+    const cabinet = settlementFor(g.state, g.planet.id).cabinets;
+    cabinet["2,28"] = { wood: 5 };
+    g.state.ship.hull = 0;
+    expect(g.handleHullFailure("Resgate")).toBe(false);
+    expect(g.state.ship.hull).toBe(30);
+    expect(g.state.activeShip).toEqual(ship);
+    expect(g.state.mode).toBe("space");
+    expect(g.state.inventory).toEqual({});
+    expect(g.state.backpack).toEqual({});
+    expect(cabinet["2,28"]).toEqual({ wood: 5 });
   });
 
   it("só transfere a bordo e respeita a quantidade disponível", () => {
