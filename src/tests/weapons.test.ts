@@ -3,7 +3,13 @@ import { createPinia, setActivePinia } from "pinia";
 import { describe, expect, it } from "vitest";
 import { SpaceCombat } from "../combat/flight";
 import { hitNpc, trafficFor } from "../combat/traffic";
-import { cycleWeapon, selectedWeapon, weaponModules } from "../combat/weapons";
+import { buyRestrictedArms } from "../combat/restrictedArms";
+import {
+  cycleWeapon,
+  isRestrictedWeapon,
+  selectedWeapon,
+  weaponModules,
+} from "../combat/weapons";
 import { activateShip, buyShip } from "../fleet/hangar";
 import { SaveDatabase } from "../persistence/database";
 import { useGame } from "../stores/game";
@@ -19,6 +25,7 @@ describe("armamentos da nave", () => {
 
     for (const [id, weapon] of Object.entries(weaponModules)) {
       const module = id as keyof typeof weaponModules;
+      if (isRestrictedWeapon(module)) (s.weaponBlueprints ??= []).push(module);
       s.inventory = { ...weapon.cost };
       g.make(module);
       expect(s.inventory).toEqual({ [module]: 1 });
@@ -43,6 +50,49 @@ describe("armamentos da nave", () => {
     }
     expect(cycleWeapon(s)).toBe(true);
     expect(selectedWeapon(s)).toBe("pulse");
+  });
+
+  it("restringe a venda, preserva o projeto e devolve a arma desinstalada à carga", async () => {
+    setActivePinia(createPinia());
+    const g = useGame();
+    const s = g.state;
+    s.mode = "docked";
+    s.credits = 2_000_000;
+    s.inventory = { ...weaponModules.blackNova.cost };
+    g.make("blackNova");
+    expect(s.inventory).toEqual(weaponModules.blackNova.cost);
+    expect(buyRestrictedArms(s, "blackNova", "recipe")).toBeTruthy();
+    expect(s.credits).toBe(2_000_000);
+    s.systemX = 1;
+    expect(buyRestrictedArms(s, "blackNova", "weapon")).toBeUndefined();
+    expect(s.weaponBlueprints).toBeUndefined();
+    g.use("blackNova");
+    cycleWeapon(s);
+    expect(selectedWeapon(s)).toBe("blackNova");
+    const materials = s.inventory;
+    s.inventory = { iron: g.capacity * 99 };
+    g.uninstallWeapon("blackNova");
+    expect(selectedWeapon(s)).toBe("blackNova");
+    expect(s.inventory.blackNova).toBeUndefined();
+    s.inventory = materials;
+    g.uninstallWeapon("blackNova");
+    expect(selectedWeapon(s)).toBe("pulse");
+    expect(s.inventory.blackNova).toBe(1);
+
+    expect(buyRestrictedArms(s, "blackNova", "recipe")).toBeUndefined();
+    expect(buyRestrictedArms(s, "blackNova", "recipe")).toBeTruthy();
+    expect(s.credits).toBe(790_000);
+    const db = new SaveDatabase(`blueprints-${crypto.randomUUID()}`);
+    try {
+      await db.write(s);
+      g.state = (await db.read())!;
+      g.state.mode = "interior";
+      g.make("blackNova");
+      expect(g.state.weaponBlueprints).toEqual(["blackNova"]);
+      expect(g.state.inventory).toEqual({ blackNova: 2 });
+    } finally {
+      await db.delete();
+    }
   });
 
   it("salva a seleção por nave e retorna ao laser quando falta o módulo", async () => {

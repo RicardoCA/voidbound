@@ -185,7 +185,16 @@ function canUse(id: Item) {
     <div v-if="!fromBackpack" class="installed">
       MELHORIAS INSTALADAS <span v-if="!g.state.upgrades.length">Nenhuma</span
       ><b v-for="id in g.state.upgrades" :key="id"
-        ><ItemIcon :item="id" />{{ items[id].name }}</b
+        ><ItemIcon :item="id" />{{ items[id].name }}
+        <button
+          v-if="isWeaponModule(id) && g.canAccessShipCargo"
+          class="secondary"
+          :disabled="g.trading"
+          :aria-label="`Desinstalar ${items[id].name}`"
+          @click="g.uninstallWeapon(id)"
+        >
+          Desinstalar
+        </button></b
       >
     </div>
   </section>

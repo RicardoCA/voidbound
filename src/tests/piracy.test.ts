@@ -177,6 +177,7 @@ describe("pirataria espacial", () => {
       "law",
       "black-market",
       "pirate-clothing",
+      "restricted-arms",
     ]);
     expect(
       stationServicesFor(true).some((service) => service.id === "black-market"),
