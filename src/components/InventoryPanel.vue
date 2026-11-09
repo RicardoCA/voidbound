@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ItemIcon from "./ItemIcon.vue";
+import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
 import { items, type Item } from "../game/types";
 import { RAW_MEAT_RISK, foodValue } from "../survival/food";
@@ -84,14 +85,7 @@ function canUse(id: Item) {
         Transfira itens entre a mochila e o armário de carga. A bancada e o
         mercado usam a carga da nave.
       </p>
-      <label
-        >Quantidade para transferir
-        <select v-model="amount">
-          <option value="1">1 unidade</option>
-          <option value="10">Até 10 unidades</option>
-          <option value="all">Todas</option>
-        </select>
-      </label>
+      <TransferAmount v-model="amount" />
     </template>
     <div class="inventory-heading">
       <span

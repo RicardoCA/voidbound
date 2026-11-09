@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ItemIcon from "./ItemIcon.vue";
+import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
 import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -51,22 +52,7 @@ function quantity(available: number) {
     <button class="text-button" @click="g.panel = 'bases'">
       Ver meus depósitos em todos os planetas →
     </button>
-    <div
-      class="storage-amount"
-      role="group"
-      aria-label="Quantidade por transferência"
-    >
-      <span>TRANSFERIR</span
-      ><button
-        v-for="n in ['1', '10', 'all'] as const"
-        :key="n"
-        :aria-pressed="amount === n"
-        :class="{ active: amount === n }"
-        @click="amount = n"
-      >
-        {{ n === "all" ? "Todos" : n }}
-      </button>
-    </div>
+    <TransferAmount v-model="amount" />
     <div v-if="b.container" class="storage-columns">
       <section v-for="list in lists" :key="list.id" class="storage-column">
         <div class="storage-heading">
