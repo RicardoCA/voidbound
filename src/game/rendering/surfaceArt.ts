@@ -71,8 +71,9 @@ export class SurfaceArt {
 
     const texture = horizon(kind);
     if (!scene.textures.exists(texture)) return false;
-    const span = Math.max(width, height * 2.65);
-    const scroll = cameraX * 0.15 + span * 0.22;
+    // Snap the strip width and shared scroll so the mirrored edges touch every frame.
+    const span = Math.ceil(Math.max(width, height * 2.65));
+    const scroll = Math.round(cameraX * 0.15 + span * 0.22);
     const strip = Math.floor(scroll / span);
     for (let i = 0; i < 2; i++) {
       const image = (this.horizons[i] ??= scene.add
@@ -82,7 +83,7 @@ export class SurfaceArt {
       image
         .setTexture(texture)
         .setDisplaySize(span, height)
-        .setPosition(Math.round((strip + i) * span - scroll), 0)
+        .setPosition((strip + i) * span - scroll, 0)
         .setFlipX((strip + i) % 2 !== 0)
         .setTint(this.tint)
         .setAlpha(0.52 + light * 0.48)
