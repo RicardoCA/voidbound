@@ -1,3 +1,4 @@
+import { starClasses } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
   drawAsteroid,
@@ -5,6 +6,7 @@ import {
   drawSpaceStar,
   drawSpaceWreck,
   PlanetTextures,
+  StellarTextures,
 } from "../rendering/spaceArt";
 import { SpaceCombat } from "../../combat/flight";
 import {
@@ -105,6 +107,7 @@ export class WorldScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.Graphics;
   private spaceDust!: Phaser.GameObjects.TileSprite;
   private planetTextures = new PlanetTextures();
+  private stellarTextures = new StellarTextures();
   private flightShipGfx!: Phaser.GameObjects.Graphics;
   private atmosphereGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -183,7 +186,10 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
     this.spaceDust = createSpaceBackdrop(this).setVisible(false);
-    this.events.once("shutdown", () => this.planetTextures.clear(this));
+    this.events.once("shutdown", () => {
+      this.planetTextures.clear(this);
+      this.stellarTextures.clear(this);
+    });
     this.flightShipGfx = this.add.graphics().setDepth(2);
     this.atmosphereGfx = this.add.graphics().setDepth(3);
     this.keys = this.input.keyboard!.addKeys(
@@ -333,6 +339,7 @@ export class WorldScene extends Phaser.Scene {
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
     this.planetTextures.hide();
+    this.stellarTextures.hide();
     const s = g.state;
     if (g.started && s.mode === "docked") {
       if (!this.wasAtStation) {
@@ -658,6 +665,11 @@ export class WorldScene extends Phaser.Scene {
     }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
+    if (g.applyStellarHeat(dt)) {
+      this.camX = g.state.ship.x;
+      this.camY = g.state.ship.y;
+      return;
+    }
     g.speed = Math.round(Math.hypot(s.vx, s.vy));
     this.camX = Phaser.Math.Linear(this.camX, s.x, 0.09);
     this.camY = Phaser.Math.Linear(this.camY, s.y, 0.09);
@@ -1247,6 +1259,32 @@ export class WorldScene extends Phaser.Scene {
       );
     }
     const inOrbit = g.state.mode === "orbit";
+    if (!inOrbit) {
+      for (const star of g.system.stars) {
+        const data = starClasses[star.kind];
+        const x = Math.round(star.x - this.camX + this.centerX);
+        const y = Math.round(star.y - this.camY + this.centerY);
+        const margin = data.danger;
+        if (
+          x < -margin ||
+          y < -margin ||
+          x > this.viewWidth + margin ||
+          y > this.viewHeight + margin
+        )
+          continue;
+        const color = Number.parseInt(data.color.slice(1), 16);
+        this.backdrop.lineStyle(1, color, 0.36).strokeCircle(x, y, data.danger);
+        if (star.kind === "neutron") {
+          this.backdrop
+            .lineStyle(5, color, 0.22)
+            .lineBetween(x - 32, y + 82, x + 32, y - 82);
+          this.backdrop
+            .lineStyle(1, 0xf3dfff, 0.75)
+            .lineBetween(x - 28, y + 75, x + 28, y - 75);
+        }
+        this.stellarTextures.draw(this, star, x, y);
+      }
+    }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
     const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;

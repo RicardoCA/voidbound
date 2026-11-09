@@ -397,6 +397,17 @@ function minutes() {
             >
           </div>
         </div>
+        <div
+          v-if="g.stellarWarning && !g.panel && !g.paused"
+          class="surface-sequence-caption"
+        >
+          {{ g.stellarWarning.data.name }} ·
+          {{
+            g.stellarWarning.protectedByDeflector
+              ? "Defletor térmico ativo"
+              : "Calor estelar · dano no casco"
+          }}
+        </div>
         <div v-if="piloting && g.flightContact" class="surface-tip">
           {{ g.flightContact.bearing }}
           {{ g.flightContact.wreck ? "Destroço" : g.flightContact.name }} ·

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import "fake-indexeddb/auto";
 import { setActivePinia, createPinia } from "pinia";
+import { deflectorFor, starKinds } from "../universe/stars";
 import { systemAt, nearby } from "../universe/generator";
 import { Terrain } from "../game/procedural/terrain";
 import { LRU, random } from "../game/procedural/random";
@@ -205,5 +206,60 @@ describe("Salto interestelar e controles de toque", () => {
     pressControl("mine");
     releaseControls();
     expect(takePulse("mine")).toBe(false);
+  });
+});
+
+describe("estrelas e defletores térmicos", () => {
+  it("gera sistemas simples, binários e triplos com todas as classes e chegada segura", () => {
+    const kinds = new Set<string>();
+    const counts = new Set<number>();
+    for (let x = 0; x < 240; x++) {
+      const stars = systemAt("star-check", x, -4).stars;
+      counts.add(stars.length);
+      for (const star of stars) {
+        kinds.add(star.kind);
+        expect(Math.hypot(star.x - 200, star.y - 330)).toBeGreaterThan(205);
+      }
+    }
+    expect([...counts].sort()).toEqual([1, 2, 3]);
+    expect([...kinds].sort()).toEqual([...starKinds].sort());
+  });
+
+  it("só protege contra a classe do defletor equipado na nave", () => {
+    const g = useGame();
+    g.newGame("heat");
+    const star = g.system.stars[0]!;
+    const item = deflectorFor(star.kind);
+    g.state.ship.hull = 100;
+    expect(g.applyStellarHeat(1)).toBe(false);
+    expect(g.state.ship.hull).toBe(100);
+    Object.assign(g.state.ship, { x: star.x, y: star.y });
+    g.state.upgrades = ["shield", "deflector-neutron"];
+    g.applyStellarHeat(1);
+    expect(g.state.ship.hull).toBe(88);
+    g.state.mode = "interior";
+    g.state.inventory = { plate: 3, circuit: 2, cell: 1 };
+    g.make(item);
+    expect(g.state.inventory[item]).toBe(1);
+    g.use(item);
+    expect(g.state.inventory[item]).toBeUndefined();
+    g.state.mode = "space";
+    g.applyStellarHeat(1);
+    expect(g.state.ship.hull).toBe(88);
+    expect(g.stellarWarning?.protectedByDeflector).toBe(true);
+  });
+
+  it("usa o resgate de sobrevivência e afasta a Sparrow da estrela", () => {
+    const g = useGame();
+    g.newGame("rescue-heat");
+    const star = g.system.stars[0]!;
+    g.state.inventory = { iron: 1 };
+    g.state.backpack = { stone: 2 };
+    Object.assign(g.state.ship, { x: star.x, y: star.y, hull: 1 });
+    expect(g.applyStellarHeat(1)).toBe(true);
+    expect(g.state.ship.hull).toBe(30);
+    expect(g.stellarWarning).toBeUndefined();
+    expect(g.state.inventory).toEqual({});
+    expect(g.state.backpack).toEqual({});
   });
 });

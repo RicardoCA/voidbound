@@ -1,3 +1,4 @@
+import { starClasses, type StellarBody } from "../../universe/stars";
 import type Phaser from "phaser";
 import { createNoise3D, createNoise4D } from "simplex-noise";
 import { hash, random } from "../procedural/random";
@@ -290,4 +291,71 @@ export function drawSpaceWreck(
   rect(0xc5a3dc, -5, -6, 10, 2);
   rect(0x3c3056, -3, -3, 6, 5);
   rect(0xf0b578, -1, -2, 2, 1);
+}
+
+export class StellarTextures {
+  private images: Phaser.GameObjects.Image[] = [];
+  private used = 0;
+  private keys = new Set<string>();
+
+  hide() {
+    for (let i = 0; i < this.used; i++) this.images[i]!.setVisible(false);
+    this.used = 0;
+  }
+
+  clear(scene: Phaser.Scene) {
+    for (const image of this.images) image.destroy();
+    for (const key of this.keys) scene.textures.remove(key);
+    this.images = [];
+    this.keys.clear();
+  }
+
+  draw(scene: Phaser.Scene, star: StellarBody, x: number, y: number) {
+    const data = starClasses[star.kind];
+    const key = "stellar-body:" + star.kind;
+    if (!scene.textures.exists(key)) {
+      const texture = scene.textures.createCanvas(key, size, size);
+      if (!texture) return;
+      const noise = createNoise3D(random(hash(key)));
+      const light = channels(Number.parseInt(data.color.slice(1), 16));
+      const image = texture.context.createImageData(size, size);
+      for (let iy = 0; iy < size; iy++)
+        for (let ix = 0; ix < size; ix++) {
+          const dx = (ix + 0.5 - size / 2) / 43;
+          const dy = (iy + 0.5 - size / 2) / 43;
+          const radius = Math.hypot(dx, dy);
+          if (radius >= 1.46) continue;
+          const offset = (iy * size + ix) * 4;
+          const angle = Math.atan2(dy, dx);
+          const plasma =
+            noise(dx * 5, dy * 5, 2) * 0.26 + noise(dx * 16, dy * 16, 8) * 0.16;
+          const corona = (1.46 - radius) / 0.46;
+          const alpha =
+            radius <= 1
+              ? 255
+              : 155 *
+                corona ** 2 *
+                (0.7 + Math.sin(angle * 19 + plasma * 15) * 0.3);
+          const glow =
+            radius <= 1 ? clamp(0.46 + plasma - radius * 0.22) : 0.15;
+          for (let c = 0; c < 3; c++)
+            image.data[offset + c] =
+              light[c]! * (0.75 + glow * 0.25) + (255 - light[c]!) * glow;
+          image.data[offset + 3] = alpha;
+        }
+      texture.context.putImageData(image, 0, 0);
+      texture.refresh();
+      this.keys.add(key);
+    }
+    const index = this.used++;
+    const sprite = (this.images[index] ??= scene.add
+      .image(x, y, key)
+      .setDepth(-1.1));
+    const diameter = (data.radius * size) / 43;
+    sprite
+      .setTexture(key)
+      .setPosition(x, y)
+      .setDisplaySize(diameter, diameter)
+      .setVisible(true);
+  }
 }
