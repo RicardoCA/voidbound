@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import type { SurfaceMaterial } from "./surfaceMaterials";
 import type { Terrain } from "../procedural/terrain";
 
 export function drawSurfaceRidges(
@@ -7,9 +8,10 @@ export function drawSurfaceRidges(
   height: number,
   cameraX: number,
   cameraY: number,
-  ground: number,
+  material: SurfaceMaterial,
   light: number,
 ) {
+  const [rise, slope] = material.profile;
   const layers = [
     { step: 115, parallax: 0.08, peak: 128, alpha: 0.18 },
     { step: 90, parallax: 0.2, peak: 96, alpha: 0.28 },
@@ -23,23 +25,37 @@ export function drawSurfaceRidges(
     );
     for (let i = first; i <= first + Math.ceil(width / step) + 2; i++) {
       const x = Math.round(i * step - scroll);
-      const y = Math.round(horizon - peak - Math.sin(i * 2.7 + layer) * 25);
-      g.fillStyle(ground, alpha * (0.6 + 0.4 * light)).fillPoints(
+      const y = Math.round(
+        horizon - peak * rise - Math.sin(i * 2.7 + layer) * 20,
+      );
+      const summit = x + Math.round(step * slope);
+      const shoulder = y + Math.round(peak * 0.27);
+      const toe = x + step + 38;
+      g.fillStyle(material.ridge, alpha * (0.6 + 0.4 * light)).fillPoints(
         [
           { x: x - 36, y: horizon },
-          { x: x + 17, y: y + 24 },
-          { x: x + 44, y },
-          { x: x + step + 38, y: horizon },
+          { x: summit - 23, y: shoulder },
+          { x: summit, y },
+          { x: summit + 17, y: shoulder + 3 },
+          { x: toe, y: horizon },
         ],
         true,
       );
-      g.fillStyle(0x13233a, alpha * 0.42).fillTriangle(
-        x + 44,
+      g.fillStyle(material.shade, alpha * 0.55).fillTriangle(
+        summit,
         y,
-        x + 68,
+        summit + 12,
         horizon,
-        x + step + 38,
+        toe,
         horizon,
+      );
+      g.fillStyle(material.cap, alpha * light * 0.38).fillTriangle(
+        summit,
+        y,
+        summit - 23,
+        shoulder,
+        summit + 17,
+        shoulder + 3,
       );
     }
   }

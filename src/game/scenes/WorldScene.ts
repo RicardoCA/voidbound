@@ -49,6 +49,10 @@ import {
   drawGroundWake,
   drawLandingGear,
 } from "../rendering/flightEffects";
+import {
+  drawTerrainTile,
+  surfaceMaterials,
+} from "../rendering/surfaceMaterials";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
 import { solidCell, stairFloor, stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
@@ -1609,6 +1613,7 @@ export class WorldScene extends Phaser.Scene {
       t = this.terrain!,
       biome = biomes[g.planet.kind]!,
       p = g.state.player;
+    const material = surfaceMaterials[g.planet.kind]!;
     const sequence = g.surfaceSequence;
     const descent =
       sequence?.kind === "landing"
@@ -1627,7 +1632,7 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       this.camX,
       this.camY,
-      biome.ground,
+      material,
       light,
     );
     // Render the projected faces behind the playable grid so blocks keep their hit areas.
@@ -1641,7 +1646,7 @@ export class WorldScene extends Phaser.Scene {
             y,
             Math.floor(x * 16 + offsetX),
             Math.floor(y * 16 + offsetY),
-            g.planet.color,
+            material.cap,
             light,
           );
       }
@@ -1688,43 +1693,23 @@ export class WorldScene extends Phaser.Scene {
       this.viewWidth,
       this.viewHeight,
       "walls",
+      material,
     );
-    const colors: Record<number, number> = {
-      2: 0x9fb8bf,
-      3: 0xd99268,
-      4: 0xb9a8d4,
-      5: 0x596c7c,
-      6: 0x74c5d5,
-      7: 0xb38ee4,
-      8: 0x98daec,
-      9: 0x8dbd8d,
-      10: 0xb2a273,
-      11: 0xd8bb70,
-    };
     for (let x = startX; x < endX; x++)
       for (let y = startY; y < endY; y++) {
         const tile = t.get(x, y);
         if (!tile) continue;
-        const sx = Math.floor(x * 16 - this.camX + this.centerX),
-          sy = Math.floor(y * 16 - this.camY + this.centerY);
-        f.fillStyle(biome.ground);
-        f.fillRect(sx, sy, 16, 16);
-        f.fillStyle(0x101a2c, 0.22);
-        f.fillRect(sx, sy + 13, 16, 3);
-        if (!t.get(x, y - 1)) {
-          f.fillStyle(g.planet.color);
-          f.fillRect(sx, sy, 16, 3);
-        }
-        if (tile > 1) {
-          f.fillStyle(colors[tile]!);
-          f.fillRect(sx + 3, sy + 5, 4, 3);
-          f.fillRect(sx + 10, sy + 9, 3, 4);
-          f.fillStyle(0xffffff, 0.2);
-          f.fillRect(sx + 4, sy + 5, 2, 1);
-        } else {
-          f.fillStyle(0xffffff, 0.06);
-          f.fillRect(sx + 4, sy + 7, 3, 2);
-        }
+        drawTerrainTile(
+          f,
+          material,
+          g.planet.kind,
+          x,
+          y,
+          Math.floor(x * 16 + offsetX),
+          Math.floor(y * 16 + offsetY),
+          tile,
+          !t.get(x, y - 1),
+        );
       }
     drawSettlement(
       f,
@@ -1734,6 +1719,7 @@ export class WorldScene extends Phaser.Scene {
       this.viewWidth,
       this.viewHeight,
       "pieces",
+      material,
     );
     const ruin = ruinAt(g.planet, t);
     if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
@@ -1751,6 +1737,7 @@ export class WorldScene extends Phaser.Scene {
         animal,
         Math.round(animal.x + offsetX),
         Math.round(animal.y + offsetY),
+        this.elapsed,
       );
     }
     const landingX = sequence?.landingX ?? g.state.landingX;
@@ -1890,6 +1877,7 @@ export class WorldScene extends Phaser.Scene {
           this.building.selected,
           sx,
           sy,
+          material,
           this.building.facing,
           0.45,
         );
