@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useGame } from "../stores/game";
-import { useConstruction } from "../stores/construction";
 import {
   controls,
   pressControl,
   releaseControls,
   type Control,
 } from "../game/input";
-const b = useConstruction();
 const g = useGame(),
   surface = computed(() => g.state.mode === "surface");
 const station = computed(() => g.state.mode === "docked");
@@ -128,15 +126,15 @@ onBeforeUnmount(reset);
         PULAR
       </button>
       <button
-        v-if="!indoors && !b.enabled"
+        v-if="!walking"
         class="touch-mine"
-        :aria-label="surface ? 'Minerar blocos' : 'Minerar asteroides'"
+        aria-label="Minerar asteroides"
         @pointerdown="action('mine', $event)"
         @pointerup="stop('mine', $event)"
         @pointercancel="stop('mine', $event)"
         @lostpointercapture="stop('mine', $event)"
       >
-        <span aria-hidden="true">⌁</span>{{ surface ? "MINERAR" : "LASER" }}
+        <span aria-hidden="true">⌁</span>LASER
       </button>
       <button
         v-if="!walking"
