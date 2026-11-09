@@ -1,3 +1,4 @@
+import { deflectorFor, starKinds } from "../universe/stars";
 import type { Item, Inventory } from "../game/types";
 import { add, consume } from "../inventory/inventory";
 export interface Recipe {
@@ -21,6 +22,20 @@ export const recipes: Recipe[] = [
   { id: "cargo", cost: { plate: 4, circuit: 1 }, unlock: 4 },
   { id: "jump", cost: { plate: 2, circuit: 2, crystal: 2 }, unlock: 4 },
   { id: "drill", cost: { titanium: 2, circuit: 1 }, unlock: 4 },
+  ...starKinds.map((kind): Recipe => ({
+    id: deflectorFor(kind),
+    cost:
+      kind === "neutron"
+        ? { plate: 4, circuit: 3, titanium: 3, cell: 2 }
+        : {
+            plate: 3,
+            circuit: 2,
+            cell: 1,
+            ...(kind === "blue" || kind === "giant" ? { titanium: 2 } : {}),
+          },
+    unlock: 0,
+    station: "ship",
+  })),
   { id: "stick", cost: { wood: 1 }, amount: 8, unlock: 0, station: "ship" },
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   {

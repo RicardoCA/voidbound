@@ -926,9 +926,12 @@ kbd {
 .star-node:active:not(:disabled) {
   transform: translate(-50%, -50%);
 }
-.star-node > span {
+.star-node > .map-star-symbols {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-size: 15px;
-  color: #8799c0;
+  line-height: 1;
 }
 .star-node small {
   font-size: 6px;
@@ -936,8 +939,7 @@ kbd {
   white-space: nowrap;
 }
 .star-node.current > span {
-  color: var(--mint);
-  text-shadow: 0 0 12px var(--mint);
+  text-shadow: 0 0 9px currentColor;
 }
 .star-node.visited small {
   color: var(--mint);

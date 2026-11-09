@@ -1,3 +1,9 @@
+import {
+  deflectorFor,
+  starClasses,
+  starKinds,
+  type HeatDeflector,
+} from "../universe/stars";
 import type { Item } from "../game/types";
 
 interface ItemArt {
@@ -9,6 +15,18 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  ...(Object.fromEntries(
+    starKinds.map((kind) => [
+      deflectorFor(kind),
+      {
+        body: "M12 2l9 4v7l-3 5-6 4-6-4-3-5V6z",
+        shade: "M12 4l7 3v6l-3 5-4 2z",
+        light: "M5 7l7-3v2L7 8v5H5z",
+        detail: "M10 10h4v4h-4zM11 8h2v8h-2zM8 11h8v2H8z",
+        accent: starClasses[kind].color,
+      },
+    ]),
+  ) as Record<HeatDeflector, ItemArt>),
   stone: {
     body: "M2 15l4-6 4 1 4-5 5 2 3 9-4 4H6z",
     shade: "M2 15l5-2 3 5 7-2 5 0-4 4H6zM10 10l4-5 2 4-2 4z",

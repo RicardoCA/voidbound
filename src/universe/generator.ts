@@ -1,4 +1,5 @@
 import { hash, random, LRU } from "../game/procedural/random";
+import { starClasses, systemStars } from "./stars";
 import type { StarSystem } from "../game/types";
 const cache = new LRU<string, StarSystem>(40);
 export function systemAt(seed: string, x: number, y: number): StarSystem {
@@ -19,20 +20,19 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
       "Caelis",
     ];
   const name = `${names[Math.floor(r() * names.length)]}-${Math.floor(r() * 900 + 100)}`;
-  const star = [
-    "Anã vermelha",
-    "Estrela amarela",
-    "Estrela azul",
-    "Gigante vermelha",
-    "Anã branca",
-  ][Math.floor(r() * 5)]!;
+  // Keep the original draw in the seed stream for existing planet generation.
+  const legacyKind = (["red", "yellow", "blue", "giant", "white"] as const)[
+    Math.floor(r() * 5)
+  ]!;
+  const stars = systemStars(id, legacyKind, x === 0 && y === 0);
+  const star = starClasses[stars[0]!.kind].name;
   const planets = Array.from({ length: 1 + Math.floor(r() * 8) }, (_, i) => {
     const ps = hash(`${id}:planet:${i}`),
       p = random(ps),
       kind =
         x === 0 && y === 0 && i === 0
           ? 0
-          : Math.floor((p() * 6 + (star === "Estrela azul" ? 1 : 0)) % 6);
+          : Math.floor((p() * 6 + (legacyKind === "blue" ? 1 : 0)) % 6);
     return {
       id: `${id}:p${i}`,
       seed: ps,
@@ -57,7 +57,7 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
           y: 560,
         }
       : undefined;
-  return cache.set(id, { id, x, y, name, star, planets, station });
+  return cache.set(id, { id, x, y, name, star, stars, planets, station });
 }
 export function nearby(seed: string, x: number, y: number, radius = 3) {
   const result: StarSystem[] = [];

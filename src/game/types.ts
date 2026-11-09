@@ -1,7 +1,15 @@
+import {
+  deflectorFor,
+  starClasses,
+  starKinds,
+  type HeatDeflector,
+  type StellarBody,
+} from "../universe/stars";
 import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | HeatDeflector
   | "stone"
   | "stick"
   | "iron"
@@ -82,6 +90,7 @@ export interface StarSystem {
   y: number;
   name: string;
   star: string;
+  stars: StellarBody[];
   planets: Planet[];
   station?: Station;
 }
@@ -201,6 +210,21 @@ export const items: Record<
   Item,
   { name: string; color: string; icon: string; rarity: string; stack: number }
 > = {
+  ...(Object.fromEntries(
+    starKinds.map((kind) => [
+      deflectorFor(kind),
+      {
+        name: `Defletor térmico · ${starClasses[kind].name}`,
+        color: starClasses[kind].color,
+        icon: "◇",
+        rarity: "Melhoria",
+        stack: 1,
+      },
+    ]),
+  ) as Record<
+    HeatDeflector,
+    { name: string; color: string; icon: string; rarity: string; stack: number }
+  >),
   basaltBerry: {
     name: "Baga de basalto",
     color: "#cf93e7",

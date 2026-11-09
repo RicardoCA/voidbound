@@ -1,3 +1,4 @@
+import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
 import type { FlightContact } from "../combat/traffic";
@@ -621,6 +622,7 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
+    if (isHeatDeflector(id)) upgrades.push(id);
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
     if (id === "rawMeat") refreshFood();
@@ -1062,6 +1064,36 @@ export const useGame = defineStore("game", () => {
     if (hungerEnabled.value) player.hunger = Math.max(25, player.hunger);
     delete player.sickness;
   }
+  const stellarZones = computed(() =>
+    state.value.mode === "space"
+      ? stellarExposure(
+          system.value.stars,
+          state.value.ship,
+          state.value.upgrades,
+        )
+      : [],
+  );
+  const stellarWarning = computed(() => stellarZones.value[0]);
+  function applyStellarHeat(dt: number) {
+    const s = state.value;
+    if (s.mode !== "space") return false;
+    const damage = stellarZones.value.reduce(
+      (total, zone) => total + zone.damage,
+      0,
+    );
+    if (!damage) return false;
+    s.ship.hull = Math.max(0, s.ship.hull - damage * dt);
+    if (s.ship.hull > 0) return false;
+    // Move a protected rescue clear of the stellar hazard before saving it.
+    s.ship.x = 200;
+    s.ship.y = 330;
+    speed.value = 0;
+    clearRoute();
+    handleHullFailure(
+      "Resgate térmico. A nave foi estabilizada longe da estrela.",
+    );
+    return true;
+  }
   function handleHullFailure(emergencyMessage: string) {
     const s = state.value;
     if (s.ship.hull > 0) return false;
@@ -1266,6 +1298,8 @@ export const useGame = defineStore("game", () => {
     canAccessShipCargo,
     moveCargo,
     handleHullFailure,
+    applyStellarHeat,
+    stellarWarning,
     resolvePlayerDeath,
     extractionEfficiency,
     model,

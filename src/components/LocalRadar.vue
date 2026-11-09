@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { starClasses } from "../universe/stars";
 import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
 
@@ -22,6 +23,16 @@ function position(target: { x: number; y: number }) {
     <circle cx="45" cy="45" r="40" />
     <circle cx="45" cy="45" r="24" />
     <path d="M45 5V85M5 45H85" />
+    <circle
+      v-for="star in g.system.stars"
+      :key="star.id"
+      :cx="position(star).x"
+      :cy="position(star).y"
+      r="3"
+      :style="{ fill: starClasses[star.kind].color, stroke: 'none' }"
+    >
+      <title>{{ starClasses[star.kind].name }}</title>
+    </circle>
     <circle
       v-for="(planet, i) in g.system.planets"
       :key="planet.id"

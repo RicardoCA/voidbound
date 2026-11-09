@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { starClasses, starKinds, starSystemLabel } from "../universe/stars";
 import { nearby } from "../universe/generator";
 import CriminalRecord from "./CriminalRecord.vue";
 import { wantedBySystem } from "../combat/law";
@@ -198,12 +199,22 @@ function stationType(system: StarSystem) {
             top: `${((s.y - g.state.systemY - mapY + 3.5) / 7) * 100}%`,
           }"
           :aria-label="`${s.name}${wantedLevels.has(s.id) ? ` · Procurado ${wantedLevels.get(s.id)}/5` : ''}${bases.bySystem.has(s.id) ? ` · ${bases.bySystem.get(s.id)!.bases.length} planetas com base · ${bases.bySystem.get(s.id)!.units} unidades guardadas` : ''}`"
-          :title="`${s.name} · ${s.id === g.system.id ? 'Sistema atual · ' : ''}${stationType(s)}${wantedLevels.has(s.id) ? ` · Procurado ${wantedLevels.get(s.id)}/5` : ''}`"
-          :aria-description="stationType(s)"
+          :title="`${s.name} · ${s.id === g.system.id ? 'Sistema atual · ' : ''}${stationType(s)} · ${s.stars.map((star) => starClasses[star.kind].name).join(', ')}${wantedLevels.has(s.id) ? ` · Procurado ${wantedLevels.get(s.id)}/5` : ''}`"
+          :aria-description="`${stationType(s)} · ${starSystemLabel(s.stars)} · ${s.stars.map((star) => starClasses[star.kind].name).join(', ')}`"
           :aria-current="s.id === g.system.id ? 'location' : undefined"
           @click="selected = s.id"
         >
-          <span>{{ hasBlackMarket(s) ? "◆" : s.station ? "▣" : "●" }}</span
+          <span class="map-star-symbols" aria-hidden="true">
+            <span :style="{ color: starClasses[s.stars[0]!.kind].color }">{{
+              hasBlackMarket(s) ? "◆" : s.station ? "▣" : "●"
+            }}</span>
+            <span
+              v-for="star in s.stars.slice(1)"
+              :key="star.id"
+              :style="{ color: starClasses[star.kind].color }"
+              >•</span
+            >
+          </span>
           ><small>{{ s.name }}</small
           ><i
             v-if="bases.bySystem.has(s.id)"
@@ -228,6 +239,12 @@ function stationType(system: StarSystem) {
           >⚠ Nível de procurado no sistema</span
         >
       </div>
+      <div class="map-base-legend" aria-label="Tipos de estrela">
+        <span v-for="kind in starKinds" :key="kind">
+          <b :style="{ color: starClasses[kind].color }">●</b>
+          {{ starClasses[kind].name }}
+        </span>
+      </div>
       <div class="map-selection">
         <div>
           <h3>{{ destination?.name ?? "Selecione um sistema" }}</h3>
@@ -249,7 +266,7 @@ function stationType(system: StarSystem) {
           <p>
             {{
               destination
-                ? `${destination.star} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${Math.ceil(distance * 8)} combustível`
+                ? `${starSystemLabel(destination.stars)} · ${destination.stars.map((star) => starClasses[star.kind].name).join(" + ")} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${Math.ceil(distance * 8)} combustível`
                 : "Explore os setores. O círculo indica o alcance do motor."
             }}
           </p>

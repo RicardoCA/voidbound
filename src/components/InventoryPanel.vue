@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHeatDeflector } from "../universe/stars";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
@@ -32,19 +33,22 @@ const inventory = computed(() =>
   inventoryEntries(source.value).filter(([, n]) => n > 0),
 );
 function canUse(id: Item) {
-  return [
-    "repair",
-    "fuel",
-    "oxygen",
-    "cell",
-    "engine",
-    "laser",
-    "tank",
-    "shield",
-    "cargo",
-    "jump",
-    "drill",
-  ].includes(id);
+  return (
+    isHeatDeflector(id) ||
+    [
+      "repair",
+      "fuel",
+      "oxygen",
+      "cell",
+      "engine",
+      "laser",
+      "tank",
+      "shield",
+      "cargo",
+      "jump",
+      "drill",
+    ].includes(id)
+  );
 }
 </script>
 <template>
