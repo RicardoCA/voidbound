@@ -33,7 +33,12 @@ type SaveV4 = Omit<SaveWithoutRequiredHunger, keyof FleetFields> &
 export type StoredGame = SaveV4 | SaveV3 | SaveV2 | LegacySave;
 
 function restoreProgression(data: StoredGame) {
-  const progression = { ...newProgression(), ...data.progression };
+  const defaults = newProgression();
+  const progression = {
+    ...defaults,
+    ...data.progression,
+    careers: { ...defaults.careers, ...data.progression?.careers },
+  };
   for (const [id, contract] of Object.entries(progression.contracts)) {
     if (contract.status !== "ACTIVE") continue;
     const issuer = systemAt(data.seed, contract.sector.x, contract.sector.y);

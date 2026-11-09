@@ -83,6 +83,12 @@ const contracts = computed(() =>
           }}% de redução no consumo e no intervalo de mineração planetária.
         </p>
       </template>
+      <template v-else-if="selected === 'bountyHunter'">
+        <p>
+          Aceite mandados no quadro de contratos de estações regulares. Abata o
+          alvo pirata e volte à estação emissora para receber créditos e XP.
+        </p>
+      </template>
       <template v-else>
         <p>
           Destroços saqueados: {{ progress.piracy.recovered }} · Caixas

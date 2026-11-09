@@ -154,7 +154,7 @@ describe("pirataria espacial", () => {
     expect(g.system.station?.kind).toBe("standard");
     expect(
       contractOffers(s, g.system).map((contract) => contract.career),
-    ).toEqual(["miner", "explorer"]);
+    ).toEqual(["miner", "explorer", "bountyHunter"]);
     expect(contractOffers(s, g.system).some((c) => c.career === "pirate")).toBe(
       false,
     );
