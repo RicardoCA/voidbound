@@ -178,6 +178,37 @@ export function drawPiece(
     }
     return;
   }
+  if (kind === "stickLadder") {
+    g.fillStyle(material.shade, alpha)
+      .fillRect(x + 2, y, 3, 16)
+      .fillRect(x + 12, y, 3, 16);
+    g.fillStyle(material.timber, alpha)
+      .fillRect(x + 2, y, 2, 16)
+      .fillRect(x + 12, y, 2, 16);
+    for (const rung of [2, 7, 12]) {
+      g.fillStyle(material.shade, alpha).fillRect(x + 4, y + rung, 8, 3);
+      g.fillStyle(material.trim, alpha).fillRect(x + 4, y + rung, 8, 1);
+    }
+    return;
+  }
+  if (kind === "woodHatch") {
+    const side = facing === 1 ? 0 : 13;
+    g.fillStyle(material.shade, alpha)
+      .fillRect(x, y, 2, 16)
+      .fillRect(x + 14, y, 2, 16);
+    if (state?.open) {
+      g.fillStyle(material.timber, alpha).fillRect(x + side, y - 7, 3, 18);
+      g.fillStyle(material.trim, alpha).fillRect(x + side, y - 7, 1, 18);
+    } else {
+      g.fillStyle(material.timber, alpha).fillRect(x, y, 16, 10);
+      g.fillStyle(material.trim, alpha).fillRect(x, y, 16, 2);
+      g.fillStyle(material.shade, alpha)
+        .fillRect(x + 2, y + 5, 12, 1)
+        .fillRect(x + 11, y + 3, 3, 2);
+      g.fillStyle(material.trim, alpha).fillRect(x + 11, y + 3, 2, 1);
+    }
+    return;
+  }
   if (kind === "woodDoor") {
     g.fillStyle(material.shade, alpha);
     g.fillRect(x, y - 16, 2, 32);

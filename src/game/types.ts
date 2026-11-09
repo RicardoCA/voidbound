@@ -2,6 +2,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | "stick"
   | "iron"
   | "copper"
   | "silicon"
@@ -37,6 +38,8 @@ export type Item =
   | "woodBlock"
   | "woodWall"
   | "woodStairs"
+  | "stickLadder"
+  | "woodHatch"
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
@@ -76,6 +79,8 @@ export type BuildItem =
   | "woodBlock"
   | "woodWall"
   | "woodStairs"
+  | "stickLadder"
+  | "woodHatch"
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
@@ -414,6 +419,27 @@ export const items: Record<
     name: "Parede de madeira",
     color: "#ad835d",
     icon: "▥",
+    rarity: "Construção",
+    stack: 99,
+  },
+  stick: {
+    name: "Graveto",
+    color: "#c49a6c",
+    icon: "╱",
+    rarity: "Fabricado",
+    stack: 99,
+  },
+  stickLadder: {
+    name: "Escada de graveto",
+    color: "#c49a6c",
+    icon: "╪",
+    rarity: "Construção",
+    stack: 99,
+  },
+  woodHatch: {
+    name: "Alçapão de madeira",
+    color: "#ba9166",
+    icon: "▱",
     rarity: "Construção",
     stack: 99,
   },

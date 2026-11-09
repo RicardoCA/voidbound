@@ -40,10 +40,14 @@ export function pieceAt(data: Settlement, x: number, y: number) {
   if (below?.kind === "woodDoor")
     return { key: belowKey, piece: below, x, y: y + 1 };
 }
+export function isOpening(kind: BuildItem | undefined) {
+  return kind === "woodDoor" || kind === "woodHatch";
+}
 export function blocksAir(data: Settlement, x: number, y: number) {
   const piece = pieceAt(data, x, y)?.piece;
   return (
-    piece?.kind === "woodBlock" || (piece?.kind === "woodDoor" && !piece.open)
+    piece?.kind === "woodBlock" ||
+    (piece !== undefined && isOpening(piece.kind) && !piece.open)
   );
 }
 export function overlapsActor(

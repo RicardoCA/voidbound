@@ -32,6 +32,7 @@ import {
   footprint,
   overlapsActor,
   isCabinet,
+  isOpening,
   cabinetWidths,
 } from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
@@ -41,6 +42,7 @@ export const useConstruction = defineStore("construction", () => {
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
     facing = ref<1 | -1>(1),
+    climbingColumn = ref<number>(),
     cursor = ref<{ x: number; y: number } | null>(null),
     activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
       null,
@@ -207,13 +209,14 @@ export const useConstruction = defineStore("construction", () => {
   }
   function toggleDoor(key: string) {
     const piece = settlement.value.pieces[key];
-    if (g.state.mode !== "surface" || piece?.kind !== "woodDoor") return false;
+    if (g.state.mode !== "surface" || !piece || !isOpening(piece.kind))
+      return false;
     const [x, y] = key.split(",").map(Number);
     if (!inReach(g.state.player, x!, y!, 76)) {
       g.notify("Aproxime-se da porta para interagir.");
       return false;
     }
-    if (piece.open && overlapsActor("woodDoor", x!, y!, g.state.player)) {
+    if (piece.open && overlapsActor(piece.kind, x!, y!, g.state.player)) {
       g.notify("Afaste-se do vão antes de fechar a porta.");
       return false;
     }
@@ -221,7 +224,17 @@ export const useConstruction = defineStore("construction", () => {
     piece.open = !piece.open;
     g.worldChanged();
     audio.play(piece.open ? 310 : 220, 0.12);
-    g.notify(piece.open ? "Porta aberta." : "Porta fechada.");
+    const hatch = piece.kind === "woodHatch";
+    g.notify(
+      hatch
+        ? piece.open
+          ? "Alçapão aberto."
+          : "Alçapão fechado."
+        : piece.open
+          ? "Porta aberta."
+          : "Porta fechada.",
+    );
+
     void g.save();
     return true;
   }
@@ -243,7 +256,21 @@ export const useConstruction = defineStore("construction", () => {
       } else g.notify("Aproxime-se da fogueira para cozinhar.");
       return true;
     }
-    if (found.piece.kind === "woodDoor") {
+    if (found.piece.kind === "stickLadder") {
+      if (
+        g.state.mode === "surface" &&
+        inReach(g.state.player, found.x, found.y, 28)
+      ) {
+        climbingColumn.value =
+          climbingColumn.value === found.x ? undefined : found.x;
+        if (climbingColumn.value !== undefined)
+          g.notify(
+            "Escada: use W/S, setas ou o controle vertical para subir e descer.",
+          );
+      }
+      return true;
+    }
+    if (isOpening(found.piece.kind)) {
       toggleDoor(found.key);
       return true;
     }
@@ -340,9 +367,14 @@ export const useConstruction = defineStore("construction", () => {
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
       if (
         !isCabinet(piece.kind) &&
-        !["woodDoor", "campfire", "battery", "oxygenGenerator"].includes(
-          piece.kind,
-        )
+        ![
+          "woodDoor",
+          "woodHatch",
+          "stickLadder",
+          "campfire",
+          "battery",
+          "oxygenGenerator",
+        ].includes(piece.kind)
       )
         continue;
       const [x, y] = id.split(",").map(Number),
@@ -352,7 +384,9 @@ export const useConstruction = defineStore("construction", () => {
             g.state.player.x,
           y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
-      if (d < distance) {
+      if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
+        return { key: id, distance: d };
+      if (d < distance && (piece.kind !== "stickLadder" || d <= 28)) {
         distance = d;
         key = id;
       }
@@ -405,6 +439,7 @@ export const useConstruction = defineStore("construction", () => {
         enabled.value = false;
         cursor.value = null;
         activeCabinet.value = null;
+        climbingColumn.value = undefined;
       }
     },
     { flush: "sync" },
@@ -421,6 +456,7 @@ export const useConstruction = defineStore("construction", () => {
     container,
     containerKind,
     containerCapacity,
+    climbingColumn,
     activeCabinet,
     selectedCount,
     openPalette,

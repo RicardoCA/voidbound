@@ -14,7 +14,12 @@ import {
   settlementFor,
   transfer,
 } from "../construction/building";
-import { stepSurface, solidCell, type Actor } from "../game/physics/surface";
+import {
+  stepClimb,
+  stepSurface,
+  solidCell,
+  type Actor,
+} from "../game/physics/surface";
 import { craft, recipes } from "../crafting/recipes";
 import { listBases } from "../construction/catalog";
 import { SaveDatabase } from "../persistence/database";
@@ -189,6 +194,65 @@ describe("Construção e armazenamento transacionais", () => {
       }
     },
   );
+  it("fabrica gravetos na nave e monta uma passagem vertical com alçapão", () => {
+    const { ctx, g, data, terrain } = setup();
+    const b = useConstruction();
+    g.state.inventory.wood = 1;
+    g.make("stick");
+    expect(g.state.inventory).toEqual({ wood: 1 });
+    g.enter();
+    g.make("stick");
+    expect(g.state.inventory).toEqual({ stick: 8 });
+    expect(g.moveCargo(false, "stick", 8)).toBe(true);
+    g.exit();
+    g.state.player.x = 72;
+    g.state.player.y = 452;
+    Object.assign(g.state.backpack, { wood: 3, iron: 1, woodBlock: 1 });
+    g.make("stickLadder");
+    g.make("stickLadder");
+    g.make("woodHatch");
+    expect(placePiece(ctx, "stickLadder", 4, 28)).toBeUndefined();
+    expect(placePiece(ctx, "stickLadder", 4, 27)).toBeUndefined();
+    expect(placePiece(ctx, "woodHatch", 4, 26)).toBeUndefined();
+    expect(placePiece(ctx, "woodBlock", 5, 26)).toBeUndefined();
+
+    function climb(from: { x: number; y: number }, vertical: number) {
+      let position = from;
+      for (let frame = 0; frame < 100; frame++)
+        position =
+          stepClimb(position, 4, vertical, 0.02, terrain, data) ?? position;
+      return position;
+    }
+    expect(
+      stepClimb({ x: 88, y: 452 }, undefined, -1, 0.02, terrain, data),
+    ).toMatchObject({ x: 72 });
+    expect(b.interactAt(4, 28)).toBe(true);
+    expect(b.climbingColumn).toBe(4);
+    const below = climb(g.state.player, -1);
+    expect(below.y).toBeGreaterThanOrEqual(443.9);
+    expect(solidCell(terrain, data, 4, 26)).toBe(true);
+    Object.assign(g.state.player, below);
+    expect(b.toggleDoor("4,26")).toBe(true);
+    expect(solidCell(terrain, data, 4, 26)).toBe(false);
+    const upstairs = climb(below, -1);
+    expect(upstairs.y).toBe(26 * 16 - 12);
+    const walked = stepSurface(
+      { ...upstairs, vy: 0, grounded: false },
+      1,
+      false,
+      1,
+      0.18,
+      terrain,
+      data,
+    );
+    expect(walked.grounded).toBe(true);
+    expect(climb(upstairs, 1).y).toBeGreaterThan(440);
+    Object.assign(g.state.player, { x: 72, y: 430 });
+    expect(b.toggleDoor("4,26")).toBe(false);
+    expect(
+      migrateSave(g.state).settlements[g.planet.id]?.pieces["4,26"]?.open,
+    ).toBe(true);
+  });
   it("recusa transferência sem espaço ou com quantidade inválida mantendo os dois lados", () => {
     const source: Inventory = { wood: 50 },
       dest: Inventory = { iron: 99 };

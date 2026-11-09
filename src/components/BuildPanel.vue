@@ -13,6 +13,10 @@ const descriptions = {
   woodBlock: "Piso, fundação, pilares e telhado. Bloco sólido.",
   woodWall: "Fundo da casa. Você pode andar à frente da parede.",
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
+  stickLadder:
+    "Empilhe na vertical. Use E ou toque para se apoiar. Suba e desça com W/S, setas ou o joystick.",
+  woodHatch:
+    "Instale no piso acima da escada. Use E ou toque para abrir e passar entre andares.",
   cabinet:
     "16 slots de armazenamento exclusivo deste planeta. E ou toque abre.",
   cabinetDouble:

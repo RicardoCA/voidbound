@@ -779,8 +779,9 @@ function minutes() {
     </footer>
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
-        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR
-        <kbd>CLIQUE</kbd> MINERAR <kbd>B</kbd> CONSTRUIR</span
+        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR <kbd>W</kbd
+        ><kbd>S</kbd> ESCALAR <kbd>CLIQUE</kbd> MINERAR
+        <kbd>B</kbd> CONSTRUIR</span
       ><span v-else-if="atStation || inShip"
         ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para
         caminhar</span

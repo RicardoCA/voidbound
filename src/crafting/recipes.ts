@@ -21,6 +21,7 @@ export const recipes: Recipe[] = [
   { id: "cargo", cost: { plate: 4, circuit: 1 }, unlock: 4 },
   { id: "jump", cost: { plate: 2, circuit: 2, crystal: 2 }, unlock: 4 },
   { id: "drill", cost: { titanium: 2, circuit: 1 }, unlock: 4 },
+  { id: "stick", cost: { wood: 1 }, amount: 8, unlock: 0, station: "ship" },
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   { id: "woodWall", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   {
@@ -30,6 +31,8 @@ export const recipes: Recipe[] = [
     amount: 4,
     station: "hand",
   },
+  { id: "stickLadder", cost: { stick: 4 }, unlock: 0, station: "hand" },
+  { id: "woodHatch", cost: { wood: 3, iron: 1 }, unlock: 0, station: "hand" },
   { id: "cabinet", cost: { wood: 6, iron: 2 }, unlock: 0, station: "hand" },
   {
     id: "cabinetDouble",

@@ -55,7 +55,12 @@ import {
 } from "../rendering/surfaceMaterials";
 import { SurfaceArt } from "../rendering/surfaceArt";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
-import { solidCell, stairFloor, stepSurface } from "../physics/surface";
+import {
+  solidCell,
+  stairFloor,
+  stepClimb,
+  stepSurface,
+} from "../physics/surface";
 import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
@@ -809,8 +814,8 @@ export class WorldScene extends Phaser.Scene {
       p = g.state.player,
       t = this.terrain!;
     const direction =
-      (this.down("D") || controls.right ? 1 : 0) -
-      (this.down("A") || controls.left ? 1 : 0);
+      (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
+      (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
     if (direction) this.facing = direction;
     const pulse = takePulse("jump");
     const jumping = this.down("SPACE") || controls.jump;
@@ -821,15 +826,30 @@ export class WorldScene extends Phaser.Scene {
     );
     if (jump && this.grounded) audio.play(300);
     this.jumpHeld = jumping;
-    const movement = stepSurface(
-      { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
-      direction,
-      jump,
-      g.planet.gravity,
-      dt,
-      t,
-      this.building.settlement,
-    );
+    const vertical =
+      Number(this.down("S") || this.down("DOWN") || controls.down) -
+      Number(this.down("W") || this.down("UP") || controls.up);
+    const grip = this.building.climbingColumn;
+    const climb =
+      !direction &&
+      !jumping &&
+      !pulse &&
+      !this.building.enabled &&
+      (grip !== undefined || vertical !== 0)
+        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement)
+        : undefined;
+    this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
+    const movement =
+      climb ??
+      stepSurface(
+        { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
+        direction,
+        jump,
+        g.planet.gravity,
+        dt,
+        t,
+        this.building.settlement,
+      );
     p.x = movement.x;
     p.y = movement.y;
     p.health -= movement.fallDamage;
@@ -1925,7 +1945,9 @@ export class WorldScene extends Phaser.Scene {
         this.drawAstronaut(
           Math.round(p.x - this.camX + this.centerX),
           Math.round(p.y - this.camY + this.centerY),
-          this.grounded ? Math.sin(this.elapsed * 13) * 2 : 0,
+          this.grounded || this.building.climbingColumn !== undefined
+            ? Math.sin(this.elapsed * 13) * 2
+            : 0,
           this.facing,
         );
       }

@@ -22,6 +22,79 @@ export function stairFloor(settlement: Settlement, x: number, tileY: number) {
   const offset = x - tx * 16;
   return tileY * 16 + (piece.facing === 1 ? 16 - offset : offset);
 }
+function clearBody(
+  solid: (x: number, y: number) => boolean,
+  x: number,
+  y: number,
+) {
+  return [y - 11.9, y, y + 11.9].every(
+    (height) => !solid(x - 4, height) && !solid(x + 4, height),
+  );
+}
+
+export function stepClimb(
+  actor: Pick<Actor, "x" | "y">,
+  column: number | undefined,
+  vertical: number,
+  dt: number,
+  terrain: Terrain,
+  settlement: Settlement,
+): (Actor & { fallDamage: number }) | undefined {
+  if (column === undefined) {
+    const center = Math.floor(actor.x / 16);
+    for (const candidate of [center, center - 1, center + 1]) {
+      const movement = stepClimb(
+        actor,
+        candidate,
+        vertical,
+        dt,
+        terrain,
+        settlement,
+      );
+      if (movement) return movement;
+    }
+    return undefined;
+  }
+  const x = column * 16 + 8;
+  const piece = (row: number) => settlement.pieces[keyAt(column, row)];
+  const onLadder = (y: number) => {
+    for (
+      let row = Math.floor((y - 12) / 16);
+      row <= Math.floor((y + 12) / 16);
+      row++
+    ) {
+      const tile = piece(row);
+      if (tile?.kind === "stickLadder") return true;
+      if (
+        tile?.kind === "woodHatch" &&
+        tile.open &&
+        piece(row + 1)?.kind === "stickLadder"
+      )
+        return true;
+    }
+    return false;
+  };
+  const solid = (x: number, y: number) =>
+    solidCell(terrain, settlement, Math.floor(x / 16), Math.floor(y / 16));
+  if (
+    Math.abs(actor.x - x) > 20 ||
+    !onLadder(actor.y) ||
+    !clearBody(solid, x, actor.y) ||
+    !clearBody(solid, (actor.x + x) / 2, actor.y)
+  )
+    return;
+  const dy = vertical * 66 * dt;
+  const next = actor.y + dy;
+  let y = actor.y;
+  if (onLadder(next) && clearBody(solid, x, next)) y = next;
+  else if (dy < 0) {
+    // Stop with feet at the top edge so the player can step onto an adjacent floor.
+    const edge = Math.floor((actor.y + 12) / 16) * 16 - 12;
+    if (edge >= next && onLadder(edge) && clearBody(solid, x, edge)) y = edge;
+  }
+  return { x, y, vy: 0, grounded: false, fallDamage: 0 };
+}
+
 /** Small movement substeps prevent falling through built floors at high velocity. */
 export function stepSurface(
   actor: Actor,
@@ -36,13 +109,7 @@ export function stepSurface(
   let fallDamage = 0;
   const solid = (x: number, y: number) =>
     solidCell(terrain, settlement, Math.floor(x / 16), Math.floor(y / 16));
-  const clear = (x: number, y: number) =>
-    !solid(x - 4, y - 11.9) &&
-    !solid(x + 4, y - 11.9) &&
-    !solid(x - 4, y + 11.9) &&
-    !solid(x + 4, y + 11.9) &&
-    !solid(x - 4, y) &&
-    !solid(x + 4, y);
+  const clear = (x: number, y: number) => clearBody(solid, x, y);
   const nx = a.x + direction * 90 * dt;
   let stepY = a.y;
   if (a.grounded && !jump) {

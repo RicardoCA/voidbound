@@ -241,6 +241,23 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M6 11h2v1H6zM16 13h3v1h-3z",
     accent: "#694b39",
   },
+  stick: {
+    body: "M4 17L17 4l3 3L7 20z",
+    shade: "M6 19L19 6l1 1L7 20z",
+    light: "M5 17L17 5l1 1L6 18z",
+  },
+  stickLadder: {
+    body: "M5 2h3v20H5zM16 2h3v20h-3zM8 5h8v3H8zM8 11h8v3H8zM8 17h8v3H8z",
+    shade: "M7 2h1v20H7zM18 2h1v20h-1zM8 7h8v1H8zM8 13h8v1H8zM8 19h8v1H8z",
+    light: "M5 2h1v20H5zM16 2h1v20h-1zM8 5h8v1H8zM8 11h8v1H8zM8 17h8v1H8z",
+  },
+  woodHatch: {
+    body: "M3 8h18v9H3z",
+    shade: "M3 15h18v2H3zM5 11h13v1H5z",
+    light: "M3 8h18v2H3z",
+    detail: "M14 11h4v2h-4z",
+    accent: "#d6bf9a",
+  },
   woodStairs: {
     body: "M3 15h5v-4h5V7h5V4h3v16H3z",
     shade: "M3 18h18v2H3zM8 14h3v4H8zM13 10h3v8h-3zM18 7h3v11h-3z",

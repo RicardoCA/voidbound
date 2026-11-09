@@ -1,6 +1,6 @@
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
-import { blocksAir, keyAt, pieceAt } from "./pieces";
+import { blocksAir, isOpening, keyAt, pieceAt } from "./pieces";
 export const BATTERY_CAP = 1200;
 export const OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
@@ -80,7 +80,7 @@ export function analyzeRoom(
     if (at.y < 0 || at.y >= 63) return fail("open");
     if (terrain.get(at.x, at.y) !== 0 || blocksAir(data, at.x, at.y)) continue;
     const piece = pieceAt(data, at.x, at.y)?.piece;
-    if (piece?.kind === "woodDoor" && piece.open) sawOpenDoor = true;
+    if (piece?.open && isOpening(piece.kind)) sawOpenDoor = true;
     if (!data.walls[key])
       return fail(
         sawOpenDoor

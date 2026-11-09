@@ -9,6 +9,7 @@ import type { Terrain } from "../game/procedural/terrain";
 import {
   cabinetWidths,
   isCabinet,
+  isOpening,
   keyAt,
   pieceAt,
   footprint,
@@ -21,6 +22,8 @@ export const buildItems: BuildItem[] = [
   "woodBlock",
   "woodWall",
   "woodStairs",
+  "stickLadder",
+  "woodHatch",
   "cabinet",
   "cabinetDouble",
   "cabinetTriple",
@@ -95,7 +98,7 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (kind === "woodBlock" || kind === "woodDoor") &&
+    (kind === "woodBlock" || isOpening(kind)) &&
     overlapsActor(kind, x, y, ctx.player)
   )
     return "Não é possível fechar uma peça sobre o astronauta.";
@@ -110,7 +113,7 @@ export function placementError(
     )
       return "Mantenha a área de acesso da nave livre.";
     if (
-      ["woodBlock", "woodStairs", "woodDoor"].includes(kind) &&
+      (kind === "woodBlock" || kind === "woodStairs" || isOpening(kind)) &&
       cell.x * 16 < ctx.landingX * 16 + 48 &&
       (cell.x + 1) * 16 > ctx.landingX * 16 + 32 &&
       cell.y * 16 < padY &&
@@ -134,7 +137,8 @@ export function placementError(
     kind === "woodStairs" &&
     lowerStair?.kind === "woodStairs" &&
     lowerStair.facing === facing;
-  if (!supported && !stairSupport)
+  const ladderBacking = kind === "stickLadder" && settlement.walls[keyAt(x, y)];
+  if (!supported && !stairSupport && !ladderBacking)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
     (isCabinet(kind) ||
@@ -174,7 +178,7 @@ export function placePiece(
     ctx.settlement.pieces[key] = {
       kind,
       facing,
-      ...(kind === "woodDoor" ? { open: false } : {}),
+      ...(isOpening(kind) ? { open: false } : {}),
       ...(kind === "battery" ? { energy: 0 } : {}),
       ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
     };

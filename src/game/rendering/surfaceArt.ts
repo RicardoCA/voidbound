@@ -3,6 +3,7 @@ import type Phaser from "phaser";
 import type { BuildItem, PlacedPiece } from "../types";
 
 const sprites = "surface-sprites";
+const ladderAndHatch = "surface-ladder-and-hatch";
 const materials = "surface-wood-and-deposits";
 const path = import.meta.env.BASE_URL + "surface/";
 const ground = (kind: number) => "surface-ground-" + kind;
@@ -19,6 +20,10 @@ export class SurfaceArt {
 
   preload(scene: Phaser.Scene) {
     scene.load.atlas(sprites, path + "sprites.webp", path + "sprites.json");
+    scene.load.spritesheet(ladderAndHatch, path + "ladder-and-hatch.webp", {
+      frameWidth: 32,
+      frameHeight: 48,
+    });
     scene.load.spritesheet(materials, path + "wood-and-deposits.webp", {
       frameWidth: 32,
       frameHeight: 32,
@@ -237,6 +242,21 @@ export class SurfaceArt {
         alpha,
         depth,
         materials,
+      );
+    }
+    if (kind === "stickLadder" || kind === "woodHatch") {
+      const frame = kind === "stickLadder" ? 0 : state?.open ? 2 : 1;
+      return this.sprite(
+        scene,
+        frame,
+        x + 8,
+        y + 16,
+        16,
+        24,
+        state?.facing === -1,
+        alpha,
+        -0.02,
+        ladderAndHatch,
       );
     }
     if (isCabinet(kind)) {
