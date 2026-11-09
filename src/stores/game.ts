@@ -20,7 +20,7 @@ import { craft, recipes } from "../crafting/recipes";
 import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
-import { emptySettlement } from "../construction/building";
+import { emptySettlement, transfer } from "../construction/building";
 import {
   awardCareerXP,
   newProgression,
@@ -40,6 +40,7 @@ import {
   foodValue,
 } from "../survival/food";
 import { INITIAL_CREDITS } from "../economy/market";
+export const BACKPACK_SLOTS = 24;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
 export const SURFACE_SEQUENCE_DURATION = {
@@ -64,7 +65,7 @@ export const missions = [
   },
   {
     title: "Reparo de emergência",
-    text: "Na estação da nave, fabrique 2 placas, 2 circuitos e um kit de reparo.",
+    text: "Guarde os recursos da mochila no armário de carga. Na bancada, fabrique 2 placas, 2 circuitos e um kit de reparo.",
   },
   {
     title: "De volta ao espaço",
@@ -111,6 +112,7 @@ function initial(seed: string): Save {
     },
     player: { x: 0, y: 0, health: 100, oxygen: 100, energy: 100, hunger: 100 },
     inventory: {},
+    backpack: {},
     upgrades: [],
     changes: {},
     depleted: [],
@@ -154,6 +156,7 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
   const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
@@ -280,6 +283,19 @@ export const useGame = defineStore("game", () => {
       () => (100 * state.value.ship.hull) / model.value.hull,
     ),
     usedSlots = computed(() => slots(state.value.inventory)),
+    onSurface = computed(() => state.value.mode === "surface"),
+    workingInventory = computed(() =>
+      onSurface.value ? state.value.backpack : state.value.inventory,
+    ),
+    workingCapacity = computed(() =>
+      onSurface.value ? BACKPACK_SLOTS : capacity.value,
+    ),
+    canAccessShipCargo = computed(
+      () =>
+        state.value.mode === "interior" ||
+        state.value.mode === "docked" ||
+        flightCabin.value,
+    ),
     mission = computed(() => missions[state.value.mission]!),
     showMission = computed(() => state.value.mission < missions.length - 1),
     maxFuel = computed(() =>
@@ -453,12 +469,16 @@ export const useGame = defineStore("game", () => {
     }
   }
   function collect(id: Item, n = 1) {
-    if (!add(state.value.inventory, id, n, capacity.value)) {
-      notify("Carga cheia. Fabrique ou use itens para liberar espaço.");
+    if (!add(workingInventory.value, id, n, workingCapacity.value)) {
+      notify(
+        onSurface.value
+          ? "Mochila cheia. Use ou guarde itens para liberar espaço."
+          : "Carga cheia. Fabrique ou use itens para liberar espaço.",
+      );
       return false;
     }
     audio.play(380);
-    const inv = state.value.inventory;
+    const inv = workingInventory.value;
     if (
       (inv.iron ?? 0) >= 6 &&
       (inv.copper ?? 0) >= 4 &&
@@ -526,7 +546,12 @@ export const useGame = defineStore("game", () => {
     }
     if (
       !recipe ||
-      !craft(state.value.inventory, recipe, capacity.value, state.value.mission)
+      !craft(
+        workingInventory.value,
+        recipe,
+        workingCapacity.value,
+        state.value.mission,
+      )
     ) {
       notify("Materiais insuficientes, receita bloqueada ou carga cheia.");
       return;
@@ -547,7 +572,26 @@ export const useGame = defineStore("game", () => {
     progress();
     void save();
   }
-  function use(id: Item) {
+  function moveCargo(toShip: boolean, id: Item, quantity: number) {
+    if (!canAccessShipCargo.value || trading.value) return false;
+    const { inventory, backpack } = state.value;
+    if (
+      !transfer(
+        toShip ? backpack : inventory,
+        toShip ? inventory : backpack,
+        id,
+        quantity,
+        toShip ? capacity.value : BACKPACK_SLOTS,
+      )
+    ) {
+      notify("Confira a quantidade e o espaço livre no destino.");
+      return false;
+    }
+    notify(`${quantity} × ${items[id].name} transferido.`);
+    void save();
+    return true;
+  }
+  function use(id: Item, fromBackpack = onSurface.value) {
     const s = state.value,
       upgrades: Item[] = [
         "engine",
@@ -558,7 +602,8 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (trading.value) return;
+    if (trading.value || (onSurface.value && !fromBackpack)) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
     const nutrition = foodValue(id);
     if (nutrition) {
       if (!hungerEnabled.value) {
@@ -570,7 +615,7 @@ export const useGame = defineStore("game", () => {
         notify("Você já está alimentado.");
         return;
       }
-      if (!consume(s.inventory, { [id]: 1 })) return;
+      if (!consume(inventory, { [id]: 1 })) return;
       s.player.hunger = Math.min(100, hunger + nutrition);
       if (id === "rawMeat" && Math.random() < RAW_MEAT_RISK) {
         s.player.sickness = FOOD_SICKNESS_DURATION;
@@ -601,7 +646,7 @@ export const useGame = defineStore("game", () => {
       notify("Reserva de oxigênio já cheia.");
       return;
     }
-    if (!consume(s.inventory, { [id]: 1 })) return;
+    if (!consume(inventory, { [id]: 1 })) return;
     if (id === "repair")
       s.ship.hull = Math.min(model.value.hull, s.ship.hull + 50);
     if (id === "fuel") s.ship.fuel = Math.min(maxFuel.value, s.ship.fuel + 30);
@@ -907,6 +952,92 @@ export const useGame = defineStore("game", () => {
       0,
     );
   }
+  function restorePlayer() {
+    const player = state.value.player;
+    player.health = 100;
+    player.oxygen = Math.max(60, player.oxygen);
+    if (hungerEnabled.value) player.hunger = Math.max(25, player.hunger);
+    delete player.sickness;
+  }
+  function handleHullFailure(emergencyMessage: string) {
+    const s = state.value;
+    if (s.ship.hull > 0) return false;
+    if (
+      !survivorEnabled.value ||
+      (s.activeShip.id === "ship-1" && s.activeShip.model === "sparrow") ||
+      s.activeShip.rescue
+    ) {
+      Object.assign(s.ship, {
+        hull: 30,
+        vx: 0,
+        vy: 0,
+        fuel: Math.max(s.ship.fuel, 15),
+      });
+      notify(emergencyMessage);
+      void save();
+      return false;
+    }
+
+    const destination = system.value.station
+      ? system.value
+      : systemAt(s.seed, 0, 0);
+    const station = destination.station!;
+    const starter = shipModels.sparrow;
+    const lost = model.value.name;
+    s.activeShip = {
+      id: `ship-${s.nextShipId++}`,
+      model: "sparrow",
+      rescue: true,
+    };
+    s.ship = {
+      x: station.x,
+      y: station.y,
+      angle: 0,
+      vx: 0,
+      vy: 0,
+      hull: starter.hull,
+      fuel: starter.fuel,
+      oxygen: 100,
+      energy: 100,
+    };
+    s.inventory = {};
+    s.backpack = {};
+    s.upgrades = [...starter.equipment];
+    restorePlayer();
+    s.systemX = destination.x;
+    s.systemY = destination.y;
+    s.planetIndex = 0;
+    s.mode = "docked";
+    panel.value = "";
+    speed.value = 0;
+    flightContact.value = undefined;
+    releaseControls();
+    notify(
+      `${lost} destruída. Você foi resgatado em ${station.name} com uma Sparrow de emergência.`,
+    );
+    void save();
+    return true;
+  }
+  function resolvePlayerDeath() {
+    const s = state.value;
+    if (s.player.health > 0) return false;
+    restorePlayer();
+    s.ship.hull = Math.max(15, s.ship.hull - 10);
+    const lostBackpack = s.mode === "surface" && survivorEnabled.value;
+    if (s.mode === "surface") {
+      if (lostBackpack) s.backpack = {};
+      s.mode = "interior";
+      panel.value = "";
+      releaseControls();
+    }
+    notify(
+      lostBackpack
+        ? "Resgate de emergência. Você perdeu os itens da mochila e voltou à nave."
+        : "Resgate de emergência. Penalidade: 10 pontos de casco.",
+    );
+    void save();
+    return true;
+  }
   function tick(dt: number) {
     if (
       !started.value ||
@@ -965,16 +1096,7 @@ export const useGame = defineStore("game", () => {
         s.player.health = Math.min(100, s.player.health + dt * 3);
       s.ship.energy = Math.min(100, s.ship.energy + dt * 8);
     } else s.ship.energy = Math.min(100, s.ship.energy + dt * 5);
-    if (s.player.health <= 0) {
-      s.player.health = 100;
-      s.player.oxygen = Math.max(60, s.player.oxygen);
-      if (hungerEnabled.value) s.player.hunger = Math.max(25, s.player.hunger);
-      delete s.player.sickness;
-      s.ship.hull = Math.max(15, s.ship.hull - 10);
-      if (s.mode === "surface") s.mode = "interior";
-      notify("Resgate de emergência. Penalidade: 10 pontos de casco.");
-      void save();
-    }
+    resolvePlayerDeath();
   }
   return {
     state,
@@ -993,6 +1115,7 @@ export const useGame = defineStore("game", () => {
     paused,
     notice,
     saveStatus,
+    survivorEnabled,
     hungerEnabled,
     autosaveEnabled,
     saveRevision,
@@ -1023,6 +1146,10 @@ export const useGame = defineStore("game", () => {
     biome,
     weather,
     capacity,
+    canAccessShipCargo,
+    moveCargo,
+    handleHullFailure,
+    resolvePlayerDeath,
     extractionEfficiency,
     model,
     hullPercent,

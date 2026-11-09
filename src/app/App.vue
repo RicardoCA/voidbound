@@ -80,7 +80,12 @@ const stationNpc = computed(() =>
 );
 const localTime = computed(() => planetClock(g.state.time));
 const nav = computed(() => [
-  { id: "inventory", icon: "▦", label: "Carga", key: "I" },
+  {
+    id: "inventory",
+    icon: "▦",
+    label: surface.value ? "Mochila" : "Carga",
+    key: "I",
+  },
   ...(surface.value
     ? [{ id: "build", icon: "⌂", label: "Construir", key: "B" }]
     : [
@@ -580,6 +585,15 @@ function minutes() {
               ><input v-model="g.autosaveEnabled" type="checkbox" /> Salvamento
               automático</label
             >
+            <label
+              ><input v-model="g.survivorEnabled" type="checkbox" /> Modo
+              sobrevivente</label
+            >
+            <p>
+              No modo sobrevivente, morrer na superfície esvazia a mochila. Se
+              uma nave fora da proteção de emergência for destruída, você perde
+              a nave, a carga e a mochila.
+            </p>
             <p v-if="!g.autosaveEnabled">
               Use Salvar partida no menu de pausa para gravar seu progresso.
             </p>

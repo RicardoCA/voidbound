@@ -39,7 +39,7 @@ function setup() {
     ctx: {
       terrain,
       settlement: data,
-      inventory: g.state.inventory,
+      inventory: g.state.backpack,
       capacity: g.capacity,
       player: g.state.player,
       landingX: g.state.landingX,
@@ -70,14 +70,14 @@ describe("Florestas alienígenas", () => {
     expect(b.harvest(tree)).toBe(false);
     g.state.player.x = 40;
     const inventory: Inventory = {};
-    g.state.inventory = { woodBlock: 99 * 24 };
+    g.state.backpack = { woodBlock: 99 * 24 };
     expect(b.harvest(tree)).toBe(false);
     expect(data.cutTrees).toEqual([]);
-    g.state.inventory = inventory;
+    g.state.backpack = inventory;
     expect(b.harvest(tree)).toBe(true);
-    expect(g.state.inventory.wood).toBe(tree.wood);
+    expect(g.state.backpack.wood).toBe(tree.wood);
     expect(b.harvest(tree)).toBe(false);
-    expect(g.state.inventory.wood).toBe(tree.wood);
+    expect(g.state.backpack.wood).toBe(tree.wood);
     expect(
       treesInRange(g.planet, terrain, -8, 10, data.cutTrees).some(
         (t) => t.id === tree.id,
@@ -88,9 +88,9 @@ describe("Florestas alienígenas", () => {
 describe("Construção e armazenamento transacionais", () => {
   it("fabrica lotes de peças à mão com custo exato", () => {
     const { g } = setup();
-    g.state.inventory = { wood: 7, iron: 2 };
+    g.state.backpack = { wood: 7, iron: 2 };
     g.make("woodBlock");
-    expect(g.state.inventory).toEqual({ wood: 5, iron: 2, woodBlock: 4 });
+    expect(g.state.backpack).toEqual({ wood: 5, iron: 2, woodBlock: 4 });
     const inv = { wood: 1 };
     expect(
       craft(
@@ -104,46 +104,46 @@ describe("Construção e armazenamento transacionais", () => {
   });
   it("valida alcance, colisão, suporte e peças disponíveis antes de consumir", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory.woodBlock = 4;
+    g.state.backpack.woodBlock = 4;
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeUndefined();
-    expect(g.state.inventory.woodBlock).toBe(3);
+    expect(g.state.backpack.woodBlock).toBe(3);
     expect(data.pieces["4,28"]?.kind).toBe("woodBlock");
-    const before = JSON.stringify(g.state.inventory);
+    const before = JSON.stringify(g.state.backpack);
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 400, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 2, 28)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 4, 29)).toBeTruthy();
     expect(placePiece(ctx, "woodBlock", 4, 24)).toBeTruthy();
-    expect(JSON.stringify(g.state.inventory)).toBe(before);
+    expect(JSON.stringify(g.state.backpack)).toBe(before);
   });
   it("mantém paredes e peças em camadas separadas e devolve peças uma única vez", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory = { woodBlock: 2, woodWall: 2 };
-    ctx.inventory = g.state.inventory;
+    g.state.backpack = { woodBlock: 2, woodWall: 2 };
+    ctx.inventory = g.state.backpack;
     expect(placePiece(ctx, "woodBlock", 4, 28)).toBeUndefined();
     expect(placePiece(ctx, "woodWall", 4, 28)).toBeUndefined();
     expect(data.walls["4,28"]).toBe(true);
     expect(removePiece(ctx, 4, 28, true)).toBeUndefined();
     expect(data.pieces["4,28"]).toBeDefined();
     expect(removePiece(ctx, 4, 28)).toBeUndefined();
-    const before = { ...g.state.inventory };
+    const before = { ...g.state.backpack };
     expect(removePiece(ctx, 4, 28)).toBeTruthy();
-    expect(g.state.inventory).toEqual(before);
+    expect(g.state.backpack).toEqual(before);
   });
   it("não desmonta armário cheio; transferências não perdem nem duplicam recursos", () => {
     const { ctx, g, data } = setup();
-    g.state.inventory = { cabinet: 1, wood: 20 };
-    ctx.inventory = g.state.inventory;
+    g.state.backpack = { cabinet: 1, wood: 20 };
+    ctx.inventory = g.state.backpack;
     expect(placePiece(ctx, "cabinet", 4, 28)).toBeUndefined();
     const cabinet = data.cabinets["4,28"]!;
-    expect(transfer(g.state.inventory, cabinet, "wood", 15, 16)).toBe(true);
-    expect(g.state.inventory.wood).toBe(5);
+    expect(transfer(g.state.backpack, cabinet, "wood", 15, 16)).toBe(true);
+    expect(g.state.backpack.wood).toBe(5);
     expect(cabinet.wood).toBe(15);
     expect(removePiece(ctx, 4, 28)).toContain("Esvazie");
     expect(transfer(cabinet, cabinet, "wood", 1, 16)).toBe(false);
-    expect(transfer(cabinet, g.state.inventory, "wood", 15, 24)).toBe(true);
+    expect(transfer(cabinet, g.state.backpack, "wood", 15, 24)).toBe(true);
     expect(removePiece(ctx, 4, 28)).toBeUndefined();
-    expect(g.state.inventory).toEqual({ wood: 20, cabinet: 1 });
+    expect(g.state.backpack).toEqual({ wood: 20, cabinet: 1 });
     expect(data.cabinets["4,28"]).toBeUndefined();
   });
   it("recusa transferência sem espaço ou com quantidade inválida mantendo os dois lados", () => {

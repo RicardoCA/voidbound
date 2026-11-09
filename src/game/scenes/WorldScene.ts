@@ -374,7 +374,10 @@ export class WorldScene extends Phaser.Scene {
       const held = this.down("E") || controls.interact;
       if (!g.paused && !g.panel && !g.busy) {
         g.tick(dt);
-        if (g.flightCabin) this.spacePhysics(dt, false);
+        if (g.flightCabin) {
+          this.spacePhysics(dt, false);
+          if (!g.flightCabin) return;
+        }
         const { x, y } = this.walkingDirection();
         this.cabin.walk(x, y, dt);
         g.cabinContact = this.cabin.nearby();
@@ -506,8 +509,14 @@ export class WorldScene extends Phaser.Scene {
     }
     if (g.started && !g.paused && !g.panel && !g.busy) {
       g.tick(dt);
-      if (s.mode === "space") this.spacePhysics(dt);
-      if (s.mode === "surface") this.surfacePhysics(dt);
+      if (s.mode === "space") {
+        this.spacePhysics(dt);
+        if (s.mode !== "space") return;
+      }
+      if (s.mode === "surface") {
+        this.surfacePhysics(dt);
+        if (g.resolvePlayerDeath()) return;
+      }
       const pressed = takePulse("interact");
       const held = this.down("E") || controls.interact;
       const surfacePress =
@@ -656,13 +665,13 @@ export class WorldScene extends Phaser.Scene {
         s.vy *= -0.65;
         s.x -= Math.cos(s.angle) * 8;
         s.y -= Math.sin(s.angle) * 8;
-        if (s.hull <= 0) {
-          s.hull = 30;
-          s.vx = 0;
-          s.vy = 0;
-          s.fuel = Math.max(s.fuel, 15);
-          g.notify("Sistema de emergência estabilizou a nave. Repare o casco.");
-        }
+        if (
+          s.hull <= 0 &&
+          g.handleHullFailure(
+            "Sistema de emergência estabilizou a nave. Repare o casco.",
+          )
+        )
+          return;
       }
     }
     if (
@@ -685,8 +694,12 @@ export class WorldScene extends Phaser.Scene {
       void g.save();
     }
     if (encounter.playerDisabled) {
-      g.notify("Casco crítico. A nave foi estabilizada em emergência.");
-      void g.save();
+      if (
+        g.handleHullFailure(
+          "Casco crítico. A nave foi estabilizada em emergência.",
+        )
+      )
+        return;
     }
     if (this.elapsed >= this.contactAt || encounter.destroyed) {
       this.updateFlightContact();
@@ -788,7 +801,7 @@ export class WorldScene extends Phaser.Scene {
     const data = settlementFor(g.state, g.planet.id);
     (data.foraged ??= {})[fruit.id] = g.state.time + FRUIT_REGROWTH;
     this.fruit = this.fruit.filter((target) => target.id !== fruit.id);
-    g.notify("Duas frutas coletadas. Abra a carga para comer.");
+    g.notify("Duas frutas coletadas. Abra a mochila para comer.");
     void g.save();
   }
   private surfacePhysics(dt: number) {

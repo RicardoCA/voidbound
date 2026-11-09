@@ -97,7 +97,7 @@ try {
     g.exit();
     g.state.player = { x: 40, y: 452, health: 100, oxygen: 30, energy: 100 };
     g.state.time = 0;
-    g.state.inventory = {
+    g.state.backpack = {
       wood: 4,
       iron: 1,
       plate: 6,

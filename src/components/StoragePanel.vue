@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
-import { useGame } from "../stores/game";
+import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { items, type Item, type Inventory } from "../game/types";
 import { slots } from "../inventory/inventory";
@@ -12,9 +12,9 @@ const g = useGame(),
 const lists = computed(() => [
   {
     id: "deposit" as const,
-    title: "Sua carga",
-    data: g.state.inventory,
-    capacity: g.capacity,
+    title: "Sua mochila",
+    data: g.state.backpack,
+    capacity: BACKPACK_SLOTS,
     action: "Guardar",
   },
   {

@@ -82,15 +82,15 @@ try {
   await page.mouse.move(trunk.x, trunk.y);
   await page.mouse.down();
   await page.waitForFunction(
-    () => window.__game.state.inventory.wood >= 13,
+    () => window.__game.state.backpack.wood >= 13,
     null,
     { timeout: 15000 },
   );
   await page.mouse.up();
-  await page.waitForFunction(() => window.__game.state.inventory.wood >= 13);
+  await page.waitForFunction(() => window.__game.state.backpack.wood >= 13);
   await clickTile(1, 29);
   await clickTile(4, 29);
-  assert.ok((await state()).inventory.iron >= 2, "Mined iron for cabinet");
+  assert.ok((await state()).backpack.iron >= 2, "Mined iron for cabinet");
   await page.keyboard.press("b", { delay: 80 });
   for (const name of [
     "Bloco de madeira",
@@ -141,7 +141,7 @@ try {
   await page
     .getByRole("heading", { name: "Armário planetário", exact: true })
     .waitFor();
-  const beforeStairs = (await state()).inventory.woodStairs;
+  const beforeStairs = (await state()).backpack.woodStairs;
   await page
     .getByRole("button", { name: "Guardar Escada de madeira", exact: true })
     .click();
@@ -168,14 +168,14 @@ try {
   await attach();
   const restored = await state();
   assert.deepEqual(restored.settlements, snapshot.settlements);
-  assert.deepEqual(restored.inventory, snapshot.inventory);
+  assert.deepEqual(restored.backpack, snapshot.backpack);
   assert.equal(restored.version, 4);
   await page.waitForTimeout(700);
   await clickTile(3, 28);
   await page
     .getByRole("button", { name: "Retirar Escada de madeira", exact: true })
     .click();
-  assert.equal((await state()).inventory.woodStairs, beforeStairs - 1);
+  assert.equal((await state()).backpack.woodStairs, beforeStairs - 1);
   await page.getByRole("button", { name: /Ver meus depósitos/ }).click();
   await page.getByRole("heading", { name: "Suas bases e depósitos" }).waitFor();
   assert.equal(

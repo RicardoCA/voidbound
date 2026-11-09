@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
 import { COOKING_TIME_MS, cookedMeatRecipe } from "../survival/food";
-import { useGame } from "./game";
+import { BACKPACK_SLOTS, useGame } from "./game";
 import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
 import { Terrain } from "../game/procedural/terrain";
@@ -51,13 +51,13 @@ export const useConstruction = defineStore("construction", () => {
       ? settlement.value.cabinets[activeCabinet.value.key]
       : undefined,
   );
-  const selectedCount = computed(() => g.state.inventory[selected.value] ?? 0);
+  const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
   function context() {
     return {
       terrain: terrain.value,
       settlement: settlementFor(g.state, g.planet.id),
-      inventory: g.state.inventory,
-      capacity: g.capacity,
+      inventory: g.state.backpack,
+      capacity: BACKPACK_SLOTS,
       player: g.state.player,
       landingX: g.state.landingX,
     };
@@ -158,8 +158,8 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     const data = settlementFor(g.state, g.planet.id);
     if (data.cutTrees.includes(current.id)) return false;
-    if (!addBatch(g.state.inventory, { wood: current.wood }, g.capacity)) {
-      g.notify("Carga cheia. Libere espaço antes de cortar a árvore.");
+    if (!addBatch(g.state.backpack, { wood: current.wood }, BACKPACK_SLOTS)) {
+      g.notify("Mochila cheia. Libere espaço antes de cortar a árvore.");
       return false;
     }
     data.cutTrees.push(current.id);
@@ -281,7 +281,7 @@ export const useConstruction = defineStore("construction", () => {
       g.notify("Aproxime-se de uma fogueira instalada.");
       return;
     }
-    if (!g.state.inventory.rawMeat) {
+    if (!g.state.backpack.rawMeat) {
       g.notify("Você precisa de carne crua.");
       return;
     }
@@ -299,12 +299,17 @@ export const useConstruction = defineStore("construction", () => {
       if (cookingElapsed.value < COOKING_TIME_MS) return;
       stopCooking();
       if (
-        !craft(g.state.inventory, cookedMeatRecipe, g.capacity, g.state.mission)
+        !craft(
+          g.state.backpack,
+          cookedMeatRecipe,
+          BACKPACK_SLOTS,
+          g.state.mission,
+        )
       ) {
-        g.notify("Carne crua insuficiente ou carga sem espaço.");
+        g.notify("Carne crua insuficiente ou mochila sem espaço.");
         return;
       }
-      g.notify("Carne assada pronta. Abra a carga para comer.");
+      g.notify("Carne assada pronta. Abra a mochila para comer.");
       audio.play(520);
       void g.save();
     }, 100);
@@ -347,16 +352,16 @@ export const useConstruction = defineStore("construction", () => {
     if (g.state.mode !== "surface" || !inReach(g.state.player, x!, y!, 76))
       return false;
     const source: Inventory =
-        direction === "deposit" ? g.state.inventory : container.value,
+        direction === "deposit" ? g.state.backpack : container.value,
       destination =
-        direction === "deposit" ? container.value : g.state.inventory;
+        direction === "deposit" ? container.value : g.state.backpack;
     if (
       !transfer(
         source,
         destination,
         id,
         quantity,
-        direction === "deposit" ? CABINET_SLOTS : g.capacity,
+        direction === "deposit" ? CABINET_SLOTS : BACKPACK_SLOTS,
       )
     ) {
       g.notify(

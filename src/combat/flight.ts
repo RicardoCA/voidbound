@@ -203,10 +203,7 @@ export class SpaceCombat {
         ship.hull -=
           bolt.damage * (state.upgrades.includes("shield") ? 0.5 : 1);
         if (ship.hull <= 0) {
-          ship.hull = 30;
-          ship.fuel = Math.max(ship.fuel, 15);
-          ship.vx = 0;
-          ship.vy = 0;
+          ship.hull = 0;
           playerDisabled = true;
           for (const npc of this.npcs) npc.engaged = false;
           break;

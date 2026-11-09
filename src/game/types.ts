@@ -109,6 +109,7 @@ export interface ShipState {
   oxygen: number;
 }
 export interface ShipIdentity {
+  rescue?: true;
   id: string;
   model: ShipModelId;
 }
@@ -160,6 +161,7 @@ export interface Save {
     energy: number;
   };
   inventory: Inventory;
+  backpack: Inventory;
   upgrades: Item[];
   changes: Record<string, Record<string, number>>;
   depleted: string[];

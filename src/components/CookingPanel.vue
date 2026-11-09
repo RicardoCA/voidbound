@@ -19,11 +19,11 @@ const construction = useConstruction();
     </div>
     <p>
       Uma carne crua rende uma carne assada, que recupera
-      {{ foodValue("cookedMeat") }} pontos de fome. Coma pela tela de carga.
+      {{ foodValue("cookedMeat") }} pontos de fome. Coma pela mochila.
     </p>
     <p>
-      Na carga: {{ g.state.inventory.rawMeat ?? 0 }} crua ·
-      {{ g.state.inventory.cookedMeat ?? 0 }} assada
+      Na mochila: {{ g.state.backpack.rawMeat ?? 0 }} crua ·
+      {{ g.state.backpack.cookedMeat ?? 0 }} assada
     </p>
     <div v-if="construction.cookingElapsed !== null" class="cooking-progress">
       <svg
@@ -89,14 +89,14 @@ const construction = useConstruction();
     <button
       class="primary"
       :disabled="
-        !g.state.inventory.rawMeat || construction.cookingElapsed !== null
+        !g.state.backpack.rawMeat || construction.cookingElapsed !== null
       "
       @click="construction.cookMeat"
     >
       Assar 1 carne
     </button>
     <button class="secondary" @click="g.panel = 'inventory'">
-      Abrir carga
+      Abrir mochila
     </button>
   </section>
 </template>
