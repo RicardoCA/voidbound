@@ -63,11 +63,7 @@ export interface Piracy {
 }
 
 export function hasBlackMarket(system: StarSystem) {
-  return Boolean(
-    system.station &&
-    ((system.x === 0 && system.y === 0) ||
-      hash(`${system.id}:black-market`) % 3 === 0),
-  );
+  return system.station?.kind === "clandestine";
 }
 
 export function blackMarketPrice(state: Save) {

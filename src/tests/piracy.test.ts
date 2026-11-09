@@ -9,6 +9,8 @@ import {
   claimContract,
 } from "../progression/contracts";
 import { SaveDatabase } from "../persistence/database";
+import { migrateSave } from "../persistence/migrations";
+import { stationServicesFor } from "../game/station/services";
 import { useGame } from "../stores/game";
 
 describe("pirataria espacial", () => {
@@ -96,6 +98,9 @@ describe("pirataria espacial", () => {
       const restored = (await db.read())!;
       expect(salvage(restored, wreck, 24)).toBeTruthy();
       restored.mode = "docked";
+      expect(sellContraband(restored, cargo)).toBeTruthy();
+      expect(restored.inventory.sealedCargo).toBe(cargo);
+      restored.systemX = 1;
       expect(sellContraband(restored, cargo + 1)).toBeTruthy();
       expect(sellContraband(restored, cargo)).toBeUndefined();
       expect(sellContraband(restored, cargo)).toBeTruthy();
@@ -109,9 +114,39 @@ describe("pirataria espacial", () => {
   it("paga um contrato clandestino apenas uma vez", () => {
     setActivePinia(createPinia());
     const g = useGame(),
-      s = g.state,
-      station = g.system.station!.id;
+      s = g.state;
     s.mode = "docked";
+    const origin = g.system.station!.id;
+    expect(g.system.station?.kind).toBe("standard");
+    expect(
+      contractOffers(s, g.system).map((contract) => contract.career),
+    ).toEqual(["miner", "explorer"]);
+    expect(contractOffers(s, g.system).some((c) => c.career === "pirate")).toBe(
+      false,
+    );
+    expect(
+      stationServicesFor(false).some(
+        (service) => service.id === "black-market",
+      ),
+    ).toBe(false);
+    s.systemX = 1;
+    expect(g.system.station?.kind).toBe("clandestine");
+    expect(
+      contractOffers(s, g.system).map((contract) => contract.career),
+    ).toEqual(["pirate"]);
+    expect(stationServicesFor(true).map((service) => service.id)).toEqual([
+      "airlock",
+      "hangar",
+      "workshop",
+      "fuel",
+      "contracts",
+      "law",
+      "black-market",
+    ]);
+    expect(
+      stationServicesFor(true).some((service) => service.id === "black-market"),
+    ).toBe(true);
+    const station = g.system.station!.id;
     const offer = contractOffers(s, g.system).find(
       (c) => c.career === "pirate",
     )!;
@@ -122,5 +157,26 @@ describe("pirataria espacial", () => {
     expect(claimContract(s, station, offer.id)).toBeTruthy();
     expect(s.credits).toBe(5500);
     expect(s.progression.careers.pirate.xp).toBe(250);
+
+    const legacy = {
+      ...s,
+      progression: {
+        ...s.progression,
+        contracts: {
+          [offer.id]: {
+            ...s.progression.contracts[offer.id]!,
+            status: "ACTIVE" as const,
+            stationId: origin,
+            sector: { x: 0, y: 0 },
+          },
+        },
+      },
+    };
+    const restored = migrateSave(legacy);
+    expect(restored.progression.contracts[offer.id]).toMatchObject({
+      stationId: station,
+      sector: { x: 1, y: 0 },
+      status: "ACTIVE",
+    });
   });
 });

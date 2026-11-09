@@ -6,7 +6,7 @@ import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import StationPanel from "../components/StationPanel.vue";
 import { cabinEquipment } from "../game/cabin/CabinInterior";
-import { stationServices } from "../game/station/services";
+import { stationServicesFor } from "../game/station/services";
 import JumpSequence from "../components/JumpSequence.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
@@ -76,7 +76,9 @@ watch(
 );
 const stationNpc = computed(() =>
   atStation.value
-    ? stationServices.find((npc) => g.panel === "station:" + npc.id)
+    ? stationServicesFor(g.system.station?.kind === "clandestine").find(
+        (npc) => g.panel === "station:" + npc.id,
+      )
     : undefined,
 );
 const localTime = computed(() => planetClock(g.state.time));

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { drawStationCounter } from "./stationArt";
-import { stationServices } from "./services";
+import { stationServices, stationServicesFor } from "./services";
 
 const radiusX = 354;
 const radiusY = 188;
@@ -22,6 +22,14 @@ const counters = [
   { x: -146, y: 34 },
   { x: -263, y: 78 },
 ] as const;
+function countersFor(clandestine: boolean) {
+  return stationServicesFor(clandestine).map((npc) => {
+    const i = stationServices.indexOf(npc);
+    return { ...counters[i]!, npc, i };
+  });
+}
+const standardCounters = countersFor(false);
+const clandestineCounters = countersFor(true);
 const spawn = counters[0];
 const circle = Array.from({ length: 48 }, (_, i) => {
   const angle = (i / 48) * Math.PI * 2;
@@ -46,21 +54,15 @@ export class StationInterior {
     this.labels.forEach((label) => label.setVisible(false));
   }
 
-  private available(clandestine: boolean) {
-    return clandestine ? counters.length : counters.length - 1;
-  }
-
   walk(horizontal: number, vertical: number, dt: number, clandestine: boolean) {
     if (horizontal) this.facing = horizontal;
     const distance = (dt * 122) / Math.max(1, Math.hypot(horizontal, vertical));
     const canWalk = (x: number, y: number) =>
       (x / (radiusX - 10)) ** 2 + (y / (radiusY - 10)) ** 2 <= 1 &&
-      !counters
-        .slice(0, this.available(clandestine))
-        .some(
-          (counter) =>
-            Math.abs(x - counter.x) < 25 && Math.abs(y - (counter.y - 23)) < 9,
-        );
+      !(clandestine ? clandestineCounters : standardCounters).some(
+        (counter) =>
+          Math.abs(x - counter.x) < 25 && Math.abs(y - (counter.y - 23)) < 9,
+      );
     const x = this.x + horizontal * distance;
     const depth = this.depth + vertical * distance;
     const oldX = this.x,
@@ -73,16 +75,17 @@ export class StationInterior {
 
   nearby(clandestine: boolean) {
     let closest = interactionRange;
-    let index = -1;
-    for (let i = 0; i < this.available(clandestine); i++) {
-      const counter = counters[i]!;
+    let nearest;
+    for (const counter of clandestine
+      ? clandestineCounters
+      : standardCounters) {
       const distance = Math.hypot(this.x - counter.x, this.depth - counter.y);
       if (distance < closest) {
-        index = i;
         closest = distance;
+        nearest = counter.npc;
       }
     }
-    return stationServices[index];
+    return nearest;
   }
 
   draw(
@@ -114,11 +117,11 @@ export class StationInterior {
 
     fill(0x0a1321, 0, 0, width, height);
     oval(0x111e2e, radiusX, radiusY, -11);
-    oval(0x597888, radiusX, radiusY);
-    oval(0x304a5d, radiusX - 4, radiusY - 4);
+    oval(clandestine ? 0x98616a : 0x597888, radiusX, radiusY);
+    oval(clandestine ? 0x653b49 : 0x304a5d, radiusX - 4, radiusY - 4);
     oval(0x142a3c, radiusX - 13, radiusY - 15);
-    oval(0x213b4f, radiusX - 65, radiusY - 44);
-    oval(0x1b3144, radiusX - 70, radiusY - 49);
+    oval(clandestine ? 0x603b49 : 0x213b4f, radiusX - 65, radiusY - 44);
+    oval(clandestine ? 0x332636 : 0x1b3144, radiusX - 70, radiusY - 49);
     // Deck seams and scuffs are anchored to the hall, not the camera.
     for (let depth = -140; depth <= 155; depth += 24) {
       for (let x = -304; x < 305; x += 30) {
@@ -209,24 +212,22 @@ export class StationInterior {
     ]);
 
     const nearest = this.nearby(clandestine);
-    const count = this.available(clandestine);
-    const order = counters
-      .slice(0, count)
-      .map((counter, i) => ({ ...counter, i }))
-      .sort((a, b) => a.y - b.y);
+    const order = [
+      ...(clandestine ? clandestineCounters : standardCounters),
+    ].sort((a, b) => a.y - b.y);
     const drawPlayer = () => {
       const p = project(this.x, this.depth);
       fill(0x101c28, p.x - 8, p.y - 2, 16, 3);
       drawAstronaut(p.x, p.y - 12, Math.sin(this.stride) * 2, this.facing);
     };
     let drawnPlayer = false;
-    this.labels[count]?.setVisible(false);
+    this.hide();
     for (const counter of order) {
       if (!drawnPlayer && this.depth < counter.y - 15) {
         drawPlayer();
         drawnPlayer = true;
       }
-      const npc = stationServices[counter.i]!;
+      const npc = counter.npc;
       const { x, y } = project(counter.x, counter.y - 16);
       const visible = x > -70 && x < width + 70;
       this.labels[counter.i]?.setVisible(visible);

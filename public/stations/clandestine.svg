@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="72" viewBox="0 0 132 72" shape-rendering="crispEdges">
+  <path fill="#100f1b" d="M3 30h11V18h20v7h14V13h11V9h25v8h12v8h10v-6h17v10h7v25h-11v8H93v-4H45v8H22v-8H7V46H3z"/>
+  <path fill="#493745" d="M6 32h120v13H6zM17 20h15v34H17zM108 22h13v33h-13z"/>
+  <path fill="#743a43" d="M8 33h27v3H8zM102 32h23v3h-23zM19 22h11v6H19zM109 24h10v6h-10z"/>
+  <path fill="#302b3a" d="M12 38h28v15H12zM96 37h30v14H96z"/>
+  <path fill="#534450" d="M35 31l14-12h40l13 10v21l-11 10H42l-7-7z"/>
+  <path fill="#8e5960" d="M38 31l12-10h38l11 8-12 4H39z"/>
+  <path fill="#332836" d="M39 34h58v18l-8 6H44l-5-6z"/>
+  <path fill="#67434d" d="M39 36h13v15H39zM86 34h11v17H86z"/>
+  <path fill="#a96458" d="M39 37h13v2H39zM86 36h11v2H86zM44 54h10v2H44zM86 54h5v2h-5z"/>
+  <path fill="#12121e" d="M53 34h32v20H53z"/>
+  <path fill="#76373e" d="M55 36h28v2H55zM55 51h28v2H55z"/>
+  <path fill="#503040" d="M58 40h22v9H58z"/>
+  <path fill="#d77769" d="M56 39h2v10h-2zM80 39h2v10h-2zM14 41h5v2h-5zM113 42h8v2h-8z"/>
+  <path fill="#b08a6d" d="M20 32h7v2h-7zM20 36h7v2h-7zM20 40h7v2h-7zM110 33h8v2h-8zM110 37h8v2h-8zM44 42h4v2h-4zM89 42h4v2h-4z"/>
+  <path fill="#713c45" d="M23 52h13v9H23zM97 48h13v10H97z"/>
+  <path fill="#e18e65" d="M25 55h2v3h-2zM29 55h2v3h-2zM33 55h2v3h-2zM99 51h2v3h-2zM103 51h2v3h-2z"/>
+  <path fill="#ae8584" d="M91 16h2v17h-2zM43 10h2v15h-2z"/>
+  <path fill="#d86459" d="M42 9h4v2h-4zM90 15h4v2h-4z"/>
+  <!-- Black pirate pennant fixed to the upper hull. -->
+  <path fill="#b89a8e" d="M52 4h2v23h-2z"/>
+  <path fill="#0a0b14" d="M54 5h16v2h14v14H71v-2H54z"/>
+  <path fill="#9a4a4b" d="M54 18h17v2h13v1H70v-1H54z"/>
+  <path fill="#ece3d1" d="M62 8h8v1h2v5h-2v2h-2v1h-4v-1h-2v-2h-2V9h2zM57 14h2v1h2v1h-2v1h-2zM72 14h2v1h2v2h-2v-1h-2z"/>
+  <path fill="#14111a" d="M62 11h3v2h-3zM67 11h3v2h-3zM65 14h2v1h-2z"/>
+  <path fill="#efae88" d="M48 24h3v1h-3zM78 25h6v1h-6zM46 48h2v1h-2zM91 49h2v1h-2z"/>
+</svg>

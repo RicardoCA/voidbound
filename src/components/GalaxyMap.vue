@@ -57,9 +57,7 @@ const mapX = ref(0),
   );
 function stationType(system: StarSystem) {
   if (!system.station) return "Sem estação";
-  return hasBlackMarket(system)
-    ? "Estação com mercado clandestino"
-    : "Estação espacial";
+  return hasBlackMarket(system) ? "Estação clandestina" : "Estação espacial";
 }
 </script>
 <template>
@@ -232,7 +230,7 @@ function stationType(system: StarSystem) {
         </button>
       </div>
       <div class="map-base-legend">
-        <span>▣ Estação espacial</span><span>◆ Mercado clandestino</span
+        <span>▣ Estação espacial</span><span>◆ Estação clandestina</span
         ><span>● Sem estação</span><span>▤ Itens armazenados</span
         ><span>⌂ Base sem itens</span
         ><span v-if="wantedLevels.size" class="map-wanted-legend"
@@ -260,8 +258,12 @@ function stationType(system: StarSystem) {
             {{ wantedLevels.get(destination.id) ?? 0 }}/5
           </p>
           <p v-if="destination?.station">
-            {{ destination.station.name }} · Mercado, concessionária, hangar e
-            serviços
+            {{ destination.station.name }} ·
+            {{
+              destination.station.kind === "clandestine"
+                ? "Mercado clandestino, contratos piratas, hangar e manutenção"
+                : "Mercado, concessionária, hangar e serviços"
+            }}
           </p>
           <p>
             {{

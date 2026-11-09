@@ -82,4 +82,21 @@ export const stationServices = [
   },
 ] as const;
 
+const standardOnly: ReadonlySet<StationService["id"]> = new Set([
+  "market",
+  "dealer",
+  "science",
+  "clothing",
+]);
+const standardServices = stationServices.filter(
+  ({ id }) => id !== "black-market",
+);
+const clandestineServices = stationServices.filter(
+  ({ id }) => !standardOnly.has(id),
+);
+
+export function stationServicesFor(clandestine: boolean) {
+  return clandestine ? clandestineServices : standardServices;
+}
+
 export type StationService = (typeof stationServices)[number];
