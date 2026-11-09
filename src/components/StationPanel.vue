@@ -65,7 +65,10 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
       <MarketPanel v-else-if="section === 'market'" />
       <DealershipPanel v-else-if="section === 'dealer'" />
       <HangarPanel v-else-if="section === 'hangar'" />
-      <WardrobePanel v-else-if="section === 'clothing'" />
+      <WardrobePanel
+        v-else-if="section === 'clothing' || section === 'pirate-clothing'"
+        :clandestine="section === 'pirate-clothing'"
+      />
       <div v-else-if="section === 'workshop'" class="station-form">
         <p>
           Casco: {{ Math.floor(g.state.ship.hull) }}/{{ g.model.hull }}. Reparo
