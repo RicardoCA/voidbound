@@ -311,6 +311,13 @@ describe("conservação da carne e descanso planetário", () => {
     expect(b.interactAt(4, 28)).toBe(true);
     expect(b.fridgePowered).toBe(true);
     expect(b.moveItem("deposit", "rawMeat", 1)).toBe(true);
+    const fresh = meatShelfLife(data.cabinets["4,28"]!, g.state.time, true);
+    g.state.time += 60;
+    expect(g.refreshFood()).toBe(0);
+    expect(b.fridgePowered).toBe(true);
+    expect(meatShelfLife(data.cabinets["4,28"]!, g.state.time, true)).toEqual(
+      fresh,
+    );
     g.state.time = PLANET_DAY / 2;
     g.refreshFood();
     expect(b.fridgePowered).toBe(false);
@@ -320,7 +327,11 @@ describe("conservação da carne e descanso planetário", () => {
     g.worldChanged();
     g.refreshFood();
     expect(b.fridgePowered).toBe(true);
-    g.state.time += 4;
+    g.state.time += 2;
+    g.refreshFood();
+    expect(b.fridgePowered).toBe(true);
+    expect(data.cabinets["4,28"]!.meatBatches![0]!.expires).toBe(remaining);
+    g.state.time += 2;
     g.refreshFood();
     expect(data.pieces["5,28"]!.energy).toBe(0);
     expect(b.fridgePowered).toBe(false);

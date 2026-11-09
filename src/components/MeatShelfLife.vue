@@ -15,14 +15,17 @@ const life = computed(() =>
 </script>
 
 <template>
-  <span v-if="life" class="shelf-life">
-    <span
-      >Próximo vencimento · {{ life.label
-      }}<span v-if="paused"> · pausado</span></span
-    >
-    <span class="shelf-life-track" aria-hidden="true">
-      <span :style="{ width: life.percent + '%' }" />
-    </span>
+  <span v-if="life" class="shelf-life" :class="{ refrigerated: paused }">
+    <template v-if="paused">
+      <span>Refrigerada · validade pausada</span>
+      <span>Tempo restante quando voltar a contar · {{ life.label }}</span>
+    </template>
+    <template v-else>
+      <span>Próximo vencimento · {{ life.label }}</span>
+      <span class="shelf-life-track" aria-hidden="true">
+        <span :style="{ width: life.percent + '%' }" />
+      </span>
+    </template>
   </span>
 </template>
 
@@ -34,6 +37,10 @@ const life = computed(() =>
   font-size: 0.72rem;
   line-height: 1.3;
   letter-spacing: normal;
+}
+
+.shelf-life.refrigerated {
+  color: #9be1d9;
 }
 
 .shelf-life-track {
