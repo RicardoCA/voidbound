@@ -88,6 +88,14 @@ export const stationServices = [
     dialogue:
       "Quer vestir as cores da Bandeira Negra? Tenho peças exclusivas para quem viaja fora da lei.",
   },
+  {
+    id: "restricted-arms",
+    label: "Armas restritas",
+    name: "Kade",
+    color: 0xe7a462,
+    dialogue:
+      "Quer um canhão que não passa pela alfândega? Vendo módulos prontos e os projetos para fabricar na sua bancada.",
+  },
 ] as const;
 
 const standardOnly: ReadonlySet<StationService["id"]> = new Set([
@@ -97,7 +105,10 @@ const standardOnly: ReadonlySet<StationService["id"]> = new Set([
   "clothing",
 ]);
 const standardServices = stationServices.filter(
-  ({ id }) => id !== "black-market" && id !== "pirate-clothing",
+  ({ id }) =>
+    id !== "black-market" &&
+    id !== "pirate-clothing" &&
+    id !== "restricted-arms",
 );
 const clandestineServices = stationServices.filter(
   ({ id }) => !standardOnly.has(id),

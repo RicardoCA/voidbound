@@ -4,10 +4,12 @@ import {
   blackHolePull,
 } from "../universe/blackHoles";
 import {
+  canCraftWeapon,
   cycleWeapon,
   isWeaponModule,
   selectedWeapon,
   shipWeapons,
+  type WeaponModule,
 } from "../combat/weapons";
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
@@ -579,6 +581,10 @@ export const useGame = defineStore("game", () => {
       notify("Entre na nave para acessar a estação de fabricação.");
       return;
     }
+    if (!canCraftWeapon(state.value, id)) {
+      notify("Compre o projeto no armeiro de uma estação clandestina.");
+      return;
+    }
     if (
       !recipe ||
       !craft(
@@ -642,6 +648,20 @@ export const useGame = defineStore("game", () => {
       !cycleWeapon(state.value)
     )
       return;
+    void save();
+  }
+  function uninstallWeapon(id: WeaponModule) {
+    if (!canAccessShipCargo.value || trading.value || paused.value) return;
+    const s = state.value;
+    const index = s.upgrades.indexOf(id);
+    if (index === -1) return;
+    if (!add(s.inventory, id, 1, capacity.value)) {
+      notify("Libere um slot na carga da nave antes de desinstalar.");
+      return;
+    }
+    s.upgrades.splice(index, 1);
+    if (s.ship.weapon === id) s.ship.weapon = "pulse";
+    notify(`${items[id].name} voltou para a carga da nave.`);
     void save();
   }
   function use(id: Item, fromBackpack = onSurface.value) {
@@ -1350,6 +1370,7 @@ export const useGame = defineStore("game", () => {
     activeWeapon,
     canSwitchWeapon,
     switchWeapon,
+    uninstallWeapon,
     flightTarget,
     interactFlightTarget,
     stationContact,

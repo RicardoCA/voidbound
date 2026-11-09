@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { isWeaponModule, weaponModules } from "../combat/weapons";
+import {
+  canCraftWeapon,
+  isWeaponModule,
+  weaponModules,
+} from "../combat/weapons";
 import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
@@ -89,15 +93,18 @@ function affordable(cost: Partial<Record<Item, number>>) {
           :disabled="
             (!inShip &&
               !(g.state.mode === 'surface' && r.station === 'hand')) ||
+            !canCraftWeapon(g.state, r.id) ||
             !affordable(r.cost) ||
             g.state.mission < r.unlock
           "
           @click="g.make(r.id)"
         >
           {{
-            g.state.mission < r.unlock
-              ? "MISSÃO 05"
-              : `FABRICAR ${r.amount ?? 1} +`
+            !canCraftWeapon(g.state, r.id)
+              ? "PROJETO RESTRITO"
+              : g.state.mission < r.unlock
+                ? "MISSÃO 05"
+                : `FABRICAR ${r.amount ?? 1} +`
           }}
         </button>
       </article>

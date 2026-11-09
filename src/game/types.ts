@@ -1,6 +1,7 @@
 import {
   weaponModules,
   type ShipWeapon,
+  type RestrictedWeapon,
   type WeaponModule,
 } from "../combat/weapons";
 import type { BlackHole } from "../universe/blackHoles";
@@ -185,6 +186,7 @@ export interface Save {
   progression: Progression;
   credits: number;
   wardrobe?: Wardrobe;
+  weaponBlueprints?: RestrictedWeapon[];
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
   nextShipId: number;

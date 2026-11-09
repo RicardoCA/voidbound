@@ -261,7 +261,7 @@ function stationType(system: StarSystem) {
             {{ destination.station.name }} ·
             {{
               destination.station.kind === "clandestine"
-                ? "Mercado clandestino, contratos piratas, hangar e manutenção"
+                ? "Mercado clandestino, armeiro, contratos piratas e hangar"
                 : "Mercado, concessionária, hangar e serviços"
             }}
           </p>
