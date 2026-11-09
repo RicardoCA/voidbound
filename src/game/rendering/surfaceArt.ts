@@ -1,7 +1,9 @@
 import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
+import { STONE_TILE } from "../procedural/terrain";
 import type Phaser from "phaser";
 import type { BuildItem, PlacedPiece } from "../types";
 
+const stoneDeposit = "surface-stone-deposit";
 const sprites = "surface-sprites";
 const ladderAndHatch = "surface-ladder-and-hatch";
 const furnishings = "surface-furnishings";
@@ -28,6 +30,7 @@ export class SurfaceArt {
   private kind = 0;
 
   preload(scene: Phaser.Scene) {
+    scene.load.image(stoneDeposit, path + "stone-deposit.webp");
     scene.load.atlas(sprites, path + "sprites.webp", path + "sprites.json");
     scene.load.spritesheet(ladderAndHatch, path + "ladder-and-hatch.webp", {
       frameWidth: 32,
@@ -172,6 +175,19 @@ export class SurfaceArt {
     column: number,
     row: number,
   ) {
+    if (tile === STONE_TILE)
+      return this.sprite(
+        scene,
+        "__BASE",
+        x + 8,
+        y + 15,
+        15,
+        14,
+        ((column ^ row) & 1) !== 0,
+        1,
+        -0.15,
+        stoneDeposit,
+      );
     if (tile < 2 || tile > 11) return false;
     const flip = ((column ^ row) & 1) !== 0;
     const size = 12 + ((column + row) & 1);

@@ -9,6 +9,13 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  stone: {
+    body: "M2 15l4-6 4 1 4-5 5 2 3 9-4 4H6z",
+    shade: "M2 15l5-2 3 5 7-2 5 0-4 4H6zM10 10l4-5 2 4-2 4z",
+    light: "M4 13l2-4 4 1-3 3zM14 5l5 2 1 3-5-2z",
+    detail: "M10 15h2v1h-2zM17 13h2v1h-2z",
+    accent: "#756b64",
+  },
   iron: {
     body: "M3 14l3-7 8-3 6 4 1 8-6 4-9-2z",
     shade: "M6 18l3-5 8-1 3-4 1 8-6 4z",

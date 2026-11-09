@@ -2,6 +2,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | "stone"
   | "stick"
   | "iron"
   | "copper"
@@ -268,6 +269,13 @@ export const items: Record<
     color: "#ffaf6c",
     icon: "▲",
     rarity: "Construção",
+    stack: 99,
+  },
+  stone: {
+    name: "Pedra",
+    color: "#a39b91",
+    icon: "◆",
+    rarity: "Comum",
     stack: 99,
   },
   iron: {
@@ -584,7 +592,7 @@ export const biomes = [
     sky: 0x192236,
     daySky: 0x91c5e2,
     ground: 0x605159,
-    resources: "Ferro · Cobre · Silício",
+    resources: "Pedra · Ferro · Cobre · Silício",
     hazard: "Atmosfera rarefeita",
   },
   {

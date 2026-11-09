@@ -25,7 +25,7 @@ export const recipes: Recipe[] = [
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   {
     id: "stoneWall",
-    cost: { silicon: 3 },
+    cost: { stone: 3 },
     amount: 4,
     unlock: 0,
     station: "hand",

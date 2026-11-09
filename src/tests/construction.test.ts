@@ -4,7 +4,7 @@ import Dexie from "dexie";
 import { createPinia, setActivePinia } from "pinia";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { Terrain } from "../game/procedural/terrain";
+import { STONE_TILE, Terrain } from "../game/procedural/terrain";
 import { treeAt, treesInRange } from "../game/procedural/trees";
 import { systemAt } from "../universe/generator";
 import {
@@ -97,6 +97,33 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("minera pedra em terreno rochoso e usa pedra na parede", () => {
+    const { g } = setup();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    const other = new Terrain({ ...g.planet, kind: 1 }, {});
+    expect(other.chunk(0).includes(STONE_TILE)).toBe(false);
+    g.state.backpack.silicon = 3;
+    g.make("stoneWall");
+    expect(g.state.backpack).toEqual({ silicon: 3 });
+    const deposits = [];
+    for (let x = -8; x <= 8; x++)
+      for (let y = 29; y <= 31; y++)
+        if (terrain.get(x, y) === STONE_TILE) deposits.push({ x, y });
+    expect(deposits.length).toBeGreaterThanOrEqual(3);
+    for (const { x, y } of deposits.slice(0, 3)) {
+      expect(g.mineTerrain(terrain, x, y)).toBe(true);
+      expect(g.mineTerrain(terrain, x, y)).toBe(false);
+    }
+    g.make("stoneWall");
+    expect(g.state.backpack).toEqual({ silicon: 3, stoneWall: 4 });
+    const restored = migrateSave(g.state);
+    const terrainAfterSave = new Terrain(
+      g.planet,
+      restored.changes[g.planet.id]!,
+    );
+    for (const { x, y } of deposits.slice(0, 3))
+      expect(terrainAfterSave.get(x, y)).toBe(0);
+  });
   it("fabrica lotes de peças à mão com custo exato", () => {
     const { g } = setup();
     g.state.backpack = { wood: 7, iron: 2 };

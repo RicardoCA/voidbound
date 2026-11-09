@@ -11,7 +11,7 @@ import { treeNames } from "../game/procedural/trees";
 const g = useGame(),
   b = useConstruction();
 const descriptions = {
-  stoneWall: "Parede de fundo em alvenaria de silício.",
+  stoneWall: "Parede de fundo feita de pedra minerada em planetas rochosos.",
   metalWall: "Parede de fundo feita de placas metálicas.",
   fridge:
     "Guarda carne crua em 16 slots. Precisa de energia de placas solares ou baterias próximas para refrigerar.",
