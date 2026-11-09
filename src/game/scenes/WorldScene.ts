@@ -99,6 +99,7 @@ export class WorldScene extends Phaser.Scene {
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private gfx!: Phaser.GameObjects.Graphics;
+  private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
   private surfaceArt = new SurfaceArt();
   private backdrop!: Phaser.GameObjects.Graphics;
@@ -178,6 +179,7 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.surfaceSky = this.add.graphics().setDepth(-1);
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
     this.spaceDust = createSpaceBackdrop(this).setVisible(false);
@@ -324,6 +326,7 @@ export class WorldScene extends Phaser.Scene {
     this.usedShipSprites = 0;
     this.flightShipGfx.clear();
     this.atmosphereGfx.clear();
+    this.surfaceSky.clear();
     this.surfaceBase.clear();
     this.surfaceArt.reset();
     this.backdrop.clear();
@@ -1160,12 +1163,12 @@ export class WorldScene extends Phaser.Scene {
         const radius = Math.round(
           Math.min(this.viewWidth, this.viewHeight) * 0.065,
         );
-        f.fillStyle(0xffd98d, light * 0.16);
-        f.fillCircle(sunX, sunY, radius * 1.9);
-        f.fillStyle(0xffe5a8, light * 0.24);
-        f.fillCircle(sunX, sunY, radius * 1.4);
-        f.fillStyle(0xffedb6, Math.min(1, light * 4));
-        f.fillCircle(sunX, sunY, radius);
+        this.surfaceSky.fillStyle(0xffd98d, light * 0.16);
+        this.surfaceSky.fillCircle(sunX, sunY, radius * 1.9);
+        this.surfaceSky.fillStyle(0xffe5a8, light * 0.24);
+        this.surfaceSky.fillCircle(sunX, sunY, radius * 1.4);
+        this.surfaceSky.fillStyle(0xffedb6, Math.min(1, light * 4));
+        this.surfaceSky.fillCircle(sunX, sunY, radius);
       }
       this.drawSurface(light);
       if (storm) this.drawWeather(storm);
