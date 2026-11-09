@@ -1,3 +1,8 @@
+import {
+  BLACK_HOLE_DURATION_MS,
+  blackHoleDestination,
+  blackHolePull,
+} from "../universe/blackHoles";
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
@@ -182,6 +187,7 @@ export const useGame = defineStore("game", () => {
     saveRevision = ref(0),
     hasSave = ref(false),
     busy = ref(false),
+    blackHoleTransit = ref<{ elapsed: number; x: number; y: number }>(),
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     stationContact = ref<string>(),
@@ -193,6 +199,10 @@ export const useGame = defineStore("game", () => {
       if (!playing) {
         surfaceSequence.value = undefined;
         dockingSequence.value = undefined;
+        if (blackHoleTransit.value) {
+          blackHoleTransit.value = undefined;
+          busy.value = false;
+        }
       }
     },
     { flush: "sync" },
@@ -823,6 +833,59 @@ export const useGame = defineStore("game", () => {
     audio.play(100, 0.5);
     void save();
   }
+  function arriveInSystem(x: number, y: number) {
+    const s = state.value;
+    s.planetIndex = 0;
+    s.systemX = x;
+    s.systemY = y;
+    s.ship.x = 200;
+    s.ship.y = 330;
+    s.ship.vx = 0;
+    s.ship.vy = 0;
+    const id = systemAt(s.seed, x, y).id;
+    if (!s.visited.includes(id)) {
+      s.visited.push(id);
+      recordSystemSurvey(s, system.value);
+    }
+    speed.value = 0;
+  }
+  const gravityWell = computed(() => {
+    const hole = system.value.blackHole;
+    return hole && state.value.mode === "space" && !busy.value
+      ? blackHolePull(hole, state.value.ship)
+      : undefined;
+  });
+  function captureBlackHole() {
+    const hole = system.value.blackHole;
+    const s = state.value;
+    if (!hole || !gravityWell.value?.captured || busy.value || inSequence.value)
+      return false;
+    blackHoleTransit.value = {
+      elapsed: 0,
+      ...blackHoleDestination(s.seed, hole, s.systemX, s.systemY),
+    };
+    busy.value = true;
+    panel.value = "";
+    planetScan.value = undefined;
+    clearRoute();
+    releaseControls();
+    notify("Horizonte de eventos cruzado. Destino desconhecido.");
+    audio.play(65, 0.7);
+    return true;
+  }
+  function advanceBlackHole(dt: number) {
+    const transit = blackHoleTransit.value;
+    if (!transit) return;
+    transit.elapsed += dt;
+    if (transit.elapsed < BLACK_HOLE_DURATION_MS / 1000) return;
+    arriveInSystem(transit.x, transit.y);
+    blackHoleTransit.value = undefined;
+    busy.value = false;
+    notify(
+      `Travessia concluída. Você emergiu no sistema ${system.value.name}.`,
+    );
+    void save();
+  }
   async function jump(x: number, y: number) {
     if (busy.value || inSequence.value) return;
     const s = state.value,
@@ -845,18 +908,7 @@ export const useGame = defineStore("game", () => {
     audio.play(80, 0.7);
     await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
     s.ship.fuel -= cost;
-    s.planetIndex = 0;
-    s.systemX = x;
-    s.systemY = y;
-    s.ship.x = 200;
-    s.ship.y = 330;
-    s.ship.vx = 0;
-    s.ship.vy = 0;
-    const id = systemAt(s.seed, x, y).id;
-    if (!s.visited.includes(id)) {
-      s.visited.push(id);
-      recordSystemSurvey(s, system.value);
-    }
+    arriveInSystem(x, y);
     if (s.mission === 5) s.mission = 6;
     panel.value = "";
     busy.value = false;
@@ -1299,6 +1351,10 @@ export const useGame = defineStore("game", () => {
     moveCargo,
     handleHullFailure,
     applyStellarHeat,
+    gravityWell,
+    captureBlackHole,
+    advanceBlackHole,
+    blackHoleTransit,
     stellarWarning,
     resolvePlayerDeath,
     extractionEfficiency,

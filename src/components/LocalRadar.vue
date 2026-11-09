@@ -43,6 +43,15 @@ function position(target: { x: number; y: number }) {
     >
       <title>{{ planet.name }}</title>
     </circle>
+    <circle
+      v-if="g.system.blackHole"
+      :cx="position(g.system.blackHole).x"
+      :cy="position(g.system.blackHole).y"
+      r="3.5"
+      style="fill: #160d2c; stroke: #cf9bff"
+    >
+      <title>Buraco negro</title>
+    </circle>
     <rect
       v-if="g.system.station"
       :x="position(g.system.station).x - 3"

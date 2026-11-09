@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import CockpitFrame from "./CockpitFrame.vue";
 import { random } from "../game/procedural/random";
+import { BLACK_HOLE_DURATION_MS } from "../universe/blackHoles";
 import { JUMP_DURATION_MS } from "../stores/game";
 
+const props = defineProps<{ blackHoleElapsed?: number }>();
+const spirals = Array.from({ length: 13 }, (_, arm) =>
+  Array.from({ length: 32 }, (_, i) => {
+    const radius = 14 + i * 7;
+    const angle = (arm * Math.PI * 2) / 13 + i * 0.063;
+    return `${i === 0 ? "M" : "L"}${240 + radius * Math.cos(angle)},${130 + radius * Math.sin(angle)}`;
+  }).join(" "),
+);
 const r = random(940);
 const stars = Array.from({ length: 108 }, (_, i) => {
   const angle = ((i + r()) * Math.PI * 2) / 108;
@@ -26,7 +35,13 @@ const stars = Array.from({ length: 108 }, (_, i) => {
   <div
     class="jump-overlay"
     role="status"
-    :style="{ '--jump-duration': JUMP_DURATION_MS + 'ms' }"
+    :class="{ 'black-hole-jump': props.blackHoleElapsed !== undefined }"
+    :style="{
+      '--jump-duration':
+        (props.blackHoleElapsed === undefined
+          ? JUMP_DURATION_MS
+          : BLACK_HOLE_DURATION_MS) + 'ms',
+    }"
   >
     <svg
       class="jump-window"
@@ -90,13 +105,47 @@ const stars = Array.from({ length: 108 }, (_, i) => {
           pathLength="100"
         />
       </g>
+      <g v-if="props.blackHoleElapsed !== undefined" class="vortex">
+        <path
+          v-for="(path, i) in spirals"
+          :key="i"
+          :d="path"
+          :stroke="i % 3 === 0 ? '#ffbd87' : '#bb7cff'"
+          :stroke-width="i % 3 === 0 ? 1.5 : 0.7"
+          :opacity="i % 3 === 0 ? 0.78 : 0.48"
+          fill="none"
+        />
+        <circle
+          cx="240"
+          cy="130"
+          r="19"
+          fill="#03010a"
+          stroke="#dca4ff"
+          stroke-width="1.4"
+        />
+      </g>
     </svg>
     <div class="jump-glow" aria-hidden="true"></div>
     <CockpitFrame jump class="jump-cockpit" />
     <div class="jump-console" aria-hidden="true"></div>
     <div class="jump-caption">
-      <strong>Salto interestelar</strong>
-      <span>Vista da cabine</span>
+      <template v-if="props.blackHoleElapsed !== undefined">
+        <strong>Travessia do buraco negro</strong>
+        <span
+          >Destino desconhecido ·
+          {{
+            Math.max(
+              0,
+              Math.ceil(BLACK_HOLE_DURATION_MS / 1000 - props.blackHoleElapsed),
+            )
+          }}
+          s</span
+        >
+      </template>
+      <template v-else>
+        <strong>Salto interestelar</strong>
+        <span>Vista da cabine</span>
+      </template>
     </div>
   </div>
 </template>
@@ -113,6 +162,48 @@ const stars = Array.from({ length: 108 }, (_, i) => {
     #0a1529 38%,
     #060d1a 78%
   );
+}
+.black-hole-jump {
+  background: radial-gradient(
+    ellipse at center,
+    #100821,
+    #231136 28%,
+    #080510 71%
+  );
+}
+.black-hole-jump .jump-glow {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 13%,
+    #a74cd044 27%,
+    transparent 68%
+  );
+}
+.vortex {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: spiral-in var(--jump-duration) linear both;
+}
+@keyframes spiral-in {
+  0% {
+    transform: rotate(0) scale(0.4);
+    opacity: 0.4;
+  }
+  15% {
+    opacity: 1;
+  }
+  84% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(300deg) scale(1.8);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vortex {
+    animation: none;
+  }
 }
 .jump-window,
 .jump-cockpit,

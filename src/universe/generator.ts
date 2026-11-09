@@ -1,3 +1,4 @@
+import { blackHoleAt } from "./blackHoles";
 import { hash, random, LRU } from "../game/procedural/random";
 import { starClasses, systemStars } from "./stars";
 import type { StarSystem } from "../game/types";
@@ -57,7 +58,17 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
           y: 560,
         }
       : undefined;
-  return cache.set(id, { id, x, y, name, star, stars, planets, station });
+  return cache.set(id, {
+    id,
+    x,
+    y,
+    name,
+    star,
+    stars,
+    planets,
+    station,
+    blackHole: blackHoleAt(id, x === 0 && y === 0),
+  });
 }
 export function nearby(seed: string, x: number, y: number, radius = 3) {
   const result: StarSystem[] = [];

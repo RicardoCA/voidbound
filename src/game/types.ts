@@ -1,3 +1,4 @@
+import type { BlackHole } from "../universe/blackHoles";
 import {
   deflectorFor,
   starClasses,
@@ -91,6 +92,7 @@ export interface StarSystem {
   name: string;
   star: string;
   stars: StellarBody[];
+  blackHole?: BlackHole;
   planets: Planet[];
   station?: Station;
 }

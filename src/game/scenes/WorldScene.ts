@@ -2,6 +2,7 @@ import { starClasses } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
   drawAsteroid,
+  drawBlackHole,
   createSpaceBackdrop,
   drawSpaceStar,
   drawSpaceWreck,
@@ -327,6 +328,7 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    g.advanceBlackHole(this.game.loop.rawDelta / 1000);
     g.advancePlanetScan(this.game.loop.rawDelta / 1000);
     for (let i = 0; i < this.usedShipSprites; i++)
       this.shipSprites[i]!.setVisible(false);
@@ -657,6 +659,11 @@ export class WorldScene extends Phaser.Scene {
       s.vx *= Math.exp(-dt * 2);
       s.vy *= Math.exp(-dt * 2);
     }
+    const pull = g.gravityWell;
+    if (pull) {
+      s.vx += pull.x * dt;
+      s.vy += pull.y * dt;
+    }
     const speed = Math.hypot(s.vx, s.vy),
       max = g.model.speed * (g.state.upgrades.includes("engine") ? 1.5 : 1);
     if (speed > max) {
@@ -665,6 +672,7 @@ export class WorldScene extends Phaser.Scene {
     }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
+    if (g.captureBlackHole()) return;
     if (g.applyStellarHeat(dt)) {
       this.camX = g.state.ship.x;
       this.camY = g.state.ship.y;
@@ -1284,6 +1292,18 @@ export class WorldScene extends Phaser.Scene {
         }
         this.stellarTextures.draw(this, star, x, y);
       }
+    }
+    const hole = g.system.blackHole;
+    if (hole && !inOrbit) {
+      const x = Math.round(hole.x - this.camX + this.centerX);
+      const y = Math.round(hole.y - this.camY + this.centerY);
+      if (
+        x > -300 &&
+        y > -300 &&
+        x < this.viewWidth + 300 &&
+        y < this.viewHeight + 300
+      )
+        drawBlackHole(this.backdrop, x, y, this.elapsed);
     }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
