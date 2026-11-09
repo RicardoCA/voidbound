@@ -2,6 +2,7 @@ import { selectedWeapon, shipWeapons } from "./weapons";
 import { reportCrime, wantedStatus } from "./law";
 import type { Save, StarSystem } from "../game/types";
 import {
+  damageNpcHull,
   enforcementNpc,
   hitNpc,
   trafficFor,
@@ -46,11 +47,13 @@ export class SpaceCombat {
   npcs: SpaceNpc[] = [];
   bolts: Bolt[] = [];
   private nextShot = 0;
+  private recoilUntil = new Map<string, number>();
 
   reset(state: Save, system: StarSystem) {
     this.npcs = trafficFor(system, state.progression.piracy);
     this.bolts = [];
     this.nextShot = 0;
+    this.recoilUntil.clear();
   }
 
   private updateEnforcement(
@@ -165,11 +168,48 @@ export class SpaceCombat {
     return true;
   }
 
+  private collide(state: Save, npc: SpaceNpc) {
+    const ship = state.ship;
+    const dx = npc.x - ship.x;
+    const dy = npc.y - ship.y;
+    const separation = Math.hypot(dx, dy);
+    const bearing = separation > 0 ? Math.atan2(dy, dx) : ship.angle;
+    const nx = Math.cos(bearing);
+    const ny = Math.sin(bearing);
+    const extent = (angle: number) =>
+      Math.hypot(19 * Math.cos(bearing - angle), 9 * Math.sin(bearing - angle));
+    const shipRadius = extent(ship.angle);
+    const overlap = shipRadius + extent(npc.angle) - separation;
+    if (overlap <= 0) return;
+
+    const correction = (overlap + 0.5) / 2;
+    ship.x -= nx * correction;
+    ship.y -= ny * correction;
+    npc.x += nx * correction;
+    npc.y += ny * correction;
+    const closing = (ship.vx - npc.vx) * nx + (ship.vy - npc.vy) * ny;
+    if (closing <= 0) return;
+
+    const impulse = closing * 0.7;
+    ship.vx -= nx * impulse;
+    ship.vy -= ny * impulse;
+    npc.vx += nx * impulse;
+    npc.vy += ny * impulse;
+    if (closing < 8 || (this.recoilUntil.get(npc.id) ?? 0) > state.time) return;
+    this.recoilUntil.set(npc.id, state.time + 0.45);
+    return {
+      x: ship.x + nx * shipRadius,
+      y: ship.y + ny * shipRadius,
+      damage: Math.min(45, Math.max(2, closing * 0.18)),
+    };
+  }
+
   update(state: Save, system: StarSystem, dt: number) {
     const ship = state.ship;
     const { level, security } = wantedStatus(state, system);
     this.updateEnforcement(state, system, level, security);
     let crimeReported = false;
+    const impacts: Point[] = [];
     let destroyed = false,
       playerDisabled = false;
     const threatened = this.npcs.some(
@@ -178,6 +218,14 @@ export class SpaceCombat {
     );
     for (const npc of this.npcs) {
       if (npc.hull <= 0 || distance(ship, npc) > 800) continue;
+      if ((this.recoilUntil.get(npc.id) ?? 0) > state.time) {
+        const drag = Math.exp(-dt * 4);
+        npc.vx *= drag;
+        npc.vy *= drag;
+        npc.x += npc.vx * dt;
+        npc.y += npc.vy * dt;
+        continue;
+      }
       const separation = distance(ship, npc);
       const police = npc.role === "police" || npc.role === "elite";
       const bounty = npc.role === "bounty";
@@ -236,7 +284,20 @@ export class SpaceCombat {
         npc.fireAt = state.time + 1.1;
       }
     }
+    for (const npc of this.npcs) {
+      if (npc.hull <= 0) continue;
+      const impact = this.collide(state, npc);
+      if (!impact) continue;
+      impacts.push(impact);
+      ship.hull = Math.max(0, ship.hull - impact.damage);
+      if (damageNpcHull(state, system, npc, impact.damage)) destroyed = true;
+      if (ship.hull <= 0) {
+        playerDisabled = true;
+        break;
+      }
+    }
     for (const bolt of this.bolts) {
+      if (playerDisabled) break;
       bolt.life -= dt;
       if (bolt.life <= 0) continue;
       const dx = bolt.vx * dt,
@@ -252,7 +313,6 @@ export class SpaceCombat {
         if (ship.hull <= 0) {
           ship.hull = 0;
           playerDisabled = true;
-          for (const npc of this.npcs) npc.engaged = false;
           break;
         }
       } else {
@@ -294,9 +354,10 @@ export class SpaceCombat {
         }
       }
     }
+    if (playerDisabled) for (const npc of this.npcs) npc.engaged = false;
     this.bolts = playerDisabled
       ? []
       : this.bolts.filter((bolt) => bolt.life > 0);
-    return { destroyed, playerDisabled, crimeReported };
+    return { destroyed, playerDisabled, crimeReported, impacts };
   }
 }
