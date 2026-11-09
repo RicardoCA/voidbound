@@ -19,10 +19,16 @@ const rows = computed(() => {
     tab.value === "offers"
       ? contractOffers(g.state, g.system)
       : Object.values(g.state.progression.contracts).reverse();
-  return list.map((contract) => ({
-    contract,
-    status: contractStatus(g.state, contract),
-  }));
+  return list
+    .filter(
+      (contract) =>
+        (contract.career === "pirate") ===
+        (g.system.station?.kind === "clandestine"),
+    )
+    .map((contract) => ({
+      contract,
+      status: contractStatus(g.state, contract),
+    }));
 });
 const statusLabels = {
   AVAILABLE: "Disponível",

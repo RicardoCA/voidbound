@@ -86,6 +86,7 @@ export interface Planet {
   radius: number;
 }
 export interface Station {
+  kind: "standard" | "clandestine";
   id: string;
   name: string;
   x: number;

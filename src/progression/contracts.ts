@@ -44,9 +44,32 @@ export function contractOffers(state: Save, system: StarSystem): Contract[] {
   if (!system.station) return [];
   const stationId = system.station.id;
   const cycle = Math.floor(state.time / 600);
-  const seed = hash(`${system.id}:contracts:${cycle}`);
   const sector = { x: system.x, y: system.y };
   const accepted = state.progression.contracts;
+  if (hasBlackMarket(system)) {
+    const level = careerLevel(
+      "pirate",
+      state.progression.careers.pirate.xp,
+    ).level;
+    const advanced = level >= 7;
+    const offer: Contract = {
+      id: `${stationId}:smuggling:${cycle}:${advanced ? 2 : 1}`,
+      stationId,
+      career: "pirate",
+      title: advanced ? "Carregamento clandestino" : "Remessa sem manifesto",
+      sector,
+      goal: {
+        kind: "delivery",
+        item: "sealedCargo",
+        quantity: advanced ? 10 : 4,
+      },
+      credits: advanced ? 15000 : 5000,
+      xp: advanced ? 500 : 250,
+      difficulty: advanced ? 3 : 1,
+    };
+    return Object.hasOwn(accepted, offer.id) ? [] : [offer];
+  }
+  const seed = hash(`${system.id}:contracts:${cycle}`);
   const minerLevel = careerLevel(
     "miner",
     state.progression.careers.miner.xp,
@@ -112,28 +135,6 @@ export function contractOffers(state: Save, system: StarSystem): Contract[] {
       difficulty: 3,
     });
   }
-  if (hasBlackMarket(system)) {
-    const level = careerLevel(
-      "pirate",
-      state.progression.careers.pirate.xp,
-    ).level;
-    const advanced = level >= 7;
-    offers.push({
-      id: `${stationId}:smuggling:${cycle}:${advanced ? 2 : 1}`,
-      stationId,
-      career: "pirate",
-      title: advanced ? "Carregamento clandestino" : "Remessa sem manifesto",
-      sector,
-      goal: {
-        kind: "delivery",
-        item: "sealedCargo",
-        quantity: advanced ? 10 : 4,
-      },
-      credits: advanced ? 15000 : 5000,
-      xp: advanced ? 500 : 250,
-      difficulty: advanced ? 3 : 1,
-    });
-  }
   return offers.filter((offer) => !Object.hasOwn(accepted, offer.id));
 }
 
@@ -154,10 +155,12 @@ export function contractStatus(
   return done ? "COMPLETED" : "ACTIVE";
 }
 
-function dockedAt(state: Save, stationId: string) {
+function dockedAt(state: Save, stationId: string, career?: Contract["career"]) {
+  const system = systemAt(state.seed, state.systemX, state.systemY);
   return (
     state.mode === "docked" &&
-    systemAt(state.seed, state.systemX, state.systemY).station?.id === stationId
+    system.station?.id === stationId &&
+    (career === undefined || (career === "pirate") === hasBlackMarket(system))
   );
 }
 
@@ -184,8 +187,8 @@ export function acceptContract(state: Save, stationId: string, id: string) {
 export function abandonContract(state: Save, stationId: string, id: string) {
   const contract = state.progression.contracts[id];
   if (
-    !dockedAt(state, stationId) ||
     !contract ||
+    !dockedAt(state, stationId, contract.career) ||
     contract.stationId !== stationId ||
     contract.status !== "ACTIVE"
   )
@@ -196,8 +199,8 @@ export function abandonContract(state: Save, stationId: string, id: string) {
 export function claimContract(state: Save, stationId: string, id: string) {
   const contract = state.progression.contracts[id];
   if (
-    !dockedAt(state, stationId) ||
     !contract ||
+    !dockedAt(state, stationId, contract.career) ||
     contract.stationId !== stationId ||
     contractStatus(state, contract) !== "COMPLETED"
   )

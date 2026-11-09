@@ -1,7 +1,7 @@
 import { blackHoleAt } from "./blackHoles";
 import { hash, random, LRU } from "../game/procedural/random";
 import { starClasses, systemStars } from "./stars";
-import type { StarSystem } from "../game/types";
+import type { Station, StarSystem } from "../game/types";
 const cache = new LRU<string, StarSystem>(40);
 export function systemAt(seed: string, x: number, y: number): StarSystem {
   const id = `${seed}:${x}:${y}`,
@@ -49,11 +49,15 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
     };
   });
   const stationSeed = hash(`${id}:station`);
-  const station =
+  const clandestine =
+    (y === 0 && x === 1) ||
+    (!(x === 0 && y === 0) && hash(`${id}:black-market`) % 3 === 0);
+  const station: Station | undefined =
     (y === 0 && (x === 0 || x === 1)) || stationSeed % 3 === 0
       ? {
           id: `${id}:station`,
-          name: `Estação ${name}`,
+          kind: clandestine ? "clandestine" : "standard",
+          name: clandestine ? `Estação Clandestina ${name}` : `Estação ${name}`,
           x: 100 + (stationSeed % 80),
           y: 560,
         }

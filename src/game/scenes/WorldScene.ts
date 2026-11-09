@@ -106,6 +106,7 @@ export class WorldScene extends Phaser.Scene {
     { x: number; y: number; wx: number; wy: number } | undefined;
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
+  private clandestineStation!: Phaser.GameObjects.Image;
   private gfx!: Phaser.GameObjects.Graphics;
   private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
@@ -156,6 +157,10 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    this.load.svg(
+      "clandestine-station",
+      `${import.meta.env.BASE_URL}stations/clandestine.svg`,
+    );
     for (const hull of shipTextures)
       this.load.image("hull:" + hull, shipTextureUrl(hull));
   }
@@ -204,6 +209,10 @@ export class WorldScene extends Phaser.Scene {
       canvas.removeEventListener("pointercancel", clearMouse);
       this.game.events.off("blur", clearMouse);
     });
+    this.clandestineStation = this.add
+      .image(0, 0, "clandestine-station")
+      .setDepth(-0.1)
+      .setVisible(false);
     this.gfx = this.add.graphics();
     this.surfaceSky = this.add.graphics().setDepth(-1);
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
@@ -375,6 +384,7 @@ export class WorldScene extends Phaser.Scene {
     this.spaceDust.setVisible(false);
     this.planetTextures.hide();
     this.stellarTextures.hide();
+    this.clandestineStation.setVisible(false);
     const s = g.state;
     if (g.started && s.mode === "docked") {
       if (!this.wasAtStation) {
@@ -1364,7 +1374,18 @@ export class WorldScene extends Phaser.Scene {
           ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
           : Math.floor(this.elapsed * 2) % 4 === 0;
         const scale = 1 + eased * 0.65;
-        drawStationHull(f, x, y, beacon, scale);
+        if (station.kind === "clandestine") {
+          this.clandestineStation
+            .setPosition(x, y - 6 * scale)
+            .setScale(scale)
+            .setVisible(true);
+          if (beacon)
+            f.fillStyle(0xff8469, 0.5).fillCircle(
+              x - 23 * scale,
+              y - 28 * scale,
+              3 * scale,
+            );
+        } else drawStationHull(f, x, y, beacon, scale);
         if (docking)
           drawDockingLane(
             f,
