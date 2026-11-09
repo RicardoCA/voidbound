@@ -181,7 +181,7 @@ function minutes() {
       >
       <div class="top-right">
         <span class="signal"><i /> SISTEMAS ONLINE</span
-        ><span class="build">ALPHA 0.3 / V1 EM DESENVOLVIMENTO</span
+        ><span class="build">BETA 0.3 / V1 EM DESENVOLVIMENTO</span
         ><button
           v-if="g.started"
           class="icon-button"
