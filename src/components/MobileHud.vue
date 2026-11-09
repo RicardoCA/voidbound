@@ -145,7 +145,7 @@ function pause() {
         {{ surface ? "⌂" : "⌘" }}
       </button>
       <button
-        v-if="!cabin && !piloting"
+        v-if="!surface && !cabin && !piloting"
         aria-label="Abrir mapa galáctico"
         title="Mapa"
         @click="open('map')"

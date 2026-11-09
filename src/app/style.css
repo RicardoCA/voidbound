@@ -756,9 +756,12 @@ kbd {
   flex-direction: column;
   gap: 7px;
 }
-.item-icon {
-  font-size: 27px;
-  color: var(--item-color);
+.item-cell .item-art {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid #314d60;
+  background: radial-gradient(ellipse at center, #294557, #101e30);
 }
 .item-cell > b {
   position: absolute;
@@ -767,7 +770,7 @@ kbd {
   font-size: 12px;
   color: var(--item-color);
 }
-.item-cell > span:not(.item-icon) {
+.item-cell > span {
   font-size: 10px;
 }
 .item-cell small {
@@ -798,10 +801,17 @@ kbd {
   align-items: center;
 }
 .installed b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-weight: 400;
   color: var(--mint);
   padding: 6px;
   background: #1d373a;
+}
+.installed .item-art {
+  width: 18px;
+  height: 18px;
 }
 .tabs {
   display: flex;
@@ -832,9 +842,9 @@ kbd {
   padding: 16px 5px;
   border-bottom: 1px solid #253441;
 }
-.recipe-icon {
-  font-size: 24px;
-  min-width: 30px;
+.recipe .recipe-icon {
+  width: 34px;
+  height: 34px;
 }
 .recipe h3 {
   margin: 0 0 7px;
@@ -848,6 +858,15 @@ kbd {
   gap: 4px 12px;
   font-size: 9px;
   color: var(--mint);
+}
+.ingredients > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ingredients .item-art {
+  width: 16px;
+  height: 16px;
 }
 .ingredients .missing {
   color: #b88e88;
@@ -1312,7 +1331,7 @@ kbd {
     padding: 12px;
     min-height: 105px;
   }
-  .item-cell > span:not(.item-icon) {
+  .item-cell > span {
     font-size: 9px;
   }
   .tabs button {
@@ -1329,9 +1348,9 @@ kbd {
   .ingredients {
     font-size: 8px;
   }
-  .recipe-icon {
-    font-size: 20px;
-    min-width: 22px;
+  .recipe .recipe-icon {
+    width: 26px;
+    height: 26px;
   }
   .recipe .secondary {
     padding: 9px 7px;

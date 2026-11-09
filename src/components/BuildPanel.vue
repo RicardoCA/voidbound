@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { buildItems } from "../construction/building";
@@ -56,9 +57,12 @@ function affordable(cost: Partial<Record<Item, number>>) {
     </p>
     <div class="build-materials">
       <span
-        >▥ MADEIRA <b>{{ g.state.inventory.wood ?? 0 }}</b></span
-      ><span
-        >◆ FERRO <b>{{ g.state.inventory.iron ?? 0 }}</b></span
+        ><ItemIcon item="wood" /> MADEIRA
+        <b>{{ g.state.inventory.wood ?? 0 }}</b></span
+      >
+      <span
+        ><ItemIcon item="iron" /> FERRO
+        <b>{{ g.state.inventory.iron ?? 0 }}</b></span
       >
     </div>
     <HabitatStatus always />
@@ -74,9 +78,7 @@ function affordable(cost: Partial<Record<Item, number>>) {
     <div class="build-recipes">
       <article v-for="r in constructionRecipes" :key="r.id" class="build-card">
         <div class="build-card-heading">
-          <span :style="{ color: items[r.id].color }">{{
-            items[r.id].icon
-          }}</span>
+          <ItemIcon :item="r.id" />
           <div>
             <h3>{{ items[r.id].name }}</h3>
             <small>{{ g.state.inventory[r.id] ?? 0 }} na carga</small>
@@ -88,8 +90,10 @@ function affordable(cost: Partial<Record<Item, number>>) {
             v-for="(n, id) in r.cost"
             :key="id"
             :class="{ missing: (g.state.inventory[id] ?? 0) < n! }"
-            >{{ g.state.inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}</span
           >
+            <ItemIcon :item="id" />
+            {{ g.state.inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}
+          </span>
         </div>
         <div class="build-card-actions">
           <button

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { drawStationCounter } from "./stationArt";
 import { stationServices } from "./services";
 
 const radiusX = 354;
@@ -18,6 +19,7 @@ const counters = [
   { x: 124, y: 125 },
   { x: -13, y: 139 },
   { x: -146, y: 121 },
+  { x: -146, y: 34 },
   { x: -263, y: 78 },
 ] as const;
 const spawn = counters[0];
@@ -87,6 +89,7 @@ export class StationInterior {
     scene: Phaser.Scene,
     f: Phaser.GameObjects.Graphics,
     clandestine: boolean,
+    drawAstronaut: (x: number, y: number, walk: number, facing: number) => void,
   ) {
     const { width, height } = scene.scale;
     const extent = Math.hypot(radiusX, radiusY * skew) + 12;
@@ -116,6 +119,37 @@ export class StationInterior {
     oval(0x142a3c, radiusX - 13, radiusY - 15);
     oval(0x213b4f, radiusX - 65, radiusY - 44);
     oval(0x1b3144, radiusX - 70, radiusY - 49);
+    // Deck seams and scuffs are anchored to the hall, not the camera.
+    for (let depth = -140; depth <= 155; depth += 24) {
+      for (let x = -304; x < 305; x += 30) {
+        if ((x / 320) ** 2 + (depth / 167) ** 2 > 0.88) continue;
+        const start = project(x, depth);
+        const end = project(x + 26, depth);
+        if (end.x < 0 || start.x > width) continue;
+        f.lineStyle(1, 0x102337, 0.62).lineBetween(
+          start.x,
+          start.y,
+          end.x,
+          end.y,
+        );
+        f.lineStyle(1, 0x64808b, 0.27).lineBetween(
+          start.x,
+          start.y + 1,
+          end.x,
+          end.y + 1,
+        );
+        fill(0x13293a, start.x + 3, start.y + 4, 2, 1);
+        fill(0x435965, end.x - 3, start.y + 5, 1, 1);
+      }
+    }
+    for (let i = 0; i < 24; i++) {
+      const edge = circle[i]!;
+      const marker = project(edge.x * (radiusX - 8), edge.y * (radiusY - 7));
+      if (marker.x >= 0 && marker.x <= width) {
+        fill(0x0a1a29, marker.x - 4, marker.y - 1, 8, 3);
+        fill(i % 3 === 0 ? 0xe3ad66 : 0x6fb2b7, marker.x - 2, marker.y, 4, 1);
+      }
+    }
     for (let i = 24; i < circle.length; i++) {
       const a = circle[i]!,
         b = circle[(i + 1) % circle.length]!;
@@ -129,13 +163,34 @@ export class StationInterior {
         project(nx, ny, 38),
         project(x, y, 38),
       ]);
-      if (i % 3 !== 0)
-        polygon(0x426677, [
-          project(x, y, 31),
-          project(nx, ny, 31),
-          project(nx, ny, 34),
-          project(x, y, 34),
+      const panel = (
+        shade: number,
+        left: number,
+        right: number,
+        low: number,
+        high: number,
+      ) => {
+        const point = (t: number, z: number) =>
+          project(x + (nx - x) * t, y + (ny - y) * t, z);
+        polygon(shade, [
+          point(left, low),
+          point(right, low),
+          point(right, high),
+          point(left, high),
         ]);
+      };
+      panel(0x101e2e, 0.03, 0.95, 8, 30);
+      panel(i % 3 === 0 ? 0x426074 : 0x2c485c, 0.12, 0.87, 10, 28);
+      panel(0x62818d, 0.09, 0.9, 28, 30);
+      panel(0x101d2a, 0.02, 0.12, 0, 38);
+      panel(0x64808e, 0.15, 0.24, 12, 14);
+      if (i % 3 === 0) {
+        panel(0x091b2d, 0.24, 0.78, 14, 25);
+        panel(0x83d8cf, 0.4, 0.51, 21, 22);
+      } else {
+        for (let z = 14; z <= 23; z += 3) panel(0x192b3d, 0.36, 0.78, z, z + 1);
+      }
+      panel(i % 4 === 0 ? 0xe3b173 : 0x70b8bc, 0.22, 0.8, 33, 35);
     }
 
     const center = project(0, 16);
@@ -159,11 +214,16 @@ export class StationInterior {
       .slice(0, count)
       .map((counter, i) => ({ ...counter, i }))
       .sort((a, b) => a.y - b.y);
+    const drawPlayer = () => {
+      const p = project(this.x, this.depth);
+      fill(0x101c28, p.x - 8, p.y - 2, 16, 3);
+      drawAstronaut(p.x, p.y - 12, Math.sin(this.stride) * 2, this.facing);
+    };
     let drawnPlayer = false;
     this.labels[count]?.setVisible(false);
     for (const counter of order) {
       if (!drawnPlayer && this.depth < counter.y - 15) {
-        this.drawPlayer(fill, project(this.x, this.depth));
+        drawPlayer();
         drawnPlayer = true;
       }
       const npc = stationServices[counter.i]!;
@@ -175,6 +235,9 @@ export class StationInterior {
       fill(0x8a9ea6, x - 6, y - 37, 9, 9);
       fill(0xd6b38f, x - 5, y - 35, 7, 6);
       fill(npc.color, x - 7, y - 28, 11, 12);
+      fill(0x344959, x + 1, y - 27, 3, 9);
+      fill(0x1a2c3b, x - 5, y - 22, 5, 2);
+      fill(0xb5d5d4, x - 4, y - 32, 4, 1);
       fill(0x3e5467, x - 23, y - 14, 46, 14);
       fill(0x192b3b, x - 19, y - 9, 38, 6);
       polygon(0x688392, [
@@ -184,6 +247,7 @@ export class StationInterior {
         { x: x - 23, y: y - 14 },
       ]);
       fill(npc.color, x - 23, y - 14, 46, 2);
+      drawStationCounter(f, x, y, npc.color, npc.id, nearest === npc);
       const label = (this.labels[counter.i] ??= scene.add
         .text(0, 0, "", {
           fontFamily: "monospace",
@@ -198,21 +262,6 @@ export class StationInterior {
         .setText(nearest === npc ? npc.label + "\n◆ " + npc.name : npc.label)
         .setColor(nearest === npc ? "#a1f2db" : "#d5e5eb");
     }
-    if (!drawnPlayer) this.drawPlayer(fill, project(this.x, this.depth));
-  }
-
-  private drawPlayer(
-    fill: (color: number, x: number, y: number, w: number, h: number) => void,
-    { x, y }: { x: number; y: number },
-  ) {
-    const step = this.stride ? Math.round(Math.sin(this.stride) * 2) : 0;
-    fill(0x101c28, x - 8, y - 2, 16, 3);
-    fill(0x597584, x - 6, y - 19, 4, 12);
-    fill(0xc2d3dc, x - 4, y - 27, 9, 10);
-    fill(0x88ded8, x - 1 + this.facing * 2, y - 25, 4, 4);
-    fill(0x91aebc, x - 4, y - 17, 9, 10);
-    fill(0xe1b77b, x - 4, y - 11, 9, 2);
-    fill(0x7493a4, x - 3, y - 7, 3, 6 - step);
-    fill(0x7493a4, x + 2, y - 7, 3, 6 + step);
+    if (!drawnPlayer) drawPlayer();
   }
 }

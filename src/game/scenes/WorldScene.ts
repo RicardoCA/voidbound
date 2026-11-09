@@ -1,3 +1,11 @@
+import { astronautArt } from "../../wardrobe/astronautArt";
+import {
+  drawAsteroid,
+  createSpaceBackdrop,
+  drawSpaceStar,
+  drawSpaceWreck,
+  PlanetTextures,
+} from "../rendering/spaceArt";
 import { SpaceCombat } from "../../combat/flight";
 import {
   hasBlackMarket,
@@ -6,7 +14,7 @@ import {
   systemWrecks,
   type Wreck,
 } from "../../combat/traffic";
-import type { Save } from "../types";
+import type { Save, ShipModelId } from "../types";
 import { anomalyAt, ruinAt } from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
@@ -19,7 +27,9 @@ import {
 } from "../../survival/wildlife";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
-import { shipModels, shipPalette } from "../../fleet/models";
+import { shipModels } from "../../fleet/models";
+import { shipTextures, shipTextureUrl } from "../../fleet/shipTextures";
+import { shipArt } from "../../fleet/shipArt";
 import Phaser from "phaser";
 import {
   DOCKING_DURATION,
@@ -33,6 +43,17 @@ import {
   drawSettlement,
   drawPiece,
 } from "../rendering/settlements";
+import {
+  drawBoardingRamp,
+  drawDockingLane,
+  drawGroundWake,
+  drawLandingGear,
+} from "../rendering/flightEffects";
+import {
+  drawTerrainTile,
+  surfaceMaterials,
+} from "../rendering/surfaceMaterials";
+import { SurfaceArt } from "../rendering/surfaceArt";
 import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
 import { solidCell, stairFloor, stepSurface } from "../physics/surface";
 import { footprint } from "../../construction/pieces";
@@ -50,6 +71,7 @@ import {
   isEditing,
 } from "../input";
 import { CabinInterior } from "../cabin/CabinInterior";
+import { drawStationHull } from "../station/stationArt";
 import { StationInterior } from "../station/StationInterior";
 import { audio } from "../systems/audio";
 const ATMOSPHERE_EXIT = 3.2;
@@ -69,8 +91,16 @@ export class WorldScene extends Phaser.Scene {
   private fruit: Fruit[] = [];
   private surfaceTap:
     { x: number; y: number; wx: number; wy: number } | undefined;
+  private shipSprites: Phaser.GameObjects.Image[] = [];
+  private usedShipSprites = 0;
   private gfx!: Phaser.GameObjects.Graphics;
+  private surfaceBase!: Phaser.GameObjects.Graphics;
+  private surfaceArt = new SurfaceArt();
+  private backdrop!: Phaser.GameObjects.Graphics;
+  private spaceDust!: Phaser.GameObjects.TileSprite;
+  private planetTextures = new PlanetTextures();
   private flightShipGfx!: Phaser.GameObjects.Graphics;
+  private atmosphereGfx!: Phaser.GameObjects.Graphics;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private terrain?: Terrain;
   private lastMode: Mode | "none" = "none";
@@ -109,7 +139,13 @@ export class WorldScene extends Phaser.Scene {
   constructor() {
     super("world");
   }
+  preload() {
+    this.surfaceArt.preload(this);
+    for (const hull of shipTextures)
+      this.load.image("hull:" + hull, shipTextureUrl(hull));
+  }
   create() {
+    this.surfaceArt.prepareDoor(this);
     this.store = useGame();
     this.building = useConstruction();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -137,7 +173,12 @@ export class WorldScene extends Phaser.Scene {
         );
     });
     this.gfx = this.add.graphics();
+    this.surfaceBase = this.add.graphics().setDepth(-0.5);
+    this.backdrop = this.add.graphics().setDepth(-2);
+    this.spaceDust = createSpaceBackdrop(this).setVisible(false);
+    this.events.once("shutdown", () => this.planetTextures.clear(this));
     this.flightShipGfx = this.add.graphics().setDepth(2);
+    this.atmosphereGfx = this.add.graphics().setDepth(3);
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,LEFT,RIGHT,UP,DOWN,SPACE,E,F,M,I,C,ESC",
       false,
@@ -216,6 +257,7 @@ export class WorldScene extends Phaser.Scene {
       if (e.code === "KeyR" && this.building.enabled) this.building.rotate();
       if (
         e.code === "KeyM" &&
+        this.store.state.mode !== "surface" &&
         this.store.state.mode !== "space" &&
         this.store.state.mode !== "interior"
       )
@@ -230,6 +272,7 @@ export class WorldScene extends Phaser.Scene {
         this.store.panel = this.store.panel === "inventory" ? "" : "inventory";
       if (
         e.code === "KeyC" &&
+        this.store.state.mode !== "surface" &&
         this.store.state.mode !== "interior" &&
         this.store.state.mode !== "space"
       )
@@ -271,7 +314,16 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    for (let i = 0; i < this.usedShipSprites; i++)
+      this.shipSprites[i]!.setVisible(false);
+    this.usedShipSprites = 0;
     this.flightShipGfx.clear();
+    this.atmosphereGfx.clear();
+    this.surfaceBase.clear();
+    this.surfaceArt.reset();
+    this.backdrop.clear();
+    this.spaceDust.setVisible(false);
+    this.planetTextures.hide();
     const s = g.state;
     if (g.started && s.mode === "docked") {
       if (!this.wasAtStation) {
@@ -300,7 +352,9 @@ export class WorldScene extends Phaser.Scene {
       }
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
-      this.station.draw(this, this.gfx, clandestine);
+      this.station.draw(this, this.gfx, clandestine, (x, y, step, facing) =>
+        this.drawAstronaut(x, y, step, facing),
+      );
       return;
     }
     if (this.wasAtStation) {
@@ -347,6 +401,7 @@ export class WorldScene extends Phaser.Scene {
     }
     if (this.lastSystem !== g.system.id || this.combatState !== s) {
       if (this.lastSystem !== g.system.id) {
+        this.planetTextures.clear(this);
         for (const label of this.planetLabels.values()) label.destroy();
         this.planetLabels.clear();
       }
@@ -999,20 +1054,32 @@ export class WorldScene extends Phaser.Scene {
           ),
         )
       : 0x080f20;
-    f.fillStyle(sky);
-    f.fillRect(0, 0, this.viewWidth, this.viewHeight);
-    // Original procedural nebulae and layered starlight.
-    for (let layer = 0; layer < 3; layer++) {
-      f.fillStyle(
-        [0x15213a, 0x18283c, 0x1b2540][layer]!,
-        surface ? 0.13 * (1 - light) : 0.23,
+    const backdrop = this.backdrop;
+    if (!surface) {
+      if (
+        this.spaceDust.width !== this.viewWidth ||
+        this.spaceDust.height !== this.viewHeight
+      )
+        this.spaceDust.setSize(this.viewWidth, this.viewHeight);
+      this.spaceDust.setTilePosition(
+        this.camX * 0.065 + 32,
+        this.camY * 0.065 + 24,
       );
-      f.fillEllipse(
-        100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
-        70 + layer * 35,
-        300,
-        100,
-      );
+      this.spaceDust.setVisible(true);
+    } else {
+      backdrop.fillStyle(sky).fillRect(0, 0, this.viewWidth, this.viewHeight);
+      for (let layer = 0; layer < 3; layer++) {
+        backdrop.fillStyle(
+          [0x15213a, 0x18283c, 0x1b2540][layer]!,
+          0.13 * (1 - light),
+        );
+        backdrop.fillEllipse(
+          100 + layer * 170 - Math.sin(this.elapsed * 0.02) * 10,
+          70 + layer * 35,
+          300,
+          100,
+        );
+      }
     }
     for (const star of this.stars) {
       const parallax = surface
@@ -1029,11 +1096,24 @@ export class WorldScene extends Phaser.Scene {
             this.viewHeight) +
             this.viewHeight) %
           this.viewHeight;
-      f.fillStyle(
-        0xc7daeb,
-        (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) * (1 - light),
-      );
-      f.fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+      if (surface) {
+        backdrop
+          .fillStyle(
+            0xc7daeb,
+            (0.3 + Math.sin(this.elapsed * 0.6 + star.phase) * 0.25) *
+              (1 - light),
+          )
+          .fillRect(Math.floor(x), Math.floor(y), star.r, star.r);
+      } else {
+        drawSpaceStar(
+          backdrop,
+          Math.floor(x),
+          Math.floor(y),
+          star.r,
+          star.phase,
+          this.elapsed,
+        );
+      }
     }
     if (surface) {
       if (light > 0) {
@@ -1059,13 +1139,15 @@ export class WorldScene extends Phaser.Scene {
     } else this.drawSpace(launch);
     if (launch !== undefined) {
       const fade = Math.max(0, 1 - Math.abs(launch - ATMOSPHERE_EXIT) / 0.48);
-      if (fade > 0)
-        f.fillStyle(0x080f20, fade).fillRect(
-          0,
-          0,
-          this.viewWidth,
-          this.viewHeight,
-        );
+      if (fade > 0) {
+        const veil = this.atmosphereGfx;
+        veil
+          .fillStyle(0x080f20, fade)
+          .fillRect(0, 0, this.viewWidth, this.viewHeight);
+        veil
+          .fillStyle(0x73bdd5, Math.sin(Math.PI * fade) * 0.24)
+          .fillRect(0, 0, this.viewWidth, this.viewHeight);
+      }
     }
     if (this.beam) {
       const b = this.beam;
@@ -1117,8 +1199,8 @@ export class WorldScene extends Phaser.Scene {
         this.viewHeight + 20,
       );
       const radius = 2 + distant() * 7;
-      f.fillStyle(0x26374c, 0.55);
-      f.fillTriangle(
+      this.backdrop.fillStyle(0x26374c, 0.55);
+      this.backdrop.fillTriangle(
         x - radius,
         y,
         x + radius * 0.45,
@@ -1129,43 +1211,41 @@ export class WorldScene extends Phaser.Scene {
     }
     const inOrbit = g.state.mode === "orbit";
     const station = inOrbit ? undefined : g.system.station;
+    const docking = g.dockingSequence;
+    const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
+    const eased = t * t * (3 - 2 * t);
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
-      f.fillStyle(0x122438);
-      f.fillPoints(
-        [
-          { x: x - 40, y: y + 9 },
-          { x: x + 40, y: y + 9 },
-          { x: x + 45, y: y + 16 },
-          { x: x - 35, y: y + 16 },
-        ],
-        true,
-      );
-      f.fillStyle(0x30485e);
-      f.fillRect(x - 40, y - 9, 80, 18);
-      f.fillStyle(0x88a3af);
-      f.fillRect(x - 40, y - 9, 80, 2);
-      f.fillStyle(0x263a4d);
-      f.fillRect(x - 12, y - 12, 34, 36);
-      f.fillStyle(0x637f92);
-      f.fillRect(x - 17, y - 18, 34, 36);
-      f.fillStyle(0x9cb0b7);
-      f.fillRect(x - 17, y - 18, 34, 3);
-      f.fillStyle(0x172947);
-      f.fillRect(x - 37, y - 6, 20, 12);
-      f.fillRect(x + 17, y - 6, 20, 12);
-      f.fillStyle(0x92d6c8);
-      f.fillRect(x - 11, y - 10, 22, 5);
-      f.fillStyle(0xd4b079);
-      f.fillRect(x - 7, y + 7, 14, 4);
-      if (g.dockingSequence) {
-        const blink = Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0;
-        f.fillStyle(blink ? 0xffe2a0 : 0x92d6c8);
-        f.fillRect(x - 18, y - 17, 4, 3);
-        f.fillRect(x + 14, y - 17, 4, 3);
-        f.fillRect(x - 18, y + 14, 4, 3);
-        f.fillRect(x + 14, y + 14, 4, 3);
+      if (
+        x > -65 &&
+        x < this.viewWidth + 65 &&
+        y > -35 &&
+        y < this.viewHeight + 35
+      ) {
+        const beacon = g.dockingSequence
+          ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
+          : Math.floor(this.elapsed * 2) % 4 === 0;
+        const scale = 1 + eased * 0.65;
+        drawStationHull(f, x, y, beacon, scale);
+        if (docking)
+          drawDockingLane(
+            f,
+            x,
+            y,
+            Math.atan2(s.y - station.y, s.x - station.x),
+            t,
+            scale,
+          );
+        if (docking && t > 0.78) {
+          const glow = (t - 0.78) / 0.22;
+          f.fillStyle(0x7af0cb, glow * 0.28).fillEllipse(
+            x,
+            y,
+            35 * scale,
+            13 * scale,
+          );
+        }
       }
     }
     g.system.planets.forEach((p, i) => {
@@ -1183,27 +1263,7 @@ export class WorldScene extends Phaser.Scene {
       const radius = inOrbit
         ? Math.round(Math.min(this.viewWidth * 0.16, this.viewHeight * 0.215))
         : 57 + (i % 3) * 8;
-      f.fillStyle(p.color, 0.035);
-      f.fillCircle(x, y, radius + 14);
-      f.fillStyle(p.color, 0.12);
-      f.fillCircle(x, y, radius + 4);
-      f.fillStyle(p.color);
-      f.fillCircle(x, y, radius);
-      const r = random(p.seed);
-      for (let row = -radius; row < radius; row += 4) {
-        const half = Math.sqrt(radius * radius - row * row);
-        f.fillStyle([0x18243e, 0xbcd1bb, 0x43435c][Math.floor(r() * 3)]!, 0.22);
-        f.fillRect(
-          Math.floor(x - half + 3),
-          y + row,
-          Math.max(1, Math.floor(half * 2 - 6)),
-          2 + r() * 4,
-        );
-      }
-      f.fillStyle(0x061125, 0.5);
-      f.fillEllipse(x + radius * 0.35, y + 4, radius * 1.2, radius * 1.7);
-      f.lineStyle(1, 0xb8e1da, 0.17);
-      f.strokeCircle(x, y, radius + 7);
+      this.planetTextures.draw(this, p, x, y, radius);
       if (
         g.started &&
         g.state.mode === "space" &&
@@ -1236,39 +1296,7 @@ export class WorldScene extends Phaser.Scene {
         y > this.viewHeight + 30
       )
         continue;
-      const r = rock.r;
-      const rim = [
-        { x: x - r, y: y - 3 },
-        { x: x - r * 0.5, y: y - r },
-        { x: x + r * 0.6, y: y - r * 0.7 },
-        { x: x + r, y: y + r * 0.4 },
-        { x: x + r * 0.3, y: y + r },
-        { x: x - r * 0.7, y: y + r * 0.7 },
-      ];
-      const facets = [
-        0x998c8b, 0x827981, 0x605967, 0x393c50, 0x474657, 0x716872,
-      ];
-      for (const [i, edge] of rim.entries()) {
-        const next = rim[(i + 1) % rim.length]!;
-        f.fillStyle(facets[i]!);
-        f.fillTriangle(
-          x - r * 0.2,
-          y - r * 0.13,
-          edge.x,
-          edge.y,
-          next.x,
-          next.y,
-        );
-      }
-      f.fillStyle(
-        rock.ore === "crystal"
-          ? 0xb794e8
-          : rock.ore === "copper"
-            ? 0xd79d7d
-            : 0x91b8bf,
-      );
-      f.fillRect(x + 3, y + 1, 3, 3);
-      f.fillRect(x - 4, y + 4, 2, 2);
+      drawAsteroid(f, x, y, rock.r, rock.id, rock.ore);
     }
     if (g.started && g.state.mode === "space") {
       for (const npc of this.combat.npcs) {
@@ -1282,13 +1310,7 @@ export class WorldScene extends Phaser.Scene {
           y > this.viewHeight + 35
         )
           continue;
-        this.drawShip(
-          x,
-          y,
-          npc.angle,
-          npc.engaged,
-          shipModels[npc.model].sprite,
-        );
+        this.drawShip(x, y, npc.angle, npc.engaged, npc.model);
         f.fillStyle(npc.engaged || npc.role === "pirate" ? 0xff8c78 : 0xe5bb77);
         f.fillRect(x - 11, y - 20, (22 * npc.hull) / npc.maxHull, 2);
         if (npc.shield > 0) {
@@ -1299,13 +1321,13 @@ export class WorldScene extends Phaser.Scene {
       for (const wreck of this.nearbyWrecks()) {
         const x = Math.round(wreck.x - this.camX + this.centerX);
         const y = Math.round(wreck.y - this.camY + this.centerY);
-        f.fillStyle(0x687783);
-        f.fillRect(x - 15, y - 4, 11, 7);
-        f.fillRect(x + 9, y + 3, 8, 5);
-        f.fillStyle(0xc39cf6);
-        f.fillRect(x - 5, y - 5, 10, 10);
-        f.fillStyle(0x6c4f91);
-        f.fillRect(x - 2, y - 2, 4, 4);
+        if (
+          x >= -24 &&
+          x <= this.viewWidth + 24 &&
+          y >= -16 &&
+          y <= this.viewHeight + 16
+        )
+          drawSpaceWreck(f, x, y);
       }
       for (const bolt of this.combat.bolts) {
         f.fillStyle(bolt.hostile ? 0xff8874 : 0xe0f8be);
@@ -1325,15 +1347,12 @@ export class WorldScene extends Phaser.Scene {
         ship.remaining > 0.02,
         undefined,
         this.flightShipGfx,
-        1 - 0.25 * ship.remaining,
+        1 - 0.42 * ship.remaining,
         4,
       );
       return;
     }
     if (g.started && g.panel !== "route") {
-      const docking = g.dockingSequence;
-      const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
-      const eased = t * t * (3 - 2 * t);
       const x =
         docking && station ? Phaser.Math.Linear(s.x, station.x, eased) : s.x;
       const y =
@@ -1352,6 +1371,7 @@ export class WorldScene extends Phaser.Scene {
               (g.routeIndex !== undefined && g.speed > 5),
         undefined,
         this.flightShipGfx,
+        1 - 0.36 * eased,
       );
     }
   }
@@ -1433,10 +1453,11 @@ export class WorldScene extends Phaser.Scene {
     y: number,
     angle: number,
     thrust = false,
-    sprite = this.store.model.sprite as readonly string[],
+    model: ShipModelId = this.store.state.activeShip.model,
     f = this.gfx,
     scale = 1,
     depth = this.store.state.mode === "space" ? 4 : 0,
+    pirate = false,
   ) {
     const cosine = Math.cos(angle),
       sine = Math.sin(angle);
@@ -1444,42 +1465,87 @@ export class WorldScene extends Phaser.Scene {
       x: Math.round(x + scale * (px * cosine - py * sine)),
       y: Math.round(y + scale * (px * sine + py * cosine)),
     });
-    const drawHull = (depth: number) => {
-      sprite.forEach((row, rowIndex) => {
-        let start = 0;
-        while (start < row.length) {
-          const pixel = row[start]!;
-          let end = start + 1;
-          while (end < row.length && row[end] === pixel) end++;
-          if (pixel !== ".") {
-            const left = start * 3 - 22,
-              right = end * 3 - 22,
-              top = rowIndex * 2.5 - 14;
-            f.fillStyle(
-              depth ? 0x162d43 : shipPalette[pixel as keyof typeof shipPalette],
+    const family = pirate ? "raider" : shipModels[model].hullFamily;
+    const texture = "hull:" + (pirate ? "raider" : model);
+    if (this.textures.exists(texture)) {
+      const i = this.usedShipSprites++;
+      const sprite = (this.shipSprites[i] ??= this.add.image(0, 0, texture));
+      sprite.setTexture(texture);
+      const width =
+        (family === "atlas" || family === "mammoth" || family === "bastion"
+          ? 64
+          : 54) * scale;
+      const height = (sprite.frame.height / sprite.frame.width) * width;
+      sprite
+        .setPosition(Math.round(x), Math.round(y))
+        .setRotation(angle)
+        .setDisplaySize(width, height)
+        .setDepth(f === this.flightShipGfx ? 2.1 : 0.5)
+        .setVisible(true);
+      if (thrust) {
+        const tail = -(width / scale) * 0.47;
+        const amber = family === "atlas" || family === "bastion";
+        const cinematic = this.store.inSequence;
+        const length = (cinematic ? 23 : 11) + Math.sin(this.elapsed * 55) * 4;
+        if (cinematic) {
+          f.fillStyle(amber ? 0xf9a95e : 0x59dbc9, 0.14).fillPoints(
+            [
+              point(tail + 5, -7),
+              point(tail - length * 1.4, 0),
+              point(tail + 5, 8),
+            ],
+            true,
+          );
+          for (let i = 1; i <= 3; i++) {
+            const spark = point(
+              tail - length * (0.55 + i * 0.25),
+              Math.sin(this.elapsed * 36 + i) * i,
             );
-            f.fillPoints(
-              [
-                point(left, top),
-                point(right, top),
-                point(right, top + 2.5),
-                point(left, top + 2.5),
-              ].map((vertex) => ({
-                x: vertex.x + depth * 0.5,
-                y: vertex.y + depth,
-              })),
-              true,
-            );
+            f.fillStyle(0xaef8e8, 0.36).fillRect(spark.x, spark.y, 2, 1);
           }
-          start = end;
         }
-      });
+        f.fillStyle(amber ? 0xf9a95e : 0x59dbc9, 0.48).fillPoints(
+          [point(tail + 1, -4), point(tail - length, 1), point(tail + 1, 5)],
+          true,
+        );
+        f.fillStyle(amber ? 0xffedb5 : 0xc8fff0, 0.9).fillPoints(
+          [
+            point(tail + 2, -2),
+            point(tail - length * 0.68, 1),
+            point(tail + 2, 3),
+          ],
+          true,
+        );
+      }
+      return;
+    }
+    const { hull, details } = shipArt(model);
+    const drawPlates = (plates: typeof hull, offset: number) => {
+      for (const plate of plates) {
+        const left = plate.x - 22,
+          right = left + plate.w;
+        const top = plate.y * (5 / 6) - 14,
+          bottom = top + plate.h * (5 / 6);
+        const points = [
+          point(left, top),
+          point(right, top),
+          point(right, bottom),
+          point(left, bottom),
+        ];
+        if (offset)
+          for (const vertex of points) {
+            vertex.x += offset * 0.5;
+            vertex.y += offset;
+          }
+        f.fillStyle(offset ? 0x162d43 : plate.color).fillPoints(points, true);
+      }
     };
     if (depth > 0) {
-      drawHull(depth);
-      drawHull(depth / 2);
+      drawPlates(hull, depth);
+      drawPlates(hull, depth / 2);
     }
-    drawHull(0);
+    drawPlates(hull, 0);
+    drawPlates(details, 0);
     if (thrust) {
       f.fillStyle(0x7de3ee, 0.8);
       f.fillPoints(
@@ -1555,6 +1621,7 @@ export class WorldScene extends Phaser.Scene {
       t = this.terrain!,
       biome = biomes[g.planet.kind]!,
       p = g.state.player;
+    const material = surfaceMaterials[g.planet.kind]!;
     const sequence = g.surfaceSequence;
     const descent =
       sequence?.kind === "landing"
@@ -1567,27 +1634,37 @@ export class WorldScene extends Phaser.Scene {
     const offsetX = this.centerX - this.camX;
     const offsetY = this.centerY - this.camY;
     const settlement = this.building.settlement;
-    drawSurfaceRidges(
-      f,
-      this.viewWidth,
-      this.viewHeight,
-      this.camX,
-      this.camY,
-      biome.ground,
-      light,
-    );
+    if (
+      !this.surfaceArt.drawHorizon(
+        this,
+        g.planet.kind,
+        this.viewWidth,
+        this.viewHeight,
+        this.camX,
+        light,
+      )
+    )
+      drawSurfaceRidges(
+        this.surfaceBase,
+        this.viewWidth,
+        this.viewHeight,
+        this.camX,
+        this.camY,
+        material,
+        light,
+      );
     // Render the projected faces behind the playable grid so blocks keep their hit areas.
     for (let x = endX - 1; x >= startX; x--)
       for (let y = startY; y < endY; y++) {
         if (t.get(x, y))
           drawTerrainDepth(
-            f,
+            this.surfaceBase,
             t,
             x,
             y,
             Math.floor(x * 16 + offsetX),
             Math.floor(y * 16 + offsetY),
-            g.planet.color,
+            material.cap,
             light,
           );
       }
@@ -1617,60 +1694,56 @@ export class WorldScene extends Phaser.Scene {
       endX,
       settlement.cutTrees,
     )) {
-      drawAlienTree(
-        f,
-        tree,
-        tree.x * 16 + 8 - this.camX + this.centerX,
-        tree.ground * 16 - this.camY + this.centerY,
-        this.elapsed,
-        this.treeHits.get(tree.id) ?? 0,
-      );
+      const x = tree.x * 16 + 8 + offsetX;
+      const y = tree.ground * 16 + offsetY;
+      const height = tree.height * 16;
+      const damage = this.treeHits.get(tree.id) ?? 0;
+      if (
+        !this.surfaceArt.sprite(
+          this,
+          "tree-" + tree.kind,
+          x + Math.sin(this.elapsed * 0.6 + tree.x),
+          y,
+          tree.crown * 35,
+          height + 12,
+          tree.variant === 1,
+          damage ? 0.85 : 1,
+          -0.6,
+        )
+      )
+        drawAlienTree(f, tree, x, y, this.elapsed, damage);
     }
     drawSettlement(
-      f,
-      this.building.settlement,
+      this.surfaceBase,
+      settlement,
       this.camX,
       this.camY,
       this.viewWidth,
       this.viewHeight,
       "walls",
+      material,
+      (kind, x, y) => this.surfaceArt.prop(this, kind, x, y, 1),
     );
-    const colors: Record<number, number> = {
-      2: 0x9fb8bf,
-      3: 0xd99268,
-      4: 0xb9a8d4,
-      5: 0x596c7c,
-      6: 0x74c5d5,
-      7: 0xb38ee4,
-      8: 0x98daec,
-      9: 0x8dbd8d,
-      10: 0xb2a273,
-      11: 0xd8bb70,
-    };
     for (let x = startX; x < endX; x++)
       for (let y = startY; y < endY; y++) {
         const tile = t.get(x, y);
         if (!tile) continue;
-        const sx = Math.floor(x * 16 - this.camX + this.centerX),
-          sy = Math.floor(y * 16 - this.camY + this.centerY);
-        f.fillStyle(biome.ground);
-        f.fillRect(sx, sy, 16, 16);
-        f.fillStyle(0x101a2c, 0.22);
-        f.fillRect(sx, sy + 13, 16, 3);
-        if (!t.get(x, y - 1)) {
-          f.fillStyle(g.planet.color);
-          f.fillRect(sx, sy, 16, 3);
-        }
-        if (tile > 1) {
-          f.fillStyle(colors[tile]!);
-          f.fillRect(sx + 3, sy + 5, 4, 3);
-          f.fillRect(sx + 10, sy + 9, 3, 4);
-          f.fillStyle(0xffffff, 0.2);
-          f.fillRect(sx + 4, sy + 5, 2, 1);
-        } else {
-          f.fillStyle(0xffffff, 0.06);
-          f.fillRect(sx + 4, sy + 7, 3, 2);
-        }
+        const sx = Math.floor(x * 16 + offsetX);
+        const sy = Math.floor(y * 16 + offsetY);
+        const textured = this.surfaceArt.tile(this, sx, sy, x, y);
+        drawTerrainTile(
+          f,
+          material,
+          g.planet.kind,
+          x,
+          y,
+          sx,
+          sy,
+          tile,
+          !t.get(x, y - 1),
+          textured,
+          this.surfaceArt.deposit(this, tile, sx, sy, x, y),
+        );
       }
     drawSettlement(
       f,
@@ -1680,24 +1753,50 @@ export class WorldScene extends Phaser.Scene {
       this.viewWidth,
       this.viewHeight,
       "pieces",
+      material,
+      (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
     const ruin = ruinAt(g.planet, t);
     if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
-    for (const fruit of this.fruit)
-      drawFruit(
-        f,
-        fruit,
-        Math.round(fruit.x - this.camX + this.centerX),
-        Math.round(fruit.y - this.camY + this.centerY),
-      );
+    for (const fruit of this.fruit) {
+      const x = Math.round(fruit.x + offsetX);
+      const y = Math.round(fruit.y + offsetY);
+      if (
+        !this.surfaceArt.sprite(
+          this,
+          "fruit-" + g.planet.kind,
+          x,
+          y + 8,
+          24,
+          20,
+        )
+      )
+        drawFruit(f, fruit, x, y);
+    }
     for (const animal of this.wildlife.animals.values()) {
       contactShadow(animal.x, animal.y + 12, animal.hostile ? 23 : 17);
-      drawAnimal(
-        f,
-        animal,
-        Math.round(animal.x + offsetX),
-        Math.round(animal.y + offsetY),
+      const x = Math.round(animal.x + offsetX);
+      const y = Math.round(animal.y + offsetY);
+      const stride = Math.sin(this.elapsed * 10 + animal.home);
+      const textured = this.surfaceArt.sprite(
+        this,
+        (animal.hostile ? "hostile-" : "peaceful-") + animal.kind,
+        x,
+        y + 12 - (animal.grounded ? Math.abs(stride) * 1.5 : 0),
+        animal.hostile ? 37 : 30,
+        animal.hostile ? 32 : 29,
+        animal.facing < 0,
       );
+      if (!textured) drawAnimal(f, animal, x, y, this.elapsed);
+      else if (animal.health < animal.maxHealth) {
+        f.fillStyle(0x233442).fillRect(x - 10, y - 21, 20, 2);
+        f.fillStyle(0xf19b82).fillRect(
+          x - 10,
+          y - 21,
+          (20 * animal.health) / animal.maxHealth,
+          2,
+        );
+      }
     }
     const landingX = sequence?.landingX ?? g.state.landingX;
     const shipX = landingX * 16 - this.camX + this.centerX;
@@ -1714,25 +1813,20 @@ export class WorldScene extends Phaser.Scene {
         36 + 24 * lift,
         4,
       );
-      const dust = Phaser.Math.Clamp(elapsed / 1.35, 0, 1);
-      if (dust < 1) {
-        f.fillStyle(0xd6bfa1, 0.63 * Math.sin(Math.PI * dust));
-        for (let i = 0; i < 14; i++) {
-          const spread = 8 + (24 + (i % 7) * 6) * dust;
-          f.fillRect(
-            shipX + (i % 2 ? spread : -spread),
-            shipY + 11 - (i % 4) * dust * 4,
-            3,
-            2,
-          );
-        }
-      }
-      if (elapsed < 0.9) {
-        const gear = Math.ceil(4 * Math.min(1, (0.9 - elapsed) / 0.42));
-        f.fillStyle(0x7b8f9a);
-        f.fillRect(x - 15, y + 10, 4, gear);
-        f.fillRect(x + 8, y + 10, 4, gear);
-      }
+      drawGroundWake(
+        f,
+        shipX,
+        shipY + 12,
+        Math.min(1, elapsed / 1.65),
+        biome.ground,
+      );
+      drawLandingGear(
+        f,
+        x,
+        y,
+        scale,
+        Phaser.Math.Clamp((0.9 - elapsed) / 0.42, 0, 1),
+      );
       this.drawShip(
         x,
         y,
@@ -1760,22 +1854,13 @@ export class WorldScene extends Phaser.Scene {
         38 + altitude * 24,
         5 + altitude * 6,
       );
-      const gear = Phaser.Math.Clamp((descent - 0.58) / 0.24, 0, 1);
-      if (gear > 0) {
-        f.fillStyle(0x7b8f9a);
-        f.fillRect(
-          Math.round(x - 15 * scale),
-          Math.round(y + 10 * scale),
-          4,
-          Math.ceil(4 * gear),
-        );
-        f.fillRect(
-          Math.round(x + 8 * scale),
-          Math.round(y + 10 * scale),
-          4,
-          Math.ceil(4 * gear),
-        );
-      }
+      drawLandingGear(
+        f,
+        x,
+        y,
+        scale,
+        Phaser.Math.Clamp((descent - 0.58) / 0.24, 0, 1),
+      );
       this.drawShip(
         x,
         y,
@@ -1786,28 +1871,17 @@ export class WorldScene extends Phaser.Scene {
         scale,
         depth,
       );
-      const dust = Phaser.Math.Clamp((descent - 0.81) / 0.19, 0, 1);
-      if (dust > 0) {
-        f.fillStyle(0xd6bfa1, Math.sin(Math.PI * dust) * 0.65);
-        for (let i = 0; i < 12; i++) {
-          const side = i % 2 === 0 ? 1 : -1;
-          const spread = 8 + (22 + (i % 6) * 5) * dust;
-          f.fillRect(
-            Math.round(shipX + side * spread),
-            Math.round(
-              shipY + 10 - Math.sin(dust * Math.PI) * (3 + (i % 4)) - (i % 3),
-            ),
-            i % 3 === 0 ? 4 : 2,
-            2,
-          );
-        }
-      }
+      drawGroundWake(
+        f,
+        shipX,
+        shipY + 12,
+        Math.max(0, (descent - 0.77) / 0.23),
+        biome.ground,
+      );
     } else {
       contactShadow(landingX * 16, shipY - offsetY + 12, 36);
+      drawLandingGear(f, shipX, shipY, 1, 1);
       this.drawShip(shipX, shipY, 0, false, undefined, f, 1, 3);
-      f.fillStyle(0x7b8f9a);
-      f.fillRect(shipX - 15, shipY + 10, 4, 4);
-      f.fillRect(shipX + 8, shipY + 10, 4, 4);
       if (sequence?.kind === "disembark") {
         const progress = Math.min(
           1,
@@ -1816,9 +1890,16 @@ export class WorldScene extends Phaser.Scene {
         const step = Math.max(0, (progress - 0.18) / 0.82);
         const worldX = landingX * 16 + 12 + 28 * step;
         const ground = t.height(Math.floor(worldX / 16)) * 16;
-        f.fillStyle(0x657d90);
-        f.fillRect(shipX + 10, shipY + 4, 15, 3);
-        f.fillRect(shipX + 18, shipY + 7, 15, 3);
+        const ramp = Math.min(1, progress / 0.18);
+        f.fillStyle(0x71e3c7, ramp * 0.26).fillTriangle(
+          shipX + 11,
+          shipY,
+          shipX + 21,
+          shipY + 13,
+          shipX + 37,
+          shipY + 13,
+        );
+        drawBoardingRamp(f, shipX + 11, shipY + 4, ramp);
         if (progress >= 0.18)
           this.drawAstronaut(
             Math.round(worldX - this.camX + this.centerX),
@@ -1848,12 +1929,16 @@ export class WorldScene extends Phaser.Scene {
       };
       const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),
         sy = Math.round(cursor.y * 16 - this.camY + this.centerY);
-      if (!this.building.removing)
+      if (
+        !this.building.removing &&
+        !this.surfaceArt.prop(this, this.building.selected, sx, sy, 0.45)
+      )
         drawPiece(
           f,
           this.building.selected,
           sx,
           sy,
+          material,
           this.building.facing,
           0.45,
         );
@@ -1870,24 +1955,12 @@ export class WorldScene extends Phaser.Scene {
   }
   private drawAstronaut(x: number, y: number, walk: number, facing: number) {
     const f = this.gfx;
-    f.fillStyle(0x3b5164);
-    f.fillRect(x - 6, y - 4, 4, 11);
-    f.fillStyle(0xc0c9c8);
-    f.fillRect(x - 4, y - 4, 9, 12);
-    f.fillRect(x - 3, y - 12, 9, 9);
-    f.fillStyle(0x8d9fa4);
-    f.fillRect(x + 3, y - 4, 2, 12);
-    f.fillRect(x + 4, y - 11, 2, 8);
-    f.fillStyle(0xdce4d9);
-    f.fillRect(x - 3, y - 12, 8, 1);
-    f.fillStyle(0x5de3da);
-    f.fillRect(x - 1 + (facing < 0 ? -2 : 0), y - 10, 6, 4);
-    f.fillStyle(0x67858e);
-    f.fillRect(x - 3, y + 7, 3, 5 + walk);
-    f.fillRect(x + 2, y + 7, 3, 5 - walk);
-    f.fillStyle(0xe4ad71);
-    f.fillRect(x - 4, y + 1, 9, 2);
-    f.fillStyle(0xbfcbd2);
-    f.fillRect(x + (facing > 0 ? 5 : -9), y - 1, 5, 3);
+    for (const pixel of astronautArt(
+      this.store.state.wardrobe?.equipped,
+      walk,
+    )) {
+      const dx = facing < 0 ? -pixel.x - pixel.w : pixel.x;
+      f.fillStyle(pixel.color).fillRect(x + dx, y + pixel.y, pixel.w, pixel.h);
+    }
   }
 }

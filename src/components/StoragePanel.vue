@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -80,7 +81,7 @@ function quantity(available: number) {
           :key="id"
           class="storage-row"
         >
-          <span :style="{ color: items[id].color }">{{ items[id].icon }}</span>
+          <ItemIcon :item="id" />
           <div>
             <b>{{ items[id].name }}</b
             ><small>{{ n }} unidades</small>

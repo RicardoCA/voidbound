@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { items, type Item } from "../game/types";
 import { recipes } from "../crafting/recipes";
@@ -9,7 +10,8 @@ function open(id: string) {
 }
 const tab = ref("all"),
   inShip = computed(
-    () => g.state.mode === "interior" || g.state.mode === "docked",
+    () =>
+      g.state.mode === "interior" || g.state.mode === "docked" || g.flightCabin,
   ),
   availableRecipes = computed(() =>
     recipes.filter(
@@ -57,9 +59,7 @@ function affordable(cost: Partial<Record<Item, number>>) {
     </div>
     <div class="recipe-list">
       <article v-for="r in availableRecipes" :key="r.id" class="recipe">
-        <span class="recipe-icon" :style="{ color: items[r.id].color }">{{
-          items[r.id].icon
-        }}</span>
+        <ItemIcon class="recipe-icon" :item="r.id" />
         <div>
           <h3>{{ items[r.id].name }}</h3>
           <div class="ingredients">
@@ -67,9 +67,10 @@ function affordable(cost: Partial<Record<Item, number>>) {
               v-for="(n, id) in r.cost"
               :key="id"
               :class="{ missing: (g.state.inventory[id] ?? 0) < n! }"
-              >{{ g.state.inventory[id] ?? 0 }}/{{ n }}
-              {{ items[id].name }}</span
             >
+              <ItemIcon :item="id" />
+              {{ g.state.inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}
+            </span>
           </div>
         </div>
         <button

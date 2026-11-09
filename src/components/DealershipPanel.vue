@@ -28,8 +28,11 @@ async function buy(model: ShipModelId) {
 }
 </script>
 <template>
-  <section class="station-form" aria-label="Modelos de naves">
-    <h3>Concessionária</h3>
+  <section class="station-form dealership" aria-label="Modelos de naves">
+    <header class="dealership-heading">
+      <span class="eyebrow">VITRINE DA ESTAÇÃO</span>
+      <h3>Catálogo de frota</h3>
+    </header>
     <p>
       A nave comprada fica guardada nesta estação. Você pode comprar um
       cargueiro e continuar explorando com sua nave ativa, a {{ g.model.name }}.
@@ -54,7 +57,10 @@ async function buy(model: ShipModelId) {
     </nav>
     <div class="dealership-grid">
       <article v-for="id in visibleModels" :key="id" class="dealer-card">
-        <ShipSprite :model="id" />
+        <div class="dealer-bay" :data-category="shipModels[id].category">
+          <span>{{ shipCategories[shipModels[id].category] }}</span>
+          <ShipSprite :model="id" />
+        </div>
         <h3>
           {{ shipModels[id].name }}
           <small v-if="g.state.activeShip.model === id"> · Modelo ativo</small>

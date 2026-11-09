@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed } from "vue";
 import { items, type Item } from "../game/types";
 import { RAW_MEAT_RISK, foodValue } from "../survival/food";
@@ -75,8 +76,8 @@ function canUse(id: Item) {
         :style="{ '--item-color': items[id].color }"
         @click="use(id)"
       >
-        <span class="item-icon">{{ items[id].icon }}</span
-        ><b>{{ n }}</b
+        <ItemIcon :item="id" />
+        <b>{{ n }}</b
         ><span>{{ items[id].name }}</span
         ><small>{{
           foodValue(id)
@@ -102,7 +103,9 @@ function canUse(id: Item) {
     </p>
     <div class="installed">
       MELHORIAS INSTALADAS <span v-if="!g.state.upgrades.length">Nenhuma</span
-      ><b v-for="id in g.state.upgrades" :key="id">{{ items[id].name }}</b>
+      ><b v-for="id in g.state.upgrades" :key="id"
+        ><ItemIcon :item="id" />{{ items[id].name }}</b
+      >
     </div>
   </section>
 </template>

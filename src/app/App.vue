@@ -19,6 +19,7 @@ import { useConstruction } from "../stores/construction";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
+import BaseRegistry from "../components/BaseRegistry.vue";
 import OrbitConsole from "../components/OrbitConsole.vue";
 import FlightRouteConsole from "../components/FlightRouteConsole.vue";
 import { useGame } from "../stores/game";
@@ -80,11 +81,12 @@ const stationNpc = computed(() =>
 const localTime = computed(() => planetClock(g.state.time));
 const nav = computed(() => [
   { id: "inventory", icon: "▦", label: "Carga", key: "I" },
-  { id: "craft", icon: "⌘", label: "Fabricação", key: "C" },
-  { id: "map", icon: "✧", label: "Mapa galáctico", key: "M" },
   ...(surface.value
     ? [{ id: "build", icon: "⌂", label: "Construir", key: "B" }]
-    : []),
+    : [
+        { id: "craft", icon: "⌘", label: "Fabricação", key: "C" },
+        { id: "map", icon: "✧", label: "Mapa galáctico", key: "M" },
+      ]),
 ]);
 const saveTooltipVisible = ref(false);
 let saveTooltipTimer: ReturnType<typeof setTimeout> | undefined;
@@ -608,8 +610,7 @@ function minutes() {
           <div class="help">
             Nave: W acelerar · S frear · A/D rotacionar · Espaço minerar · F
             atirar · E órbita<br />Superfície: A/D andar · Espaço pular · Clique
-            minerar · E embarcar<br />I carga · C fabricação · M mapa · Esc
-            pausa
+            minerar · E embarcar · B construir<br />I carga · Esc pausa
           </div>
         </section>
         <StationPanel
@@ -676,6 +677,19 @@ function minutes() {
         <StoragePanel v-else-if="g.panel === 'storage'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
+        <section v-else-if="surface && g.panel === 'bases'" class="dialog">
+          <div class="dialog-heading">
+            <h2>Suas bases e depósitos</h2>
+            <button
+              class="close"
+              aria-label="Fechar depósitos"
+              @click="g.panel = ''"
+            >
+              ×
+            </button>
+          </div>
+          <BaseRegistry :can-locate="false" />
+        </section>
         <GalaxyMap
           v-else-if="g.panel === 'map' || g.panel === 'bases'"
           :initial-tab="g.panel === 'bases' ? 'bases' : 'navigation'"

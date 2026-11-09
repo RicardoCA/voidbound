@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed } from "vue";
 import { useBases } from "../stores/bases";
 import { useGame } from "../stores/game";
@@ -22,7 +23,7 @@ const entries = computed(
     </p>
     <div class="base-items">
       <span v-for="[id, n] in entries" :key="id"
-        >{{ items[id].name }} <b>×{{ n }}</b></span
+        ><ItemIcon :item="id" />{{ items[id].name }} <b>×{{ n }}</b></span
       >
     </div>
     <button class="text-button" @click="g.panel = 'bases'">

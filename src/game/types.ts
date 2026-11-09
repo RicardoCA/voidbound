@@ -1,3 +1,4 @@
+import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
@@ -137,6 +138,7 @@ export interface Save {
   version: 4;
   progression: Progression;
   credits: number;
+  wardrobe?: Wardrobe;
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
   nextShipId: number;

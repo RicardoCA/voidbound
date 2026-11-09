@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import { useBases } from "../stores/bases";
 import { items, biomes, type Item } from "../game/types";
 import { CABINET_SLOTS } from "../construction/building";
 import type { BaseSummary } from "../construction/catalog";
-const props = defineProps<{ focusPlanet?: string }>();
+const props = withDefaults(
+  defineProps<{ focusPlanet?: string; canLocate?: boolean }>(),
+  { canLocate: true },
+);
 const emit = defineEmits<{ locate: [base: BaseSummary]; clearFocus: [] }>();
 const g = useGame(),
   bases = useBases(),
@@ -94,6 +98,7 @@ const entries = (inventory: BaseSummary["inventory"]) =>
         </div>
         <button
           class="secondary"
+          v-if="canLocate"
           :aria-label="`Localizar ${base.planet.name} no mapa`"
           @click="emit('locate', base)"
         >
@@ -115,10 +120,10 @@ const entries = (inventory: BaseSummary["inventory"]) =>
         ><strong>{{ units(base.units) }}</strong>
       </div>
       <div v-if="base.units" class="base-items">
-        <span v-for="[id, n] in entries(base.inventory)" :key="id"
-          ><i :style="{ color: items[id].color }">{{ items[id].icon }}</i
-          >{{ items[id].name }} <b>×{{ n }}</b></span
-        >
+        <span v-for="[id, n] in entries(base.inventory)" :key="id">
+          <ItemIcon :item="id" />
+          {{ items[id].name }} <b>×{{ n }}</b>
+        </span>
       </div>
       <p v-else class="base-empty-stock">
         {{

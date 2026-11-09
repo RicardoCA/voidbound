@@ -8,7 +8,19 @@ export const shipCategories = {
 
 export type ShipCategory = keyof typeof shipCategories;
 
+export const shipHullFamilies = [
+  "sparrow",
+  "atlas",
+  "viper",
+  "bastion",
+  "prospector",
+  "titan",
+  "mammoth",
+] as const;
+export type ShipHullFamily = (typeof shipHullFamilies)[number];
+
 interface ShipModel {
+  hullFamily: ShipHullFamily;
   category: ShipCategory;
   name: string;
   role: string;
@@ -25,6 +37,7 @@ interface ShipModel {
 
 const standardModels = {
   sparrow: {
+    hullFamily: "sparrow",
     category: "general",
     name: "Sparrow MK-I",
     role: "Exploradora leve",
@@ -51,6 +64,7 @@ const standardModels = {
     ],
   },
   atlas: {
+    hullFamily: "atlas",
     category: "general",
     name: "Atlas C-2",
     role: "Cargueiro",
@@ -77,6 +91,7 @@ const standardModels = {
     ],
   },
   viper: {
+    hullFamily: "viper",
     category: "combat",
     name: "Viper X",
     role: "Interceptora rápida",
@@ -103,6 +118,7 @@ const standardModels = {
     ],
   },
   bastion: {
+    hullFamily: "bastion",
     category: "combat",
     name: "Bastion G-7",
     role: "Escolta blindada",
@@ -129,6 +145,7 @@ const standardModels = {
     ],
   },
   prospector: {
+    hullFamily: "prospector",
     category: "mining",
     name: "Prospector P-1",
     role: "Mineração planetária leve",
@@ -155,6 +172,7 @@ const standardModels = {
     ],
   },
   titan: {
+    hullFamily: "titan",
     category: "mining",
     name: "Titan M-4",
     role: "Mineradora",
@@ -181,6 +199,7 @@ const standardModels = {
     ],
   },
   mammoth: {
+    hullFamily: "mammoth",
     category: "mining",
     name: "Mammoth M-9",
     role: "Mineração industrial de longa duração",
