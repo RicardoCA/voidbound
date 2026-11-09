@@ -37,6 +37,12 @@ export type Item =
   | "drill"
   | "woodBlock"
   | "woodWall"
+  | "stoneWall"
+  | "metalWall"
+  | "fridge"
+  | "picture"
+  | "table"
+  | "bed"
   | "woodStairs"
   | "stickLadder"
   | "woodHatch"
@@ -48,7 +54,10 @@ export type Item =
   | "campfire"
   | "battery"
   | "oxygenGenerator";
-export type Inventory = Partial<Record<Item, number>>;
+export type MeatBatch = { amount: number; expires: number };
+export type Inventory = Partial<Record<Item, number>> & {
+  meatBatches?: MeatBatch[];
+};
 export interface Planet {
   id: string;
   seed: number;
@@ -78,6 +87,12 @@ export interface StarSystem {
 export type BuildItem =
   | "woodBlock"
   | "woodWall"
+  | "stoneWall"
+  | "metalWall"
+  | "fridge"
+  | "picture"
+  | "table"
+  | "bed"
   | "woodStairs"
   | "stickLadder"
   | "woodHatch"
@@ -90,7 +105,7 @@ export type BuildItem =
   | "battery"
   | "oxygenGenerator";
 export interface PlacedPiece {
-  kind: Exclude<BuildItem, "woodWall">;
+  kind: Exclude<BuildItem, "woodWall" | "stoneWall" | "metalWall">;
   facing: 1 | -1;
   open?: boolean;
   energy?: number;
@@ -98,7 +113,7 @@ export interface PlacedPiece {
 }
 export interface Settlement {
   pieces: Record<string, PlacedPiece>;
-  walls: Record<string, true>;
+  walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
   cutTrees: string[];
   foraged?: Record<string, number>;
@@ -412,6 +427,48 @@ export const items: Record<
     name: "Bloco de madeira",
     color: "#c89e6e",
     icon: "▣",
+    rarity: "Construção",
+    stack: 99,
+  },
+  stoneWall: {
+    name: "Parede de pedra",
+    color: "#9ca8a9",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  metalWall: {
+    name: "Parede de metal",
+    color: "#88aab8",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  fridge: {
+    name: "Geladeira",
+    color: "#81c8d2",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  picture: {
+    name: "Quadro",
+    color: "#be9f69",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  table: {
+    name: "Mesa",
+    color: "#c9a475",
+    icon: "▤",
+    rarity: "Construção",
+    stack: 99,
+  },
+  bed: {
+    name: "Cama",
+    color: "#93c2bc",
+    icon: "▤",
     rarity: "Construção",
     stack: 99,
   },

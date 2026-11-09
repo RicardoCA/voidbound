@@ -2,6 +2,7 @@ import type { BuildItem, Settlement } from "../game/types";
 export const keyAt = (x: number, y: number) => `${x},${y}`;
 export const cabinetWidths = {
   cabinet: 1,
+  fridge: 1,
   cabinetDouble: 2,
   cabinetTriple: 3,
 } as const;
@@ -39,6 +40,11 @@ export function pieceAt(data: Settlement, x: number, y: number) {
     below = data.pieces[belowKey];
   if (below?.kind === "woodDoor")
     return { key: belowKey, piece: below, x, y: y + 1 };
+}
+export function isWall(
+  kind: BuildItem,
+): kind is "woodWall" | "stoneWall" | "metalWall" {
+  return kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
 }
 export function isOpening(kind: BuildItem | undefined) {
   return kind === "woodDoor" || kind === "woodHatch";

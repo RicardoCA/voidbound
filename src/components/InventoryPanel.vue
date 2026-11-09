@@ -6,7 +6,7 @@ import { items, type Item } from "../game/types";
 import { RAW_MEAT_RISK, foodValue } from "../survival/food";
 import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { slots } from "../inventory/inventory";
+import { inventoryEntries, slots } from "../inventory/inventory";
 import { isBuildItem } from "../construction/building";
 const g = useGame(),
   b = useConstruction();
@@ -27,9 +27,8 @@ function use(id: Item) {
 function open(id: string) {
   g.panel = g.panel === id ? "" : id;
 }
-const inventory = computed(
-  () =>
-    Object.entries(source.value).filter(([, n]) => n! > 0) as [Item, number][],
+const inventory = computed(() =>
+  inventoryEntries(source.value).filter(([, n]) => n > 0),
 );
 function canUse(id: Item) {
   return [
@@ -97,7 +96,8 @@ function canUse(id: Item) {
     </div>
     <p v-if="source.rawMeat" class="warning">
       Carne crua tem {{ Math.round(RAW_MEAT_RISK * 100) }}% de chance de
-      intoxicação. Asse na fogueira.
+      intoxicação. Asse na fogueira ou guarde na geladeira antes de completar 24
+      horas fora dela.
     </p>
     <p v-if="g.sicknessRemaining" class="warning">
       Intoxicação · {{ g.sicknessRemaining }} s

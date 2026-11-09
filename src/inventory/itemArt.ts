@@ -234,6 +234,38 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M6 11h1v6H6zM9 12h1v6H9z",
     accent: "#8d5d41",
   },
+  stoneWall: {
+    body: "M3 4h18v16H3z",
+    shade: "M3 9h18v1H3zM3 14h18v1H3zM11 4h1v5h-1zM7 10h1v4H7zM14 15h1v5h-1z",
+    light: "M4 5h6v1H4zM12 5h7v1h-7zM9 11h9v1H9zM4 16h8v1H4z",
+  },
+  metalWall: {
+    body: "M3 4h18v16H3z",
+    shade: "M5 7h14v10H5zM3 18h18v2H3z",
+    light: "M4 5h16v1H4zM7 8h10v1H7z",
+    detail: "M5 6h1v1H5zM18 6h1v1h-1zM5 16h1v1H5zM18 16h1v1h-1z",
+  },
+  fridge: {
+    body: "M6 2h12v20H6z",
+    shade: "M7 9h10v2H7zM7 20h10v2H7z",
+    light: "M7 3h10v1H7zM8 5h1v3H8zM8 12h1v5H8z",
+    detail: "M14 5h2v2h-2z",
+  },
+  picture: {
+    body: "M3 5h18v14H3z",
+    shade: "M5 7h14v10H5z",
+    light: "M4 6h16v1H4zM8 13l7-4 1 2-7 4z",
+  },
+  table: {
+    body: "M2 8h20v5h-2v8h-3v-8H7v8H4v-8H2z",
+    shade: "M3 11h18v2H3zM5 14h2v7H5zM18 14h2v7h-2z",
+    light: "M3 8h18v2H3z",
+  },
+  bed: {
+    body: "M2 7h3v6h15v-2h2v10h-3v-3H5v3H2z",
+    shade: "M5 16h14v2H5zM2 19h3v2H2z",
+    light: "M5 11h5v4H5zM11 13h8v1h-8z",
+  },
   woodWall: {
     body: "M4 4h16v16H4z",
     shade: "M8 4h1v16H8zM14 4h1v16h-1zM4 17h16v3H4z",

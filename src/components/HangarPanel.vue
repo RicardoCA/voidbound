@@ -3,7 +3,7 @@ import { computed, ref, watchEffect } from "vue";
 import { items, type Item } from "../game/types";
 import { useGame } from "../stores/game";
 import { systemAt } from "../universe/generator";
-import { slots } from "../inventory/inventory";
+import { inventoryEntries, slots } from "../inventory/inventory";
 import {
   activateShip,
   inLocalHangar,
@@ -31,7 +31,7 @@ const localShips = computed(() => [
 ]);
 const resources = computed(() => {
   const ship = localShips.value.find((ship) => ship.id === fromId.value);
-  return Object.keys(ship?.inventory ?? {}) as Item[];
+  return inventoryEntries(ship?.inventory ?? {}).map(([id]) => id);
 });
 watchEffect(() => {
   const ships = localShips.value;

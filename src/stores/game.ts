@@ -29,7 +29,7 @@ import {
 } from "../progression/careers";
 import { Terrain, tileItems } from "../game/procedural/terrain";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
-import { emptyHabitat } from "../construction/habitat";
+import { emptyHabitat, PLANET_DAY, planetClock } from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
 import { shipModels } from "../fleet/models";
@@ -39,6 +39,7 @@ import {
   RAW_MEAT_RISK,
   foodValue,
 } from "../survival/food";
+import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
 export const BACKPACK_SLOTS = 24;
 export const JUMP_DURATION_MS = 5000;
@@ -353,6 +354,7 @@ export const useGame = defineStore("game", () => {
       !station
     )
       return false;
+    refreshFood();
     trading.value = true;
     try {
       const draft = JSON.parse(JSON.stringify(state.value)) as Save;
@@ -459,6 +461,7 @@ export const useGame = defineStore("game", () => {
       const s = await database.read();
       if (s) {
         state.value = s;
+        refreshFood();
         started.value = true;
         panel.value = "";
         paused.value = false;
@@ -477,6 +480,10 @@ export const useGame = defineStore("game", () => {
       );
       return false;
     }
+    if (id === "rawMeat")
+      addMeatBatches(workingInventory.value, [
+        { amount: n, expires: state.value.time + PLANET_DAY },
+      ]);
     audio.play(380);
     const inv = workingInventory.value;
     if (
@@ -574,6 +581,7 @@ export const useGame = defineStore("game", () => {
   }
   function moveCargo(toShip: boolean, id: Item, quantity: number) {
     if (!canAccessShipCargo.value || trading.value) return false;
+    refreshFood();
     const { inventory, backpack } = state.value;
     if (
       !transfer(
@@ -604,6 +612,7 @@ export const useGame = defineStore("game", () => {
       ];
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
+    if (id === "rawMeat") refreshFood();
     const nutrition = foodValue(id);
     if (nutrition) {
       if (!hungerEnabled.value) {
@@ -932,6 +941,23 @@ export const useGame = defineStore("game", () => {
     notify(`${signal.name} registrada.`);
     void save();
   }
+  function refreshFood() {
+    return spoilMeat(state.value);
+  }
+  function sleepInBed() {
+    const s = state.value;
+    refreshFood();
+    s.time += PLANET_DAY / 3;
+    advancePilotTrips(s);
+    const spoiled = refreshFood();
+    refreshHabitat();
+    panel.value = "";
+    notify(
+      `Você dormiu 8 horas. Hora local: ${planetClock(s.time)}.` +
+        (spoiled ? ` Carne crua estragada: ${spoiled}.` : ""),
+    );
+    void save();
+  }
   function recover() {
     if (state.value.mode !== "interior") {
       notify("A recuperação solar funciona com a nave pousada.");
@@ -941,6 +967,7 @@ export const useGame = defineStore("game", () => {
     state.value.ship.oxygen = Math.min(100, state.value.ship.oxygen + 5);
     state.value.time += 60;
     advancePilotTrips(state.value);
+    refreshFood();
     notify("60 s de recuperação solar: +5 combustível e oxigênio.");
     void save();
   }
@@ -1049,7 +1076,15 @@ export const useGame = defineStore("game", () => {
     )
       return;
     const s = state.value;
+    const second = Math.floor(s.time);
     s.time += dt;
+    if (second !== Math.floor(s.time)) {
+      const spoiled = refreshFood();
+      if (spoiled) {
+        notify(`${spoiled} × Carne crua estragou fora da geladeira.`);
+        void save();
+      }
+    }
     if (hungerEnabled.value) {
       s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
       if (s.player.hunger === 0) s.player.health -= dt * 3;
@@ -1181,6 +1216,8 @@ export const useGame = defineStore("game", () => {
     beginTakeoff,
     jump,
     recover,
+    refreshFood,
+    sleepInBed,
     tick,
   };
 });

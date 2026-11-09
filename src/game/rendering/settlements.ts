@@ -1,4 +1,4 @@
-import { cabinetWidths, isCabinet } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
 import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
@@ -135,7 +135,9 @@ export function drawPiece(
   state?: PlacedPiece,
 ) {
   g.fillStyle(material.timber, alpha);
-  if (kind === "woodWall") {
+  if (isWall(kind)) {
+    if (kind !== "woodWall")
+      g.fillStyle(kind === "stoneWall" ? 0x687077 : 0x546b79, alpha);
     g.fillRect(x, y, 16, 16);
     g.fillStyle(material.shade, alpha * 0.5);
     g.fillRect(x, y, 16, 16);
@@ -330,16 +332,20 @@ export function drawSettlement(
   for (let tx = minX; tx <= maxX; tx++)
     for (let ty = minY; ty <= maxY; ty++) {
       const key = `${tx},${ty}`;
+      const wall = data.walls[key];
       const piece =
         layer === "walls"
-          ? data.walls[key]
-            ? { kind: "woodWall" as const, facing: 1 as const }
+          ? wall
+            ? {
+                kind: wall === true ? ("woodWall" as const) : wall,
+                facing: 1 as const,
+              }
             : undefined
           : data.pieces[key];
       if (!piece) continue;
       const x = Math.round(tx * 16 - camX + width / 2);
       const y = Math.round(ty * 16 - camY + height / 2);
-      const state = piece.kind === "woodWall" ? undefined : piece;
+      const state = layer === "walls" ? undefined : data.pieces[key];
       if (drawProp?.(piece.kind, x, y, state)) {
         if (piece.kind === "battery" || piece.kind === "oxygenGenerator") {
           const level =

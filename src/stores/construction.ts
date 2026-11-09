@@ -33,6 +33,7 @@ import {
   overlapsActor,
   isCabinet,
   isOpening,
+  isWall,
   cabinetWidths,
 } from "../construction/pieces";
 export const useConstruction = defineStore("construction", () => {
@@ -47,6 +48,7 @@ export const useConstruction = defineStore("construction", () => {
     activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
       null,
     ),
+    activeBed = ref<{ planetId: string; x: number; y: number }>(),
     activeCabinet = ref<{ planetId: string; key: string } | null>(null);
   const blank = emptySettlement();
   const settlement = computed(() => g.state.settlements[g.planet.id] ?? blank);
@@ -120,7 +122,7 @@ export const useConstruction = defineStore("construction", () => {
     if (error) return error;
     const cells = footprint(selected.value, x, y);
     if (
-      selected.value !== "woodWall" &&
+      !isWall(selected.value) &&
       treesInRange(
         g.planet,
         terrain.value,
@@ -141,7 +143,7 @@ export const useConstruction = defineStore("construction", () => {
     g.refreshHabitat();
     let error: string | undefined;
     if (removing.value)
-      error = removePiece(context(), x, y, selected.value === "woodWall");
+      error = removePiece(context(), x, y, isWall(selected.value));
     else {
       error = errorAt(x, y);
       if (!error)
@@ -202,6 +204,7 @@ export const useConstruction = defineStore("construction", () => {
       g.notify("Aproxime-se do armário para abri-lo.");
       return false;
     }
+    g.refreshFood();
     activeCabinet.value = { planetId: g.planet.id, key };
     releaseControls();
     g.panel = "storage";
@@ -238,9 +241,36 @@ export const useConstruction = defineStore("construction", () => {
     void g.save();
     return true;
   }
+  function sleep() {
+    const bed = activeBed.value;
+    if (
+      !bed ||
+      g.panel !== "sleep" ||
+      g.paused ||
+      g.state.mode !== "surface" ||
+      bed.planetId !== g.planet.id ||
+      !inReach(g.state.player, bed.x, bed.y, 76) ||
+      pieceAt(settlement.value, bed.x, bed.y)?.piece.kind !== "bed"
+    )
+      return false;
+    activeBed.value = undefined;
+    g.sleepInBed();
+    return true;
+  }
   function interactAt(x: number, y: number) {
     const found = pieceAt(settlement.value, x, y);
     if (!found) return false;
+    if (found.piece.kind === "bed") {
+      if (
+        g.state.mode === "surface" &&
+        inReach(g.state.player, found.x, found.y, 76)
+      ) {
+        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y };
+        releaseControls();
+        g.panel = "sleep";
+      } else g.notify("Aproxime-se da cama para dormir.");
+      return true;
+    }
     if (found.piece.kind === "campfire") {
       if (
         g.state.mode === "surface" &&
@@ -328,6 +358,7 @@ export const useConstruction = defineStore("construction", () => {
       g.notify("Aproxime-se de uma fogueira instalada.");
       return;
     }
+    g.refreshFood();
     if (!g.state.backpack.rawMeat) {
       g.notify("Você precisa de carne crua.");
       return;
@@ -372,6 +403,7 @@ export const useConstruction = defineStore("construction", () => {
           "woodHatch",
           "stickLadder",
           "campfire",
+          "bed",
           "battery",
           "oxygenGenerator",
         ].includes(piece.kind)
@@ -403,6 +435,12 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     if (g.state.mode !== "surface" || !cabinetInReach(cabinet.key))
       return false;
+    const fridge = containerKind.value === "fridge";
+    if (fridge && direction === "deposit" && id !== "rawMeat") {
+      g.notify("A geladeira armazena somente carne crua.");
+      return false;
+    }
+    g.refreshFood();
     const source: Inventory =
         direction === "deposit" ? g.state.backpack : container.value,
       destination =
@@ -414,6 +452,9 @@ export const useConstruction = defineStore("construction", () => {
         id,
         quantity,
         direction === "deposit" ? containerCapacity.value : BACKPACK_SLOTS,
+        fridge
+          ? { time: g.state.time, deposit: direction === "deposit" }
+          : undefined,
       )
     ) {
       g.notify(
@@ -470,6 +511,7 @@ export const useConstruction = defineStore("construction", () => {
     nearestInteraction,
     toggleDoor,
     interactAt,
+    sleep,
     cookMeat,
     cookingElapsed,
     moveItem,

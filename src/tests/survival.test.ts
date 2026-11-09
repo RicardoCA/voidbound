@@ -6,6 +6,8 @@ import { useConstruction } from "../stores/construction";
 import { emptySettlement, settlementFor } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import { fruitsNear, Wildlife } from "../survival/wildlife";
+import { PLANET_DAY } from "../construction/habitat";
+import { SaveDatabase } from "../persistence/database";
 import { migrateSave } from "../persistence/migrations";
 
 function surface() {
@@ -104,7 +106,7 @@ describe("sobrevivência planetária", () => {
       construction.cookMeat();
       construction.cookMeat();
       vi.advanceTimersByTime(9_999);
-      expect(g.state.backpack).toEqual({ rawMeat: 1 });
+      expect(g.state.backpack).toMatchObject({ rawMeat: 1 });
       vi.advanceTimersByTime(1);
       expect(g.state.backpack).toEqual({ cookedMeat: 1 });
       g.state.backpack.rawMeat = 1;
@@ -112,7 +114,7 @@ describe("sobrevivência planetária", () => {
       vi.advanceTimersByTime(5_000);
       g.panel = "";
       vi.advanceTimersByTime(10_000);
-      expect(g.state.backpack).toEqual({ cookedMeat: 1, rawMeat: 1 });
+      expect(g.state.backpack).toMatchObject({ cookedMeat: 1, rawMeat: 1 });
     } finally {
       vi.useRealTimers();
     }
@@ -206,7 +208,6 @@ describe("modo sobrevivente e inventários isolados", () => {
 
   it("remove a nave perdida, preserva depósitos e persiste o resgate na estação", async () => {
     const g = surface();
-    const { SaveDatabase } = await import("../persistence/database");
     const { systemAt } = await import("../universe/generator");
     const noStation = Array.from({ length: 20 }, (_, i) => i + 2).find(
       (x) => !systemAt(g.state.seed, x, 0).station,
@@ -250,5 +251,64 @@ describe("modo sobrevivente e inventários isolados", () => {
     } finally {
       await db.delete();
     }
+  });
+});
+
+describe("conservação da carne e descanso planetário", () => {
+  it("mantém a validade de cada lote ao transferir, refrigerar e salvar", async () => {
+    const g = surface();
+    const b = useConstruction();
+    const data = settlementFor(g.state, g.planet.id);
+    data.pieces["4,28"] = { kind: "fridge", facing: 1 };
+    data.pieces["5,28"] = { kind: "cabinet", facing: 1 };
+    data.cabinets["4,28"] = {};
+    data.cabinets["5,28"] = {};
+    Object.assign(g.state.player, { x: 72, y: 452 });
+    g.collect("rawMeat", 2);
+    g.state.time = PLANET_DAY / 2;
+    g.collect("rawMeat", 1);
+    expect(b.interactAt(4, 28)).toBe(true);
+    expect(b.moveItem("deposit", "rawMeat", 1)).toBe(true);
+    expect(b.interactAt(5, 28)).toBe(true);
+    expect(b.moveItem("deposit", "rawMeat", 1)).toBe(true);
+    g.state.time = PLANET_DAY;
+    expect(g.refreshFood()).toBe(1);
+    expect(data.cabinets["5,28"]!.rawMeat).toBeUndefined();
+    expect(g.state.backpack.rawMeat).toBe(1);
+    g.state.time = PLANET_DAY * 4;
+    expect(g.refreshFood()).toBe(1);
+    expect(data.cabinets["4,28"]!.rawMeat).toBe(1);
+    const db = new SaveDatabase(`fridge-${crypto.randomUUID()}`);
+    try {
+      await db.write(g.state);
+      g.state = (await db.read())!;
+      expect(b.interactAt(4, 28)).toBe(true);
+      expect(b.moveItem("withdraw", "rawMeat", 1)).toBe(true);
+      g.enter();
+      expect(g.moveCargo(true, "rawMeat", 1)).toBe(true);
+      g.state.time = PLANET_DAY * 4.5 - 0.1;
+      expect(g.refreshFood()).toBe(0);
+      g.state.time += 0.1;
+      expect(g.refreshFood()).toBe(1);
+      expect(g.state.inventory.rawMeat).toBeUndefined();
+    } finally {
+      await db.delete();
+    }
+  });
+
+  it("avança oito horas por descanso e remove carne após um dia fora da geladeira", () => {
+    const g = surface();
+    const b = useConstruction();
+    const data = settlementFor(g.state, g.planet.id);
+    data.pieces["4,28"] = { kind: "bed", facing: 1 };
+    Object.assign(g.state.player, { x: 72, y: 452 });
+    g.collect("rawMeat");
+    for (let i = 0; i < 3; i++) {
+      expect(b.interactAt(4, 28)).toBe(true);
+      expect(g.panel).toBe("sleep");
+      expect(b.sleep()).toBe(true);
+      expect(g.state.time).toBeCloseTo(((i + 1) * PLANET_DAY) / 3);
+    }
+    expect(g.state.backpack.rawMeat).toBeUndefined();
   });
 });

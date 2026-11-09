@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
@@ -37,7 +38,7 @@ const visible = computed(() => {
 });
 const units = (n: number) => `${n} ${n === 1 ? "unidade" : "unidades"}`;
 const entries = (inventory: BaseSummary["inventory"]) =>
-  Object.entries(inventory) as [Item, number][];
+  inventoryEntries(inventory);
 </script>
 <template>
   <div class="base-registry">

@@ -1,9 +1,18 @@
-import { cabinetWidths, isCabinet } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
 import type Phaser from "phaser";
 import type { BuildItem, PlacedPiece } from "../types";
 
 const sprites = "surface-sprites";
 const ladderAndHatch = "surface-ladder-and-hatch";
+const furnishings = "surface-furnishings";
+const furnishingFrames = [
+  "stoneWall",
+  "metalWall",
+  "fridge",
+  "picture",
+  "table",
+  "bed",
+] as const;
 const materials = "surface-wood-and-deposits";
 const path = import.meta.env.BASE_URL + "surface/";
 const ground = (kind: number) => "surface-ground-" + kind;
@@ -23,6 +32,10 @@ export class SurfaceArt {
     scene.load.spritesheet(ladderAndHatch, path + "ladder-and-hatch.webp", {
       frameWidth: 32,
       frameHeight: 48,
+    });
+    scene.load.spritesheet(furnishings, path + "furnishings.webp", {
+      frameWidth: 32,
+      frameHeight: 32,
     });
     scene.load.spritesheet(materials, path + "wood-and-deposits.webp", {
       frameWidth: 32,
@@ -229,6 +242,20 @@ export class SurfaceArt {
     alpha: number,
     state?: PlacedPiece,
   ) {
+    const furnishing = furnishingFrames.findIndex((item) => item === kind);
+    if (furnishing >= 0)
+      return this.sprite(
+        scene,
+        furnishing,
+        x + 8,
+        y + 16,
+        16,
+        16,
+        false,
+        alpha,
+        alpha < 1 ? -0.01 : isWall(kind) ? -0.4 : -0.02,
+        furnishings,
+      );
     if (kind === "woodBlock" || kind === "woodWall") {
       const depth = alpha < 1 ? -0.01 : kind === "woodWall" ? -0.4 : -0.02;
       return this.sprite(

@@ -4,8 +4,8 @@ import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
 import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { items, type Item, type Inventory } from "../game/types";
-import { slots } from "../inventory/inventory";
+import { items, type Inventory } from "../game/types";
+import { inventoryEntries, slots } from "../inventory/inventory";
 const g = useGame(),
   b = useConstruction(),
   amount = ref<"1" | "10" | "all">("1");
@@ -13,20 +13,26 @@ const lists = computed(() => [
   {
     id: "deposit" as const,
     title: "Sua mochila",
-    data: g.state.backpack,
+    data:
+      b.containerKind === "fridge"
+        ? { rawMeat: g.state.backpack.rawMeat }
+        : g.state.backpack,
     capacity: BACKPACK_SLOTS,
     action: "Guardar",
   },
   {
     id: "withdraw" as const,
-    title: "Armário no planeta",
+    title:
+      b.containerKind === "fridge"
+        ? "Geladeira no planeta"
+        : "Armário no planeta",
     data: b.container ?? {},
     capacity: b.containerCapacity,
     action: "Retirar",
   },
 ]);
 const entries = (inventory: Inventory) =>
-  Object.entries(inventory).filter(([, n]) => n! > 0) as [Item, number][];
+  inventoryEntries(inventory).filter(([, n]) => n > 0);
 function quantity(available: number) {
   return amount.value === "all"
     ? available
@@ -44,7 +50,10 @@ function quantity(available: number) {
         ×
       </button>
     </div>
-    <p>
+    <p v-if="b.containerKind === 'fridge'">
+      A geladeira guarda carne crua e pausa a validade até a retirada.
+    </p>
+    <p v-else>
       Os itens ficam neste armário, neste planeta, mesmo quando você decola ou
       fecha o jogo.
     </p>

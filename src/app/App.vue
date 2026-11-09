@@ -686,6 +686,14 @@ function minutes() {
             {{ Math.round(g.stationDistance) }} km
           </p>
         </section>
+        <section v-else-if="g.panel === 'sleep'" class="dialog">
+          <h2>Dormir na cama</h2>
+          <p>Avance 8 horas no relógio do planeta.</p>
+          <div class="station-actions">
+            <button class="primary" @click="b.sleep()">Dormir 8 horas</button>
+            <button class="secondary" @click="g.panel = ''">Cancelar</button>
+          </div>
+        </section>
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />

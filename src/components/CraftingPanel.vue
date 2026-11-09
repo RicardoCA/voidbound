@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
 import { items, type Item } from "../game/types";
@@ -21,7 +22,7 @@ const tab = ref("all"),
     ),
   );
 function affordable(cost: Partial<Record<Item, number>>) {
-  return Object.entries(cost).every(
+  return inventoryEntries(cost).every(
     ([id, n]) => (g.state.inventory[id as Item] ?? 0) >= n!,
   );
 }
@@ -64,7 +65,7 @@ function affordable(cost: Partial<Record<Item, number>>) {
           <h3>{{ items[r.id].name }}</h3>
           <div class="ingredients">
             <span
-              v-for="(n, id) in r.cost"
+              v-for="[id, n] in inventoryEntries(r.cost)"
               :key="id"
               :class="{ missing: (g.state.inventory[id] ?? 0) < n! }"
             >

@@ -8,6 +8,7 @@ export const OXYGEN_CAP = 100,
   REFILL_RATE = 8,
   POWER_RANGE = 12;
 const SOLAR_TIME_SCALE = 150;
+export const PLANET_DAY = 2 * Math.PI * SOLAR_TIME_SCALE;
 export const solarPhase = (time: number) => time / SOLAR_TIME_SCALE;
 export const daylight = (time: number) =>
   Math.max(0, Math.cos(solarPhase(time)));

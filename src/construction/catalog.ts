@@ -1,14 +1,13 @@
 import {
   items,
   type Inventory,
-  type Item,
   type Planet,
   type Save,
   type StarSystem,
 } from "../game/types";
 import { cabinetCapacity } from "./building";
 import { isCabinet, type CabinetKind } from "./pieces";
-import { slots } from "../inventory/inventory";
+import { inventoryEntries, slots } from "../inventory/inventory";
 import { systemAt } from "../universe/generator";
 import { nearestLanding } from "../universe/landings";
 export interface CabinetSummary {
@@ -51,13 +50,13 @@ export function planetAddress(seed: string, id: string) {
 }
 function cleanInventory(source: Inventory): Inventory {
   const result: Inventory = {};
-  for (const [id, n] of Object.entries(source))
-    if (Object.hasOwn(items, id) && Number.isSafeInteger(n) && n! > 0)
-      result[id as Item] = n;
+  for (const [id, n] of inventoryEntries(source))
+    if (Object.hasOwn(items, id) && Number.isSafeInteger(n) && n > 0)
+      result[id] = n;
   return result;
 }
 export function inventoryUnits(inventory: Inventory) {
-  return Object.values(inventory).reduce((sum, n) => sum + (n ?? 0), 0);
+  return inventoryEntries(inventory).reduce((sum, [, n]) => sum + n, 0);
 }
 /** Read-only index of actual saved structures; no scan of unexplored sectors. */
 export function listBases(save: Save): BaseSummary[] {
@@ -93,8 +92,8 @@ export function listBases(save: Save): BaseSummary[] {
         kind: piece.kind,
         landing: nearestLanding(x),
       });
-      for (const [id, n] of Object.entries(content))
-        inventory[id as Item] = (inventory[id as Item] ?? 0) + n!;
+      for (const [id, n] of inventoryEntries(content))
+        inventory[id] = (inventory[id] ?? 0) + n;
     }
     cabinets.sort((a, b) => b.units - a.units || a.x - b.x || a.y - b.y);
     result.push({

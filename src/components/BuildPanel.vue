@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -10,6 +11,12 @@ import { treeNames } from "../game/procedural/trees";
 const g = useGame(),
   b = useConstruction();
 const descriptions = {
+  stoneWall: "Parede de fundo em alvenaria de silício.",
+  metalWall: "Parede de fundo feita de placas metálicas.",
+  fridge: "Guarda carne crua em 16 slots e pausa a validade. E ou toque abre.",
+  picture: "Decoração. Instale em uma parede de fundo.",
+  table: "Mesa decorativa. Instale sobre chão firme.",
+  bed: "Use E ou toque para dormir e avançar 8 horas locais.",
   woodBlock: "Piso, fundação, pilares e telhado. Bloco sólido.",
   woodWall: "Fundo da casa. Você pode andar à frente da parede.",
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
@@ -38,7 +45,7 @@ const constructionRecipes = buildItems.map((id) =>
   recipes.find((r) => r.id === id)!,
 );
 function affordable(cost: Partial<Record<Item, number>>) {
-  return Object.entries(cost).every(
+  return inventoryEntries(cost).every(
     ([id, n]) => (g.state.backpack[id as Item] ?? 0) >= n!,
   );
 }
@@ -95,7 +102,7 @@ function affordable(cost: Partial<Record<Item, number>>) {
         <p>{{ descriptions[r.id as keyof typeof descriptions] }}</p>
         <div class="ingredients">
           <span
-            v-for="(n, id) in r.cost"
+            v-for="[id, n] in inventoryEntries(r.cost)"
             :key="id"
             :class="{ missing: (g.state.backpack[id] ?? 0) < n! }"
           >
