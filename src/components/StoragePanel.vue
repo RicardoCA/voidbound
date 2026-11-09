@@ -51,7 +51,11 @@ function quantity(available: number) {
       </button>
     </div>
     <p v-if="b.containerKind === 'fridge'">
-      A geladeira guarda carne crua e pausa a validade até a retirada.
+      {{
+        b.fridgePowered
+          ? "Geladeira ligada. A validade da carne está pausada."
+          : "Geladeira desligada. A carne continua envelhecendo. Verifique as placas solares e baterias próximas."
+      }}
     </p>
     <p v-else>
       Os itens ficam neste armário, neste planeta, mesmo quando você decola ou

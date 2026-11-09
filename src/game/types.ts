@@ -110,6 +110,7 @@ export interface PlacedPiece {
   open?: boolean;
   energy?: number;
   oxygen?: number;
+  powered?: boolean;
 }
 export interface Settlement {
   pieces: Record<string, PlacedPiece>;

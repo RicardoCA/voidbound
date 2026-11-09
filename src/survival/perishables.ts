@@ -35,10 +35,10 @@ function age(inventory: Inventory, time: number, chilled = false) {
         expires: chilled ? PLANET_DAY : time + PLANET_DAY,
       },
     ]);
-  if (chilled) return 0;
+  const deadline = chilled ? 0 : time;
   const batches = inventory.meatBatches ?? [];
   const spoiled = batches.reduce(
-    (sum, batch) => sum + (batch.expires <= time ? batch.amount : 0),
+    (sum, batch) => sum + (batch.expires <= deadline ? batch.amount : 0),
     0,
   );
   if (spoiled > 0) {
@@ -47,7 +47,9 @@ function age(inventory: Inventory, time: number, chilled = false) {
       delete inventory.meatBatches;
     } else {
       inventory.rawMeat = amount - spoiled;
-      inventory.meatBatches = batches.filter((batch) => batch.expires > time);
+      inventory.meatBatches = batches.filter(
+        (batch) => batch.expires > deadline,
+      );
     }
   }
   return spoiled;

@@ -61,6 +61,14 @@ export const useConstruction = defineStore("construction", () => {
     const kind = settlement.value.pieces[cabinet.key]?.kind;
     return isCabinet(kind) ? kind : undefined;
   });
+  const fridgePowered = computed(() => {
+    const cabinet = activeCabinet.value;
+    return (
+      containerKind.value === "fridge" &&
+      cabinet !== null &&
+      settlement.value.pieces[cabinet.key]?.powered === true
+    );
+  });
   const containerCapacity = computed(() =>
     containerKind.value ? cabinetCapacity(containerKind.value) : 0,
   );
@@ -157,7 +165,9 @@ export const useConstruction = defineStore("construction", () => {
     lastError.value = "";
     if (
       !removing.value &&
-      ["solarPanel", "battery", "oxygenGenerator"].includes(selected.value)
+      ["solarPanel", "battery", "oxygenGenerator", "fridge"].includes(
+        selected.value,
+      )
     )
       settlementFor(g.state, g.planet.id).utilityTime = g.state.time;
     g.worldChanged();
@@ -497,6 +507,7 @@ export const useConstruction = defineStore("construction", () => {
     container,
     containerKind,
     containerCapacity,
+    fridgePowered,
     climbingColumn,
     activeCabinet,
     selectedCount,

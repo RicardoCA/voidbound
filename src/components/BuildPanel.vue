@@ -13,7 +13,8 @@ const g = useGame(),
 const descriptions = {
   stoneWall: "Parede de fundo em alvenaria de silício.",
   metalWall: "Parede de fundo feita de placas metálicas.",
-  fridge: "Guarda carne crua em 16 slots e pausa a validade. E ou toque abre.",
+  fridge:
+    "Guarda carne crua em 16 slots. Precisa de energia de placas solares ou baterias próximas para refrigerar.",
   picture: "Decoração. Instale em uma parede de fundo.",
   table: "Mesa decorativa. Instale sobre chão firme.",
   bed: "Use E ou toque para dormir e avançar 8 horas locais.",

@@ -261,6 +261,8 @@ describe("conservação da carne e descanso planetário", () => {
     const data = settlementFor(g.state, g.planet.id);
     data.pieces["4,28"] = { kind: "fridge", facing: 1 };
     data.pieces["5,28"] = { kind: "cabinet", facing: 1 };
+    data.pieces["3,28"] = { kind: "battery", facing: 1, energy: 1200 };
+    data.pieces["3,27"] = { kind: "solarPanel", facing: 1 };
     data.cabinets["4,28"] = {};
     data.cabinets["5,28"] = {};
     Object.assign(g.state.player, { x: 72, y: 452 });
@@ -294,6 +296,41 @@ describe("conservação da carne e descanso planetário", () => {
     } finally {
       await db.delete();
     }
+  });
+
+  it("refrigera com luz ou bateria próxima e volta a envelhecer sem energia", () => {
+    const g = surface();
+    const b = useConstruction();
+    const data = settlementFor(g.state, g.planet.id);
+    data.pieces["4,28"] = { kind: "fridge", facing: 1 };
+    data.pieces["4,27"] = { kind: "solarPanel", facing: 1 };
+    data.cabinets["4,28"] = {};
+    Object.assign(g.state.player, { x: 72, y: 452 });
+    g.collect("rawMeat");
+    expect(b.interactAt(4, 28)).toBe(true);
+    expect(b.fridgePowered).toBe(true);
+    expect(b.moveItem("deposit", "rawMeat", 1)).toBe(true);
+    g.state.time = PLANET_DAY / 2;
+    g.refreshFood();
+    expect(b.fridgePowered).toBe(false);
+    const remaining = data.cabinets["4,28"]!.meatBatches![0]!.expires;
+    expect(remaining).toBeLessThan(PLANET_DAY);
+    data.pieces["5,28"] = { kind: "battery", facing: 1, energy: 3 };
+    g.worldChanged();
+    g.refreshFood();
+    expect(b.fridgePowered).toBe(true);
+    g.state.time += 4;
+    g.refreshFood();
+    expect(data.pieces["5,28"]!.energy).toBe(0);
+    expect(b.fridgePowered).toBe(false);
+    expect(data.cabinets["4,28"]!.meatBatches![0]!.expires).toBeCloseTo(
+      remaining - 1,
+    );
+    delete data.pieces["4,27"];
+    g.worldChanged();
+    g.state.time += PLANET_DAY;
+    expect(g.refreshFood()).toBe(1);
+    expect(data.cabinets["4,28"]!.rawMeat).toBeUndefined();
   });
 
   it("avança oito horas por descanso e remove carne após um dia fora da geladeira", () => {

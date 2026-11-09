@@ -12,7 +12,7 @@ import {
 } from "../progression/exploration";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import type { Item, Save } from "../game/types";
+import type { Item, Save, Settlement } from "../game/types";
 import { biomes, items } from "../game/types";
 import { systemAt, planetPosition } from "../universe/generator";
 import { add, consume, slots } from "../inventory/inventory";
@@ -29,7 +29,14 @@ import {
 } from "../progression/careers";
 import { Terrain, tileItems } from "../game/procedural/terrain";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
-import { emptyHabitat, PLANET_DAY, planetClock } from "../construction/habitat";
+import {
+  advancePowerNetwork,
+  emptyHabitat,
+  PLANET_DAY,
+  planetClock,
+  powerNetwork,
+  type PowerNetwork,
+} from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
 import { shipModels } from "../fleet/models";
@@ -39,6 +46,7 @@ import {
   RAW_MEAT_RISK,
   foodValue,
 } from "../survival/food";
+import { planetAddress } from "../construction/catalog";
 import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
 export const BACKPACK_SLOTS = 24;
@@ -941,8 +949,40 @@ export const useGame = defineStore("game", () => {
     notify(`${signal.name} registrada.`);
     void save();
   }
+  const fridgeNetworks = new WeakMap<
+    Settlement,
+    { revision: number; network: PowerNetwork }
+  >();
   function refreshFood() {
-    return spoilMeat(state.value);
+    const s = state.value;
+    for (const [id, data] of Object.entries(s.settlements)) {
+      let cached = fridgeNetworks.get(data);
+      if (cached?.revision !== worldRevision.value) {
+        if (
+          !Object.values(data.pieces).some((piece) => piece.kind === "fridge")
+        )
+          continue;
+        const address = planetAddress(s.seed, id);
+        if (!address) continue;
+        const planet = systemAt(s.seed, address.x, address.y).planets[
+          address.planetIndex
+        ];
+        if (!planet) continue;
+        cached = {
+          revision: worldRevision.value,
+          network: powerNetwork(new Terrain(planet, s.changes[id] ?? {}), data),
+        };
+        fridgeNetworks.set(data, cached);
+      }
+      advancePowerNetwork(
+        data,
+        cached.network,
+        Math.min(s.time, data.utilityTime ?? s.time),
+        s.time,
+      );
+      data.utilityTime = s.time;
+    }
+    return spoilMeat(s);
   }
   function sleepInBed() {
     const s = state.value;
