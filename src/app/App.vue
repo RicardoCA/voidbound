@@ -398,6 +398,12 @@ function minutes() {
           </div>
         </div>
         <div
+          v-if="g.gravityWell && !g.panel && !g.paused"
+          class="surface-sequence-caption"
+        >
+          ⚠ Gravidade extrema · Buraco negro próximo
+        </div>
+        <div
           v-if="g.stellarWarning && !g.panel && !g.paused"
           class="surface-sequence-caption"
         >
@@ -777,7 +783,10 @@ function minutes() {
                 : "Desembarcando"
         }}
       </div>
-      <JumpSequence v-if="g.busy" />
+      <JumpSequence
+        v-if="g.busy"
+        :black-hole-elapsed="g.blackHoleTransit?.elapsed"
+      />
     </section>
     <Transition name="save-tooltip">
       <div

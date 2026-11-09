@@ -1,3 +1,7 @@
+import {
+  BLACK_HOLE_HORIZON,
+  BLACK_HOLE_PULL_RANGE,
+} from "../../universe/blackHoles";
 import { starClasses, type StellarBody } from "../../universe/stars";
 import type Phaser from "phaser";
 import { createNoise3D, createNoise4D } from "simplex-noise";
@@ -357,5 +361,43 @@ export class StellarTextures {
       .setPosition(x, y)
       .setDisplaySize(diameter, diameter)
       .setVisible(true);
+  }
+}
+
+export function drawBlackHole(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  time: number,
+) {
+  g.lineStyle(1, 0xae8dff, 0.24).strokeCircle(x, y, BLACK_HOLE_PULL_RANGE);
+  g.fillStyle(0x7733b9, 0.1).fillCircle(x, y, 90);
+  g.fillStyle(0x9a54d2, 0.16).fillEllipse(x, y, 184, 80);
+  g.lineStyle(4, 0x7748b9, 0.64).strokeCircle(x, y, 39);
+  g.lineStyle(1, 0xf3a5ff, 0.82).strokeCircle(x, y, 36);
+  for (let i = 0; i < 76; i++) {
+    const angle = i * 2.39996 + time * (0.45 + (i % 4) * 0.18);
+    const radius = 42 + ((i * 17) % 44);
+    const dx = Math.cos(angle) * radius,
+      dy = Math.sin(angle) * radius * 0.37;
+    g.fillStyle(
+      [0xf4a46c, 0xf4c2ff, 0x9766fa][i % 3]!,
+      0.28 + (i % 5) * 0.12,
+    ).fillRect(
+      Math.round(x + dx),
+      Math.round(y + dy + dx * 0.2),
+      (i % 3) + 2,
+      1 + (i % 2),
+    );
+  }
+  g.fillStyle(0x020109).fillCircle(x, y, BLACK_HOLE_HORIZON);
+  for (let i = 0; i < 31; i++) {
+    const angle = (i * Math.PI) / 30;
+    const dx = Math.cos(angle) * 72;
+    const dy = Math.sin(angle) * 22 + dx * 0.2;
+    g.fillStyle(
+      i % 3 === 0 ? 0xffd099 : 0xba71f4,
+      0.46 + 0.22 * Math.sin(time * 5 + i),
+    ).fillRect(Math.round(x + dx), Math.round(y + dy), 4, 2);
   }
 }

@@ -1,3 +1,9 @@
+import {
+  BLACK_HOLE_HORIZON,
+  BLACK_HOLE_PULL_RANGE,
+  blackHoleDestination,
+  blackHolePull,
+} from "../universe/blackHoles";
 import { describe, it, expect, beforeEach } from "vitest";
 import "fake-indexeddb/auto";
 import { setActivePinia, createPinia } from "pinia";
@@ -262,4 +268,51 @@ describe("estrelas e defletores térmicos", () => {
     expect(g.state.inventory).toEqual({});
     expect(g.state.backpack).toEqual({});
   });
+});
+
+it("gera buracos negros raros e atravessa em 15 segundos sem consumir combustível", () => {
+  const g = useGame();
+  g.newGame("gravity");
+  expect(g.system.blackHole).toBeUndefined();
+  const systems = Array.from({ length: 240 }, (_, x) =>
+    systemAt(g.state.seed, x, 2),
+  ).filter((s) => s.blackHole);
+  expect(systems.length).toBeGreaterThan(0);
+  expect(systems.length).toBeLessThan(24);
+  const source = systems[0]!;
+  const hole = source.blackHole!;
+  const destination = blackHoleDestination(
+    g.state.seed,
+    hole,
+    source.x,
+    source.y,
+  );
+  expect(destination).not.toMatchObject({ x: source.x, y: source.y });
+  expect(
+    nearby(g.state.seed, destination.x - 1, destination.y, 1),
+  ).toContainEqual(systemAt(g.state.seed, destination.x, destination.y));
+  expect(
+    blackHolePull(hole, { x: hole.x + BLACK_HOLE_PULL_RANGE, y: hole.y }),
+  ).toBeUndefined();
+  expect(blackHolePull(hole, { x: hole.x + 100, y: hole.y })?.x).toBeLessThan(
+    0,
+  );
+  g.state.systemX = source.x;
+  g.state.systemY = source.y;
+  const fuel = g.state.ship.fuel;
+  Object.assign(g.state.ship, {
+    x: hole.x + BLACK_HOLE_HORIZON - 1,
+    y: hole.y,
+    vx: -50,
+  });
+  expect(g.captureBlackHole()).toBe(true);
+  expect(g.captureBlackHole()).toBe(false);
+  g.advanceBlackHole(14);
+  expect(g.state.systemX).toBe(source.x);
+  g.advanceBlackHole(1);
+  expect(g.busy).toBe(false);
+  expect(g.state.systemX).toBe(destination.x);
+  expect(g.state.systemY).toBe(destination.y);
+  expect(g.state.ship).toMatchObject({ x: 200, y: 330, vx: 0, vy: 0, fuel });
+  expect(g.state.visited).toContain(g.system.id);
 });
