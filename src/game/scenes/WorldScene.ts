@@ -57,7 +57,11 @@ import {
   surfaceMaterials,
 } from "../rendering/surfaceMaterials";
 import { SurfaceArt } from "../rendering/surfaceArt";
-import { drawSurfaceRidges, drawTerrainDepth } from "../rendering/surfaceDepth";
+import {
+  drawSurfaceRidges,
+  drawTerrainDepth,
+  terrainTargetAt,
+} from "../rendering/surfaceDepth";
 import {
   solidCell,
   stairFloor,
@@ -97,6 +101,7 @@ export class WorldScene extends Phaser.Scene {
   private treeHits = new Map<string, number>();
   private wildlife = new Wildlife();
   private fruit: Fruit[] = [];
+  private surfaceMouse?: PointerEvent;
   private surfaceTap:
     { x: number; y: number; wx: number; wy: number } | undefined;
   private shipSprites: Phaser.GameObjects.Image[] = [];
@@ -158,29 +163,46 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceArt.prepareDoor(this);
     this.store = useGame();
     this.building = useConstruction();
-    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      if (
-        this.store.state.mode === "surface" &&
-        !this.store.panel &&
-        !this.store.paused
-      ) {
-        const wx = pointer.x - this.centerX + this.camX;
-        const wy = pointer.y - this.centerY + this.camY;
-        this.surfaceTap = {
-          x: Math.floor(wx / 16),
-          y: Math.floor(wy / 16),
-          wx,
-          wy,
-        };
-        this.building.setCursor(this.surfaceTap.x, this.surfaceTap.y);
-      }
-    });
-    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (this.store.state.mode === "surface")
-        this.building.setCursor(
-          Math.floor((pointer.x - this.centerX + this.camX) / 16),
-          Math.floor((pointer.y - this.centerY + this.camY) / 16),
-        );
+    const canvas = this.game.canvas;
+    const onSurface = () =>
+      this.store.started &&
+      this.store.state.mode === "surface" &&
+      !this.store.panel &&
+      !this.store.paused &&
+      !this.store.busy &&
+      !this.store.inSequence;
+    const targetSurface = (event: PointerEvent) => {
+      if (!onSurface()) return;
+      const target = this.surfacePoint(event);
+      if (this.building.enabled) this.building.setCursor(target.x, target.y);
+      return target;
+    };
+    const press = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      this.surfaceTap = targetSurface(event);
+      if (event.pointerType === "mouse") this.surfaceMouse = event;
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      this.surfaceMouse = event;
+      targetSurface(event);
+    };
+    const clearMouse = () => {
+      this.surfaceMouse = undefined;
+    };
+    canvas.addEventListener("pointerdown", press);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", clearMouse);
+    canvas.addEventListener("pointerleave", clearMouse);
+    canvas.addEventListener("pointercancel", clearMouse);
+    this.game.events.on("blur", clearMouse);
+    this.events.once("shutdown", () => {
+      canvas.removeEventListener("pointerdown", press);
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerup", clearMouse);
+      canvas.removeEventListener("pointerleave", clearMouse);
+      canvas.removeEventListener("pointercancel", clearMouse);
+      this.game.events.off("blur", clearMouse);
     });
     this.gfx = this.add.graphics();
     this.surfaceSky = this.add.graphics().setDepth(-1);
@@ -310,6 +332,16 @@ export class WorldScene extends Phaser.Scene {
   }
   private get centerY() {
     return this.viewHeight / 2;
+  }
+  private surfacePoint(event: PointerEvent) {
+    const rect = this.game.canvas.getBoundingClientRect();
+    const wx =
+      ((event.clientX - rect.left) * this.viewWidth) / rect.width -
+      Math.floor(this.centerX - this.camX);
+    const wy =
+      ((event.clientY - rect.top) * this.viewHeight) / rect.height -
+      Math.floor(this.centerY - this.camY);
+    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16) };
   }
   private down(key: string) {
     return this.keys[key]?.isDown ?? false;
@@ -575,6 +607,7 @@ export class WorldScene extends Phaser.Scene {
     } else {
       this.jumpBuffer.clear();
       this.surfaceTap = undefined;
+      this.surfaceMouse = undefined;
       this.interactHeld = this.down("E") || controls.interact;
     }
     if (!g.started) {
@@ -903,20 +936,13 @@ export class WorldScene extends Phaser.Scene {
       p.x,
       g.state.time,
     );
-    const pointer = this.input.activePointer;
-    const mobileMine = takePulse("mine") || controls.mine;
+    const mineButton = takePulse("mine") || controls.mine;
+    const mouse = this.surfaceMouse;
     const tap = this.surfaceTap;
     this.surfaceTap = undefined;
     if (this.building.enabled) {
       if (tap) {
         this.building.apply(tap.x, tap.y);
-        this.mineTime = 0.2;
-      } else if (mobileMine && this.mineTime <= 0) {
-        const target = this.building.cursor ?? {
-          x: Math.floor((p.x + this.facing * 32) / 16),
-          y: Math.floor((p.y + 4) / 16),
-        };
-        this.building.apply(target.x, target.y);
         this.mineTime = 0.2;
       }
       return;
@@ -932,11 +958,15 @@ export class WorldScene extends Phaser.Scene {
         return;
       }
     }
-    if (
-      (mobileMine || pointer.isDown || tap) &&
-      this.mineTime <= 0 &&
-      p.energy >= 1
-    ) {
+    if (tap && this.mineTime > 0) {
+      this.surfaceTap = tap;
+      return;
+    }
+    const aim =
+      tap ??
+      (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
+    const mobileMine = !aim && mineButton;
+    if ((aim || mobileMine) && this.mineTime <= 0 && p.energy >= 1) {
       const trees = treesInRange(
         g.planet,
         t,
@@ -944,8 +974,8 @@ export class WorldScene extends Phaser.Scene {
         Math.floor(p.x / 16) + 8,
         this.building.settlement.cutTrees,
       );
-      const wx = tap?.wx ?? pointer.x - this.centerX + this.camX,
-        wy = tap?.wy ?? pointer.y - this.centerY + this.camY;
+      const wx = aim?.wx ?? p.x,
+        wy = aim?.wy ?? p.y;
       const animal = [...this.wildlife.animals.values()]
         .filter(
           (target) =>
@@ -1007,19 +1037,17 @@ export class WorldScene extends Phaser.Scene {
           this.treeHits.delete(tree.id);
         return;
       }
-      let tx = Math.floor(wx / 16),
-        ty = Math.floor(wy / 16);
+      let { x: tx, y: ty } = terrainTargetAt(t, wx, wy);
       if (mobileMine) {
         tx = Math.floor((p.x + this.facing * 24) / 16);
         ty = Math.floor((p.y + 14) / 16);
         if (!t.get(tx, ty)) ty++;
       }
       const tile = t.get(tx, ty);
-      if (
-        tile &&
-        ty < 63 &&
-        Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y) < 77
-      ) {
+      const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y);
+      if (tap && tile && distance >= 77)
+        g.notify("Aproxime-se do bloco para minerar.");
+      if (tile && ty < 63 && distance < 77) {
         const rootedTree = trees.find(
           (tree) => tree.x === tx && tree.ground === ty,
         );
@@ -2020,11 +2048,8 @@ export class WorldScene extends Phaser.Scene {
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     f.fillStyle(0xffda9a, light * 0.1);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
-    if (this.building.enabled && !g.panel && !sequence) {
-      const cursor = this.building.cursor ?? {
-        x: Math.floor((p.x + this.facing * 32) / 16),
-        y: Math.floor((p.y + 4) / 16),
-      };
+    const cursor = this.building.cursor;
+    if (this.building.enabled && cursor && !g.panel && !sequence) {
       const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),
         sy = Math.round(cursor.y * 16 - this.camY + this.centerY);
       if (

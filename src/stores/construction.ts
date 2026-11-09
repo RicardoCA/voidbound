@@ -150,9 +150,17 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     g.refreshHabitat();
     let error: string | undefined;
-    if (removing.value)
-      error = removePiece(context(), x, y, isWall(selected.value));
-    else {
+    if (removing.value) {
+      const ctx = context();
+      const wall = ctx.settlement.walls[`${x},${y}`];
+      const foreground = pieceAt(ctx.settlement, x, y);
+      error = removePiece(
+        ctx,
+        x,
+        y,
+        Boolean(wall && (isWall(selected.value) || !foreground)),
+      );
+    } else {
       error = errorAt(x, y);
       if (!error)
         error = placePiece(context(), selected.value, x, y, facing.value);

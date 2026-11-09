@@ -128,30 +128,15 @@ onBeforeUnmount(reset);
         PULAR
       </button>
       <button
-        v-if="!indoors"
+        v-if="!indoors && !b.enabled"
         class="touch-mine"
-        :aria-label="
-          b.enabled
-            ? 'Aplicar construção'
-            : surface
-              ? 'Minerar blocos'
-              : 'Minerar asteroides'
-        "
+        :aria-label="surface ? 'Minerar blocos' : 'Minerar asteroides'"
         @pointerdown="action('mine', $event)"
         @pointerup="stop('mine', $event)"
         @pointercancel="stop('mine', $event)"
         @lostpointercapture="stop('mine', $event)"
       >
-        <span aria-hidden="true">⌁</span
-        >{{
-          b.enabled
-            ? b.removing
-              ? "REMOVER"
-              : "COLOCAR"
-            : surface
-              ? "MINERAR"
-              : "LASER"
-        }}
+        <span aria-hidden="true">⌁</span>{{ surface ? "MINERAR" : "LASER" }}
       </button>
       <button
         v-if="!walking"

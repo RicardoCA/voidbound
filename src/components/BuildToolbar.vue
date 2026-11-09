@@ -29,8 +29,8 @@ const error = computed(
         <b>{{ items[b.selected].name }}</b
         ><small>{{
           b.removing
-            ? "DESMONTAR"
-            : `${b.selectedCount} disponíveis · Escolher peça`
+            ? "Toque na peça para desmontar"
+            : `${b.selectedCount} disponíveis · Toque no terreno`
         }}</small>
       </div>
     </button>
