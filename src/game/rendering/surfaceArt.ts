@@ -2,6 +2,7 @@ import type Phaser from "phaser";
 import type { BuildItem } from "../types";
 
 const sprites = "surface-sprites";
+const materials = "surface-wood-and-deposits";
 const path = import.meta.env.BASE_URL + "surface/";
 const ground = (kind: number) => "surface-ground-" + kind;
 const horizon = (kind: number) => "surface-horizon-" + kind;
@@ -17,6 +18,10 @@ export class SurfaceArt {
 
   preload(scene: Phaser.Scene) {
     scene.load.atlas(sprites, path + "sprites.webp", path + "sprites.json");
+    scene.load.spritesheet(materials, path + "wood-and-deposits.webp", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
     for (let kind = 0; kind < 6; kind++) {
       scene.load.spritesheet(ground(kind), path + "ground-" + kind + ".webp", {
         frameWidth: 32,
@@ -88,7 +93,7 @@ export class SurfaceArt {
 
   sprite(
     scene: Phaser.Scene,
-    key: string,
+    key: string | number,
     x: number,
     groundY: number,
     width: number,
@@ -96,18 +101,19 @@ export class SurfaceArt {
     flip = false,
     alpha = 1,
     depth = -0.05,
+    texture = sprites,
   ) {
     if (
-      !scene.textures.exists(sprites) ||
-      !scene.textures.get(sprites).has(key)
+      !scene.textures.exists(texture) ||
+      !scene.textures.get(texture).has(String(key))
     )
       return false;
     const index = this.actorCount++;
     const image = (this.actors[index] ??= scene.add
-      .image(0, 0, sprites)
+      .image(0, 0, texture)
       .setOrigin(0.5, 1));
     image
-      .setTexture(sprites, key)
+      .setTexture(texture, key)
       .setPosition(Math.round(x), Math.round(groundY))
       .setDepth(depth)
       .setFlipX(flip)
@@ -122,6 +128,31 @@ export class SurfaceArt {
     return true;
   }
 
+  deposit(
+    scene: Phaser.Scene,
+    tile: number,
+    x: number,
+    y: number,
+    column: number,
+    row: number,
+  ) {
+    if (tile < 2 || tile > 11) return false;
+    const flip = ((column ^ row) & 1) !== 0;
+    const size = 12 + ((column + row) & 1);
+    return this.sprite(
+      scene,
+      tile,
+      x + 8,
+      y + 15,
+      size,
+      size,
+      flip,
+      1,
+      -0.15,
+      materials,
+    );
+  }
+
   prop(
     scene: Phaser.Scene,
     kind: BuildItem,
@@ -129,6 +160,21 @@ export class SurfaceArt {
     y: number,
     alpha: number,
   ) {
+    if (kind === "woodBlock" || kind === "woodWall") {
+      const depth = alpha < 1 ? -0.01 : kind === "woodWall" ? -0.4 : -0.02;
+      return this.sprite(
+        scene,
+        kind === "woodBlock" ? 0 : 1,
+        x + 8,
+        y + 16,
+        16,
+        16,
+        false,
+        alpha,
+        depth,
+        materials,
+      );
+    }
     const door = kind === "woodDoor";
     const drawn = this.sprite(
       scene,

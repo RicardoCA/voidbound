@@ -1721,6 +1721,7 @@ export class WorldScene extends Phaser.Scene {
       this.viewHeight,
       "walls",
       material,
+      (kind, x, y) => this.surfaceArt.prop(this, kind, x, y, 1),
     );
     for (let x = startX; x < endX; x++)
       for (let y = startY; y < endY; y++) {
@@ -1740,6 +1741,7 @@ export class WorldScene extends Phaser.Scene {
           tile,
           !t.get(x, y - 1),
           textured,
+          this.surfaceArt.deposit(this, tile, sx, sy, x, y),
         );
       }
     drawSettlement(

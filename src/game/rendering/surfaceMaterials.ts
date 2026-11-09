@@ -83,6 +83,7 @@ export function drawTerrainTile(
   tile: number,
   exposed: boolean,
   textured: boolean,
+  depositDrawn: boolean,
 ) {
   const seed = (Math.imul(column, 374761393) ^ Math.imul(row, 668265263)) >>> 0;
   const a = 2 + (seed & 3);
@@ -121,6 +122,7 @@ export function drawTerrainTile(
       .fillRect(x, y, 16, 2)
       .fillRect(x + a, y + 2, b - a, 1);
   }
+  if (depositDrawn) return;
   const ore = oreColors[tile];
   if (!ore) return;
   g.fillStyle(material.shade, 0.86)
