@@ -249,6 +249,7 @@ export class WorldScene extends Phaser.Scene {
         !this.store.paused
       )
         queuePulse("interact");
+      if (e.code === "KeyQ") this.store.switchWeapon();
       if (
         e.code === "KeyF" &&
         !this.store.flightCabin &&
@@ -1425,7 +1426,7 @@ export class WorldScene extends Phaser.Scene {
           drawSpaceWreck(f, x, y);
       }
       for (const bolt of this.combat.bolts) {
-        f.fillStyle(bolt.hostile ? 0xff8874 : 0xe0f8be);
+        f.fillStyle(bolt.hostile ? 0xff8874 : (bolt.color ?? 0xe0f8be));
         f.fillCircle(
           bolt.x - this.camX + this.centerX,
           bolt.y - this.camY + this.centerY,

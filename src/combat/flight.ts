@@ -1,3 +1,4 @@
+import { selectedWeapon, shipWeapons } from "./weapons";
 import { reportCrime, wantedStatus } from "./law";
 import type { Save, StarSystem } from "../game/types";
 import {
@@ -14,6 +15,8 @@ export interface Bolt extends Point {
   life: number;
   hostile: boolean;
   damage: number;
+  color?: number;
+  shieldMultiplier?: number;
 }
 
 function distance(a: Point, b: Point) {
@@ -104,20 +107,61 @@ export class SpaceCombat {
     return nearest;
   }
 
+  private boltTarget(bolt: Bolt, dx: number, dy: number) {
+    const lengthSquared = dx * dx + dy * dy;
+    let first: SpaceNpc | undefined;
+    let firstT = Infinity;
+    for (const npc of this.npcs) {
+      if (npc.hull <= 0) continue;
+      const t = lengthSquared
+        ? Math.max(
+            0,
+            Math.min(
+              1,
+              ((npc.x - bolt.x) * dx + (npc.y - bolt.y) * dy) / lengthSquared,
+            ),
+          )
+        : 0;
+      if (
+        t >= firstT ||
+        Math.hypot(npc.x - bolt.x - t * dx, npc.y - bolt.y - t * dy) >= 16
+      )
+        continue;
+      first = npc;
+      firstT = t;
+    }
+    return first;
+  }
+
   fire(state: Save) {
     const ship = state.ship;
-    if (state.time < this.nextShot || ship.energy < 4) return false;
-    const target = this.target(ship, 340);
-    const flightTime = target ? distance(ship, target) / 560 : 0;
+    const weapon = shipWeapons[selectedWeapon(state)];
+    if (state.time < this.nextShot || ship.energy < weapon.energy) return false;
+    const target = this.target(ship, weapon.range);
+    const flightTime = target ? distance(ship, target) / weapon.speed : 0;
     const aim = target
       ? {
           x: target.x + target.vx * flightTime,
           y: target.y + target.vy * flightTime,
         }
       : { x: ship.x + Math.cos(ship.angle), y: ship.y + Math.sin(ship.angle) };
-    this.bolts.push(launch(ship, aim, 560, 15, false));
-    this.nextShot = state.time + 0.23;
-    ship.energy -= 4;
+    const angle = Math.atan2(aim.y - ship.y, aim.x - ship.x);
+    const color = Number.parseInt(weapon.color.slice(1), 16);
+    for (const spread of weapon.angles) {
+      this.bolts.push({
+        x: ship.x,
+        y: ship.y,
+        vx: Math.cos(angle + spread) * weapon.speed,
+        vy: Math.sin(angle + spread) * weapon.speed,
+        life: weapon.life,
+        damage: weapon.damage,
+        hostile: false,
+        color,
+        shieldMultiplier: weapon.shieldMultiplier,
+      });
+    }
+    this.nextShot = state.time + weapon.cooldown;
+    ship.energy -= weapon.energy;
     return true;
   }
 
@@ -195,8 +239,11 @@ export class SpaceCombat {
     for (const bolt of this.bolts) {
       bolt.life -= dt;
       if (bolt.life <= 0) continue;
-      bolt.x += bolt.vx * dt;
-      bolt.y += bolt.vy * dt;
+      const dx = bolt.vx * dt,
+        dy = bolt.vy * dt;
+      const target = bolt.hostile ? undefined : this.boltTarget(bolt, dx, dy);
+      bolt.x += dx;
+      bolt.y += dy;
       if (bolt.hostile) {
         if (distance(bolt, ship) > 15) continue;
         bolt.life = 0;
@@ -209,7 +256,6 @@ export class SpaceCombat {
           break;
         }
       } else {
-        const target = this.target(bolt, 16);
         if (!target) continue;
         bolt.life = 0;
         const authorityTarget =
@@ -233,7 +279,7 @@ export class SpaceCombat {
               authorityTarget,
             ) || crimeReported;
         }
-        if (hitNpc(state, system, target, bolt.damage)) {
+        if (hitNpc(state, system, target, bolt.damage, bolt.shieldMultiplier)) {
           destroyed = true;
           if (target.role !== "pirate")
             crimeReported =

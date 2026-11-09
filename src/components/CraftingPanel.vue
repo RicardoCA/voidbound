@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isWeaponModule, weaponModules } from "../combat/weapons";
 import { inventoryEntries } from "../inventory/inventory";
 import ItemIcon from "./ItemIcon.vue";
 import { computed, ref } from "vue";
@@ -18,7 +19,10 @@ const tab = ref("all"),
     recipes.filter(
       (r) =>
         tab.value === "all" ||
-        (tab.value === "upgrades" ? r.unlock > 0 : r.unlock === 0),
+        (tab.value === "weapons"
+          ? isWeaponModule(r.id)
+          : !isWeaponModule(r.id) &&
+            (tab.value === "upgrades" ? r.unlock > 0 : r.unlock === 0)),
     ),
   );
 function affordable(cost: Partial<Record<Item, number>>) {
@@ -57,12 +61,18 @@ function affordable(cost: Partial<Record<Item, number>>) {
       >
         Melhorias
       </button>
+      <button :class="{ active: tab === 'weapons' }" @click="tab = 'weapons'">
+        Armamentos
+      </button>
     </div>
     <div class="recipe-list">
       <article v-for="r in availableRecipes" :key="r.id" class="recipe">
         <ItemIcon class="recipe-icon" :item="r.id" />
         <div>
           <h3>{{ items[r.id].name }}</h3>
+          <small v-if="isWeaponModule(r.id)">{{
+            weaponModules[r.id].description
+          }}</small>
           <div class="ingredients">
             <span
               v-for="[id, n] in inventoryEntries(r.cost)"

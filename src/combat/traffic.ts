@@ -226,6 +226,7 @@ export function hitNpc(
   system: StarSystem,
   npc: SpaceNpc,
   damage: number,
+  shieldMultiplier = 1,
 ) {
   const piracy = state.progression.piracy;
   if (
@@ -236,9 +237,9 @@ export function hitNpc(
   )
     return;
   npc.engaged = true;
-  const absorbed = Math.min(npc.shield, damage);
+  const absorbed = Math.min(npc.shield, damage * shieldMultiplier);
   npc.shield -= absorbed;
-  npc.hull = Math.max(0, npc.hull - (damage - absorbed));
+  npc.hull = Math.max(0, npc.hull - (damage - absorbed / shieldMultiplier));
   if (npc.hull > 0) return;
   const wreck: Wreck = {
     id: npc.id,

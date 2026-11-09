@@ -1,3 +1,4 @@
+import { weaponModules, type WeaponModule } from "../combat/weapons";
 import { deflectorFor, starKinds } from "../universe/stars";
 import type { Item, Inventory } from "../game/types";
 import { add, consume } from "../inventory/inventory";
@@ -22,6 +23,12 @@ export const recipes: Recipe[] = [
   { id: "cargo", cost: { plate: 4, circuit: 1 }, unlock: 4 },
   { id: "jump", cost: { plate: 2, circuit: 2, crystal: 2 }, unlock: 4 },
   { id: "drill", cost: { titanium: 2, circuit: 1 }, unlock: 4 },
+  ...(Object.keys(weaponModules) as WeaponModule[]).map((id): Recipe => ({
+    id,
+    cost: weaponModules[id].cost,
+    unlock: 0,
+    station: "ship",
+  })),
   ...starKinds.map((kind): Recipe => ({
     id: deflectorFor(kind),
     cost:

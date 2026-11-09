@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isWeaponModule } from "../combat/weapons";
 import { isHeatDeflector } from "../universe/stars";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
@@ -34,6 +35,7 @@ const inventory = computed(() =>
 );
 function canUse(id: Item) {
   return (
+    isWeaponModule(id) ||
     isHeatDeflector(id) ||
     [
       "repair",
@@ -121,11 +123,13 @@ function canUse(id: Item) {
         ><small>{{
           foodValue(id)
             ? `COMER · +${foodValue(id)} SACIEDADE`
-            : isBuildItem(id)
-              ? "EQUIPAR CONSTRUÇÃO"
-              : canUse(id)
-                ? "USAR / INSTALAR"
-                : items[id].rarity
+            : isWeaponModule(id)
+              ? "INSTALAR ARMA"
+              : isBuildItem(id)
+                ? "EQUIPAR CONSTRUÇÃO"
+                : canUse(id)
+                  ? "USAR / INSTALAR"
+                  : items[id].rarity
         }}</small>
         <MeatShelfLife
           v-if="id === 'rawMeat'"
