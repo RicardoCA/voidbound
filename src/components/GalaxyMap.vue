@@ -213,8 +213,8 @@ function stationType(system: StarSystem) {
               >•</span
             >
           </span>
-          ><small>{{ s.name }}</small
-          ><i
+          <small>{{ s.name }}</small>
+          <i
             v-if="bases.bySystem.has(s.id)"
             class="map-base-badge"
             aria-hidden="true"

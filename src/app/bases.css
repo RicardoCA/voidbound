@@ -366,7 +366,7 @@
   }
   .map-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .map-tabs button {
     padding: 10px 6px !important;
