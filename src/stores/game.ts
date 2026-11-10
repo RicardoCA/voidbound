@@ -1,4 +1,9 @@
 import {
+  ASTEROID_RESPAWN_SECONDS,
+  asteroidsIn,
+  availableAsteroids,
+} from "../universe/asteroids";
+import {
   BLACK_HOLE_DURATION_MS,
   blackHoleDestination,
   blackHolePull,
@@ -13,7 +18,7 @@ import {
 } from "../combat/weapons";
 import {
   canCraftScanner,
-  isShipScanner,
+  isScannerEquipment,
   type ScannerContact,
 } from "../combat/shipScanners";
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
@@ -232,12 +237,32 @@ export const useGame = defineStore("game", () => {
   const flightCabin = computed(
     () => state.value.mode === "space" && standingInFlight.value,
   );
-  const routeIndex = ref<number>();
-  const routePlanet = computed(() =>
-    routeIndex.value === undefined
-      ? undefined
-      : system.value.planets[routeIndex.value],
+  const hasAsteroidRadar = computed(() =>
+    state.value.upgrades.includes("asteroidRadar"),
   );
+  const routeId = ref<string>();
+  const routeDestination = computed(() => {
+    const id = routeId.value;
+    if (!id) return undefined;
+    const index = system.value.planets.findIndex((planet) => planet.id === id);
+    if (index >= 0) {
+      return {
+        ...planetPosition(index),
+        name: system.value.planets[index]!.name,
+        stopDistance: 135,
+      };
+    }
+    const asteroid =
+      hasAsteroidRadar.value && asteroids.value.find((rock) => rock.id === id);
+    if (asteroid)
+      return {
+        x: asteroid.x,
+        y: asteroid.y,
+        name: asteroid.name,
+        stopDistance: 68,
+      };
+    return undefined;
+  });
   watch(
     () => [
       started.value,
@@ -247,7 +272,7 @@ export const useGame = defineStore("game", () => {
       state.value.systemY,
     ],
     () => {
-      routeIndex.value = undefined;
+      routeId.value = undefined;
       standingInFlight.value = false;
       planetScan.value = undefined;
     },
@@ -265,10 +290,14 @@ export const useGame = defineStore("game", () => {
     releaseControls();
     standingInFlight.value = true;
   }
-  function setRoute(index: number) {
-    const planet = system.value.planets[index];
+  function setRoute(id: string) {
+    const target =
+      system.value.planets.find((planet) => planet.id === id) ??
+      (hasAsteroidRadar.value
+        ? asteroids.value.find((rock) => rock.id === id)
+        : undefined);
     if (
-      !planet ||
+      !target ||
       state.value.mode !== "space" ||
       flightCabin.value ||
       inSequence.value ||
@@ -276,13 +305,13 @@ export const useGame = defineStore("game", () => {
       busy.value
     )
       return;
-    routeIndex.value = index;
+    routeId.value = id;
     panel.value = "";
     releaseControls();
-    notify("Piloto automático a caminho de " + planet.name + ".");
+    notify("Piloto automático a caminho de " + target.name + ".");
   }
   function clearRoute(message?: string) {
-    routeIndex.value = undefined;
+    routeId.value = undefined;
     if (message) notify(message);
   }
   const inSequence = computed(() =>
@@ -290,6 +319,19 @@ export const useGame = defineStore("game", () => {
   );
   const system = computed(() =>
       systemAt(state.value.seed, state.value.systemX, state.value.systemY),
+    ),
+    asteroidField = computed(() => asteroidsIn(system.value.id)),
+    depletedAsteroids = computed(() => new Set(state.value.depleted)),
+    asteroidClock = computed(
+      () => Math.floor((state.value.activePlayTime ?? 0) * 4) / 4,
+    ),
+    asteroids = computed(() =>
+      availableAsteroids(
+        asteroidField.value,
+        depletedAsteroids.value,
+        state.value.asteroidRespawns,
+        asteroidClock.value,
+      ),
     ),
     wanted = computed(() => wantedStatus(state.value, system.value)),
     stationDistance = computed(() => {
@@ -572,11 +614,18 @@ export const useGame = defineStore("game", () => {
     }
     return true;
   }
-  function mineAsteroid(id: string, ore: Item) {
+  function mineAsteroid(id: string) {
     const s = state.value;
-    if (s.mode !== "space" || s.depleted.includes(id) || !collect(ore, 3))
-      return false;
-    s.depleted.push(id);
+    const rock = asteroids.value.find((asteroid) => asteroid.id === id);
+    if (s.mode !== "space" || !rock || !collect(rock.ore, 3)) return false;
+    const generation =
+      s.asteroidRespawns?.[id]?.generation ??
+      (depletedAsteroids.value.has(id) ? 1 : 0);
+    (s.asteroidRespawns ??= {})[id] = {
+      generation: generation + 1,
+      readyAt: (s.activePlayTime ?? 0) + ASTEROID_RESPAWN_SECONDS,
+    };
+    if (routeId.value === id) clearRoute("Asteroide de destino minerado.");
     recordMining(s.progression, 3, s.time);
     flag("asteroid");
     progress();
@@ -693,7 +742,7 @@ export const useGame = defineStore("game", () => {
         "jump",
         "drill",
       ];
-    if (isHeatDeflector(id) || isWeaponModule(id) || isShipScanner(id))
+    if (isHeatDeflector(id) || isWeaponModule(id) || isScannerEquipment(id))
       upgrades.push(id);
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
@@ -1293,6 +1342,18 @@ export const useGame = defineStore("game", () => {
     void save();
     return true;
   }
+  function tickActiveTime(dt: number) {
+    if (
+      !started.value ||
+      paused.value ||
+      panel.value ||
+      busy.value ||
+      inSequence.value ||
+      state.value.mode === "orbit"
+    )
+      return;
+    state.value.activePlayTime = (state.value.activePlayTime ?? 0) + dt;
+  }
   function tick(dt: number) {
     if (
       !started.value ||
@@ -1397,8 +1458,9 @@ export const useGame = defineStore("game", () => {
     stationContact,
     cabinContact,
     flightCabin,
-    routeIndex,
-    routePlanet,
+    asteroids,
+    routeDestination,
+    hasAsteroidRadar,
     standInFlight,
     setRoute,
     clearRoute,
@@ -1461,5 +1523,6 @@ export const useGame = defineStore("game", () => {
     refreshFood,
     sleepInBed,
     tick,
+    tickActiveTime,
   };
 });

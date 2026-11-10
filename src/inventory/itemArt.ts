@@ -16,6 +16,13 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  asteroidRadar: {
+    body: "M3 5h18v13H3zM9 18h6v3H9z",
+    shade: "M3 14h18v4H3z",
+    light: "M5 6h14v2H5z",
+    detail: "M11 9h2v7h-2zM8 12h8v1H8zM16 9h2v2h-2zM6 14h2v2H6z",
+    accent: "#b9dc8d",
+  },
   cargoScanner: {
     body: "M3 7h18v12H3zM8 4h8v3H8z",
     shade: "M3 15h18v4H3z",

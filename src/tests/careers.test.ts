@@ -70,8 +70,9 @@ describe("carreiras galácticas", () => {
     expect(g.collect("iron")).toBe(true);
     expect(g.state.progression.extracted).toBe(10);
     g.state.mode = "space";
-    expect(g.mineAsteroid("asteroid-fixture", "iron")).toBe(true);
-    expect(g.mineAsteroid("asteroid-fixture", "iron")).toBe(false);
+    const asteroid = g.asteroids.find((rock) => rock.ore === "iron")!;
+    expect(g.mineAsteroid(asteroid.id)).toBe(true);
+    expect(g.mineAsteroid(asteroid.id)).toBe(false);
     expect(g.state.progression.extracted).toBe(13);
   });
 

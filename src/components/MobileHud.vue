@@ -179,7 +179,7 @@ function pause() {
       !g.paused &&
       !b.enabled &&
       !g.inSequence &&
-      (!(station || cabin) || transient || g.routePlanet)
+      (!(station || cabin) || transient || g.routeDestination)
     "
     class="mobile-context"
     :class="{ notification: transient }"
@@ -192,8 +192,8 @@ function pause() {
       >Chuva ácida · Procure abrigo</template
     >
     <template v-else-if="transient">{{ transient }}</template>
-    <template v-else-if="g.routePlanet"
-      >Rota ativa · {{ g.routePlanet.name }}</template
+    <template v-else-if="g.routeDestination"
+      >Rota ativa · {{ g.routeDestination.name }}</template
     >
     <template v-else-if="g.state.mode === 'space' && g.flightContact?.wreck">
       {{ g.flightContact.bearing }} Destroço · {{ g.flightContact.distance }} km

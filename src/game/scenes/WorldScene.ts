@@ -88,14 +88,6 @@ import { drawStationHull } from "../station/stationArt";
 import { StationInterior } from "../station/StationInterior";
 import { audio } from "../systems/audio";
 const ATMOSPHERE_EXIT = 3.2;
-interface Rock {
-  id: string;
-  x: number;
-  y: number;
-  r: number;
-  ore: "iron" | "copper" | "crystal" | "rawFuel" | "titanium" | "silicon";
-  hits: number;
-}
 export class WorldScene extends Phaser.Scene {
   private store!: ReturnType<typeof useGame>;
   private building!: ReturnType<typeof useConstruction>;
@@ -123,7 +115,7 @@ export class WorldScene extends Phaser.Scene {
   private lastMode: Mode | "none" = "none";
   private lastSystem = "";
   private lastPlanet = "";
-  private rocks: Rock[] = [];
+  private asteroidHits = new Map<string, number>();
   private planetLabels = new Map<string, Phaser.GameObjects.Text>();
   private combat = new SpaceCombat();
   private combatState?: Save;
@@ -379,9 +371,13 @@ export class WorldScene extends Phaser.Scene {
   }
   update(_time: number, delta: number) {
     const dt = Math.min(delta / 1000, 0.04);
+    const activeDt = document.hidden
+      ? 0
+      : Math.min(this.game.loop.rawDelta / 1000, 1);
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    if (activeDt > 0) g.tickActiveTime(activeDt);
     g.advanceBlackHole(this.game.loop.rawDelta / 1000);
     g.advancePlanetScan(this.game.loop.rawDelta / 1000);
     for (let i = 0; i < this.usedShipSprites; i++)
@@ -488,24 +484,7 @@ export class WorldScene extends Phaser.Scene {
       g.radarShips = [];
       this.contactAt = 0;
       this.lastSystem = g.system.id;
-      const r = random(hash(g.system.id + ":asteroids"));
-      this.rocks = Array.from({ length: 70 }, (_, i) => ({
-        id: `${g.system.id}:a${i}`,
-        x: 80 + r() * 6400,
-        y: -800 + r() * 2000,
-        r: 7 + r() * 13,
-        ore: (
-          [
-            "iron",
-            "copper",
-            "crystal",
-            "rawFuel",
-            "titanium",
-            "silicon",
-          ] as const
-        )[i % 6]!,
-        hits: 0,
-      }));
+      this.asteroidHits.clear();
       this.lastMode = "none";
     }
     if (
@@ -640,18 +619,20 @@ export class WorldScene extends Phaser.Scene {
     }
     this.draw(dt);
   }
-  private followRoute(dt: number, index: number) {
+  private followRoute(
+    dt: number,
+    target: { x: number; y: number; name: string; stopDistance: number },
+  ) {
     const g = this.store,
       ship = g.state.ship;
-    const target = planetPosition(index);
     const dx = target.x - ship.x,
       dy = target.y - ship.y;
     const distance = Math.hypot(dx, dy);
     const speed = Math.hypot(ship.vx, ship.vy);
-    if (distance <= 148 && speed < 5) {
+    if (distance <= target.stopDistance + 13 && speed < 5) {
       ship.vx = 0;
       ship.vy = 0;
-      g.clearRoute("Destino alcançado: " + g.routePlanet?.name + ".");
+      g.clearRoute("Destino alcançado: " + target.name + ".");
       return;
     }
     if (ship.fuel <= 0) {
@@ -663,7 +644,9 @@ export class WorldScene extends Phaser.Scene {
       (g.state.upgrades.includes("engine") ? 105 / 65 : 1);
     const cruise = Math.min(
       g.model.speed,
-      Math.sqrt(1.5 * acceleration * Math.max(0, distance - 135)),
+      Math.sqrt(
+        1.5 * acceleration * Math.max(0, distance - target.stopDistance),
+      ),
     );
     const vx = (dx / Math.max(1, distance)) * cruise;
     const vy = (dy / Math.max(1, distance)) * cruise;
@@ -691,10 +674,10 @@ export class WorldScene extends Phaser.Scene {
       : 0;
     const thrust = piloting && (this.down("W") || controls.up);
     const brake = piloting && (this.down("S") || controls.down);
-    if (g.routeIndex !== undefined && (rotate || thrust || brake)) {
+    if (g.routeDestination && (rotate || thrust || brake)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
-    if (g.routeIndex !== undefined) this.followRoute(dt, g.routeIndex);
+    if (g.routeDestination) this.followRoute(dt, g.routeDestination);
     s.angle += rotate * 2.5 * dt;
     if (thrust && s.fuel > 0) {
       const acceleration =
@@ -742,8 +725,7 @@ export class WorldScene extends Phaser.Scene {
     if (s.fuel < 3 && !thrust) {
       s.fuel = Math.min(3, s.fuel + dt * 0.15);
     }
-    for (const rock of this.rocks) {
-      if (g.state.depleted.includes(rock.id)) continue;
+    for (const rock of g.asteroids) {
       const distance = Math.hypot(rock.x - s.x, rock.y - s.y);
       if (distance < rock.r + 15 && speed > 30) {
         s.hull -=
@@ -814,12 +796,8 @@ export class WorldScene extends Phaser.Scene {
       s.energy >= 2
     ) {
       const range = g.state.upgrades.includes("laser") ? 200 : 130;
-      const rock = this.rocks
-        .filter(
-          (r) =>
-            !g.state.depleted.includes(r.id) &&
-            Math.hypot(r.x - s.x, r.y - s.y) < range,
-        )
+      const rock = g.asteroids
+        .filter((r) => Math.hypot(r.x - s.x, r.y - s.y) < range)
         .sort(
           (a, b) =>
             Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
@@ -830,8 +808,10 @@ export class WorldScene extends Phaser.Scene {
         this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
         this.burst(rock.x, rock.y, 0xd8b48b);
         audio.play(170);
-        rock.hits++;
-        if (rock.hits >= 3 && !g.mineAsteroid(rock.id, rock.ore)) rock.hits = 2;
+        const hits = (this.asteroidHits.get(rock.id) ?? 0) + 1;
+        if (hits >= 3 && g.mineAsteroid(rock.id))
+          this.asteroidHits.delete(rock.id);
+        else this.asteroidHits.set(rock.id, Math.min(2, hits));
       }
     }
   }
@@ -1467,8 +1447,8 @@ export class WorldScene extends Phaser.Scene {
         this.drawPlanetLabel(p, x, y, radius);
     });
     if (inOrbit) return;
-    if (g.routeIndex !== undefined && launch === undefined) {
-      const destination = planetPosition(g.routeIndex);
+    if (g.routeDestination && launch === undefined) {
+      const destination = g.routeDestination;
       const x = destination.x - this.camX + this.centerX;
       const y = destination.y - this.camY + this.centerY;
       const sx = s.x - this.camX + this.centerX;
@@ -1478,8 +1458,7 @@ export class WorldScene extends Phaser.Scene {
     }
     const anomaly = anomalyAt(g.system);
     if (anomaly) this.drawScienceSignal(anomaly.x, anomaly.y, 0x9ac9ee);
-    for (const rock of this.rocks) {
-      if (g.state.depleted.includes(rock.id)) continue;
+    for (const rock of g.asteroids) {
       const x = Math.floor(rock.x - this.camX + this.centerX),
         y = Math.floor(rock.y - this.camY + this.centerY);
       if (
@@ -1568,7 +1547,7 @@ export class WorldScene extends Phaser.Scene {
           ? t < 0.78
           : this.down("W") ||
               controls.up ||
-              (g.routeIndex !== undefined && g.speed > 5),
+              (g.routeDestination && g.speed > 5),
         undefined,
         this.flightShipGfx,
         1 - 0.36 * eased,
