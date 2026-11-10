@@ -1,10 +1,17 @@
 import Dexie, { type Table } from "dexie";
 import type { Save } from "../game/types";
 import { migrateSave, type StoredGame } from "./migrations";
-interface StoredSave {
+export interface CloudLink {
+  owner: string;
+  revision: string;
+  dirty: boolean;
+}
+export interface StoredSave {
   id: string;
   data: StoredGame;
   updated: number;
+  stamp?: string;
+  cloud?: CloudLink;
 }
 export class SaveDatabase extends Dexie {
   saves!: Table<StoredSave, string>;
@@ -26,14 +33,67 @@ export class SaveDatabase extends Dexie {
       );
   }
   async write(data: Save) {
-    await this.saves.put({
-      id: "commander",
-      data: structuredClone(JSON.parse(JSON.stringify(data))),
-      updated: Date.now(),
+    const snapshot = JSON.parse(JSON.stringify(data)) as Save;
+    await this.transaction("rw", this.saves, async () => {
+      const previous = await this.localSlot();
+      await this.saves.put({
+        id: "commander",
+        data: snapshot,
+        updated: Date.now(),
+        stamp: String(Math.random()),
+        ...(previous?.cloud && { cloud: { ...previous.cloud, dirty: true } }),
+      });
+    });
+  }
+  localSlot() {
+    return this.saves.get("commander");
+  }
+  async markSynced(previous: StoredSave, owner: string, revision: string) {
+    await this.transaction("rw", this.saves, async () => {
+      const current = await this.localSlot();
+      if (
+        !current ||
+        current.cloud?.owner !== previous.cloud?.owner ||
+        current.cloud?.revision !== previous.cloud?.revision
+      )
+        return;
+      const dirty =
+        current.stamp !== previous.stamp ||
+        current.updated !== previous.updated;
+      await this.saves.update("commander", {
+        cloud: { owner, revision, dirty },
+      });
+    });
+  }
+  async restoreCloud(
+    data: StoredGame,
+    owner: string,
+    revision: string,
+    previous?: StoredSave,
+  ) {
+    const snapshot = migrateSave(
+      JSON.parse(JSON.stringify(data)) as StoredGame,
+    );
+    await this.transaction("rw", this.saves, async () => {
+      const current = await this.localSlot();
+      if (
+        current?.stamp !== previous?.stamp ||
+        current?.updated !== previous?.updated
+      )
+        throw new Error(
+          "O save local mudou. Atualize a comparação e tente novamente.",
+        );
+      await this.saves.put({
+        id: "commander",
+        data: snapshot,
+        updated: Date.now(),
+        stamp: String(Math.random()),
+        cloud: { owner, revision, dirty: false },
+      });
     });
   }
   async read() {
-    const row = await this.saves.get("commander");
+    const row = await this.localSlot();
     return row ? migrateSave(row.data) : undefined;
   }
 }
