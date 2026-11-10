@@ -1,11 +1,26 @@
 import "fake-indexeddb/auto";
 import { createPinia, setActivePinia } from "pinia";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
+import { cloudSaveRevision } from "../persistence/cloudSaves";
 import { SaveDatabase } from "../persistence/database";
 import { useGame } from "../stores/game";
 
 describe("vínculo local do save na nuvem", () => {
+  it("gera uma revisão UUID válida quando randomUUID não existe em HTTP", () => {
+    const getRandomValues = crypto.getRandomValues.bind(crypto);
+    vi.stubGlobal("crypto", { getRandomValues });
+    try {
+      const revision = cloudSaveRevision();
+      expect(revision).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(cloudSaveRevision()).not.toBe(revision);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("preserva um salvamento feito enquanto a cópia anterior está sendo enviada", async () => {
     setActivePinia(createPinia());
     const save = useGame().state;
