@@ -3,6 +3,7 @@ import type { SpaceNpc } from "./traffic";
 import { systemAt } from "../universe/generator";
 
 export type ShipScanner = "cargoScanner" | "wantedScanner";
+export type ScannerEquipment = ShipScanner | "asteroidRadar";
 export const shipScanners = {
   cargoScanner: {
     name: "Scanner de carga",
@@ -18,8 +19,15 @@ export const shipScanners = {
     price: 12_000,
     cost: { circuit: 4, titanium: 3, silicon: 8, cell: 2 },
   },
+  asteroidRadar: {
+    name: "Radar de asteroides",
+    color: "#b9dc8d",
+    station: "standard",
+    price: 8_000,
+    cost: { circuit: 3, plate: 2, silicon: 6, cell: 1 },
+  },
 } satisfies Record<
-  ShipScanner,
+  ScannerEquipment,
   {
     name: string;
     color: string;
@@ -28,18 +36,24 @@ export const shipScanners = {
     cost: Inventory;
   }
 >;
-export const scannerIds = Object.keys(shipScanners) as ShipScanner[];
+export const scannerIds = Object.keys(shipScanners) as ScannerEquipment[];
 export const SHIP_SCAN_RANGE = 600;
 
 export function isShipScanner(id: Item): id is ShipScanner {
+  return id === "cargoScanner" || id === "wantedScanner";
+}
+
+export function isScannerEquipment(id: Item): id is ScannerEquipment {
   return Object.hasOwn(shipScanners, id);
 }
 
 export function canCraftScanner(state: Save, id: Item) {
-  return !isShipScanner(id) || (state.scannerBlueprints?.includes(id) ?? false);
+  return (
+    !isScannerEquipment(id) || (state.scannerBlueprints?.includes(id) ?? false)
+  );
 }
 
-export function buyScannerBlueprint(state: Save, id: ShipScanner) {
+export function buyScannerBlueprint(state: Save, id: ScannerEquipment) {
   const spec = shipScanners[id];
   const station = systemAt(state.seed, state.systemX, state.systemY).station;
   if (state.mode !== "docked" || station?.kind !== spec.station)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { canCraftScanner, isShipScanner } from "../combat/shipScanners";
+import { canCraftScanner, isScannerEquipment } from "../combat/shipScanners";
 import {
   canCraftWeapon,
   isWeaponModule,
@@ -28,8 +28,8 @@ const tab = ref("all"),
           ? isWeaponModule(r.id)
           : !isWeaponModule(r.id) &&
             (tab.value === "upgrades"
-              ? r.unlock > 0 || isShipScanner(r.id)
-              : r.unlock === 0 && !isShipScanner(r.id))),
+              ? r.unlock > 0 || isScannerEquipment(r.id)
+              : r.unlock === 0 && !isScannerEquipment(r.id))),
     ),
   );
 function affordable(cost: Partial<Record<Item, number>>) {

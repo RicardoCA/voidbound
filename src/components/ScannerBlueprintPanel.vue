@@ -3,12 +3,12 @@ import { useGame } from "../stores/game";
 import {
   buyScannerBlueprint,
   shipScanners,
-  type ShipScanner,
+  type ScannerEquipment,
 } from "../combat/shipScanners";
 import ItemIcon from "./ItemIcon.vue";
 
 const g = useGame();
-const props = defineProps<{ scanner: ShipScanner }>();
+const props = defineProps<{ scanner: ScannerEquipment }>();
 async function buy() {
   if (
     await g.stationTransaction((draft) =>

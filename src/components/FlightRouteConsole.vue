@@ -1,14 +1,29 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import CockpitFrame from "./CockpitFrame.vue";
 import { useGame } from "../stores/game";
 import { planetPosition } from "../universe/generator";
+
 const g = useGame();
-function distance(index: number) {
-  const target = planetPosition(index);
-  return Math.round(
-    Math.hypot(target.x - g.state.ship.x, target.y - g.state.ship.y),
-  );
-}
+const selected = ref("");
+const options = computed(() => {
+  const ship = g.state.ship;
+  const distance = (point: { x: number; y: number }) =>
+    Math.round(Math.hypot(point.x - ship.x, point.y - ship.y));
+  const planets = g.system.planets.map((planet, index) => ({
+    id: planet.id,
+    label: planet.name,
+    distance: distance(planetPosition(index)),
+  }));
+  const asteroids = (g.hasAsteroidRadar ? g.asteroids : [])
+    .map((rock) => ({
+      id: rock.id,
+      label: rock.name,
+      distance: distance(rock),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+  return { planets, asteroids };
+});
 </script>
 
 <template>
@@ -27,21 +42,47 @@ function distance(index: number) {
       </button>
     </div>
     <p>
-      Selecione um planeta deste sistema. O piloto automático aproxima a nave do
-      destino.
+      Escolha um destino deste sistema para aproximar a nave no piloto
+      automático.
     </p>
-    <div class="flight-route-list">
-      <button
-        v-for="(planet, index) in g.system.planets"
-        :key="planet.id"
-        class="secondary"
-        @click="g.setRoute(index)"
-      >
-        {{ planet.name }} · {{ distance(index).toLocaleString("pt-BR") }} km
+    <form
+      class="station-form route-target"
+      @submit.prevent="g.setRoute(selected)"
+    >
+      <label for="route-destination">Destino</label>
+      <select id="route-destination" v-model="selected" required>
+        <option value="" disabled>Selecione um destino</option>
+        <optgroup label="Planetas">
+          <option
+            v-for="planet in options.planets"
+            :key="planet.id"
+            :value="planet.id"
+          >
+            {{ planet.label }} ·
+            {{ planet.distance.toLocaleString("pt-BR") }} km
+          </option>
+        </optgroup>
+        <optgroup v-if="options.asteroids.length" label="Asteroides">
+          <option
+            v-for="asteroid in options.asteroids"
+            :key="asteroid.id"
+            :value="asteroid.id"
+          >
+            {{ asteroid.label }} ·
+            {{ asteroid.distance.toLocaleString("pt-BR") }} km
+          </option>
+        </optgroup>
+      </select>
+      <p v-if="g.hasAsteroidRadar && !options.asteroids.length">
+        Todos os asteroides deste sistema foram minerados. Novos alvos
+        aparecerão após o tempo de reposição.
+      </p>
+      <button class="primary" :disabled="!selected">
+        Ativar piloto automático
       </button>
-    </div>
+    </form>
     <button
-      v-if="g.routePlanet"
+      v-if="g.routeDestination"
       class="secondary"
       @click="
         g.clearRoute('Rota cancelada.');
@@ -75,10 +116,23 @@ function distance(index: number) {
 .flight-route-console h2 {
   margin: 5px 0;
 }
-.flight-route-list {
+.route-target {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
-  gap: 6px;
+  gap: 8px;
   margin: 10px 0;
+}
+.route-target select {
+  width: 100%;
+  min-width: 0;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .dialog.flight-route-console {
+    max-height: min(82%, 460px);
+    width: 100%;
+  }
+  .route-target select {
+    font-size: 16px;
+    min-height: 44px;
+  }
 }
 </style>

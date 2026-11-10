@@ -326,7 +326,9 @@ function minutes() {
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
           </p>
-          <p v-if="g.routePlanet">Rota ativa · {{ g.routePlanet.name }}</p>
+          <p v-if="g.routeDestination">
+            Rota ativa · {{ g.routeDestination.name }}
+          </p>
           <p v-if="inShip">
             O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
             {{ Math.ceil(g.state.player.oxygen) }}%

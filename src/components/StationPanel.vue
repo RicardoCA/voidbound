@@ -82,6 +82,10 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
         :clandestine="section === 'pirate-clothing'"
       />
       <div v-else-if="section === 'workshop'" class="station-form">
+        <ScannerBlueprintPanel
+          v-if="g.system.station?.kind === 'standard'"
+          scanner="asteroidRadar"
+        />
         <p>
           Casco: {{ Math.floor(g.state.ship.hull) }}/{{ g.model.hull }}. Reparo
           a 3 CR por ponto.

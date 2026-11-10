@@ -1,10 +1,11 @@
+import type { AsteroidRespawn } from "../universe/asteroids";
 import {
   weaponModules,
   type ShipWeapon,
   type RestrictedWeapon,
   type WeaponModule,
 } from "../combat/weapons";
-import { shipScanners, type ShipScanner } from "../combat/shipScanners";
+import { shipScanners, type ScannerEquipment } from "../combat/shipScanners";
 import type { BlackHole } from "../universe/blackHoles";
 import {
   deflectorFor,
@@ -17,7 +18,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
-  | ShipScanner
+  | ScannerEquipment
   | WeaponModule
   | HeatDeflector
   | "stone"
@@ -189,7 +190,7 @@ export interface Save {
   credits: number;
   wardrobe?: Wardrobe;
   weaponBlueprints?: RestrictedWeapon[];
-  scannerBlueprints?: ShipScanner[];
+  scannerBlueprints?: ScannerEquipment[];
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
   nextShipId: number;
@@ -215,6 +216,8 @@ export interface Save {
   upgrades: Item[];
   changes: Record<string, Record<string, number>>;
   depleted: string[];
+  asteroidRespawns?: Record<string, AsteroidRespawn>;
+  activePlayTime?: number;
   visited: string[];
   mission: number;
   flags: string[];
@@ -229,6 +232,12 @@ type ItemDetails = {
   stack: number;
 };
 export const items: Record<Item, ItemDetails> = {
+  asteroidRadar: {
+    ...shipScanners.asteroidRadar,
+    icon: "⌖",
+    rarity: "Melhoria",
+    stack: 1,
+  },
   cargoScanner: {
     ...shipScanners.cargoScanner,
     icon: "▣",
