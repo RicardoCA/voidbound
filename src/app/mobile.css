@@ -377,14 +377,59 @@
     max-height: none;
     overflow: visible;
   }
+  .is-playing .map-toolbar {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-bottom: 10px;
+  }
   .is-playing .map-toolbar button {
     min-width: 44px;
     margin-left: 0;
-    padding: 4px 8px;
+    padding: 4px;
   }
   .is-playing .map-toolbar > div {
     display: flex;
     gap: 2px;
+  }
+  .is-playing .galaxy-map {
+    height: auto;
+    aspect-ratio: 7 / 6;
+  }
+  .is-playing .galaxy-map .star-node {
+    width: calc(100% / 7 - 2px);
+    height: calc(100% / 7 - 2px);
+    min-height: 0;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 1px;
+    touch-action: pan-y;
+  }
+  .is-playing .galaxy-map .star-node.chosen {
+    outline-offset: -1px;
+  }
+  .is-playing .galaxy-map .map-star-symbols > span {
+    font-size: 11px;
+  }
+  .is-playing .galaxy-map .star-node small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 7px;
+  }
+  .is-playing .galaxy-map .map-base-badge,
+  .is-playing .galaxy-map .map-wanted-badge {
+    top: 0;
+    min-width: 0;
+    padding: 0 1px;
+    font-size: 8px;
+    line-height: 9px;
+  }
+  .is-playing .map-base-legend {
+    gap: 5px 10px;
+  }
+  .is-playing .map-selection {
+    flex-direction: column;
+    align-items: stretch;
   }
   .is-playing .tabs button {
     font-size: 11px;
@@ -522,7 +567,8 @@
     margin-bottom: 12px;
   }
   .is-playing .galaxy-map {
-    height: 190px;
+    height: clamp(200px, 54dvh, 280px);
+    aspect-ratio: auto;
   }
 }
 @media (max-width: 360px) {
@@ -561,6 +607,8 @@
   width: auto;
   min-width: 50px;
   padding: 0 5px;
-  font: 600 10px system-ui, sans-serif;
+  font:
+    600 10px system-ui,
+    sans-serif;
   white-space: nowrap;
 }
