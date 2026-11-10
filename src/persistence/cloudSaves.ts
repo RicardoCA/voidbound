@@ -33,12 +33,29 @@ export async function readCloudSave(owner: string): Promise<RemoteSave | null> {
   return data;
 }
 
+// getRandomValues is also available when the game is opened over HTTP.
+export function cloudSaveRevision() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
 async function upload(
   owner: string,
   local: StoredSave,
   expected: string | null,
 ) {
-  const revision = crypto.randomUUID();
+  const revision = cloudSaveRevision();
   const table = supabase!.from("voidbound_saves");
   const changes = { data: local.data, revision };
   if (cloudSession.value?.user.id !== owner) return false;
