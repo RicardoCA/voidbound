@@ -19,7 +19,7 @@ import {
 import { isHeatDeflector, stellarExposure } from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
-import type { FlightContact } from "../combat/traffic";
+import type { FlightContact, SpaceNpc } from "../combat/traffic";
 import {
   anomalyAt,
   cataloguePlanet,
@@ -204,6 +204,12 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     shipScanContacts = ref<ScannerContact[]>([]),
+    radarShips = ref<
+      Pick<
+        SpaceNpc,
+        "id" | "name" | "x" | "y" | "role" | "engaged" | "bountyTarget"
+      >[]
+    >([]),
     stationContact = ref<string>(),
     cabinContact = ref<CabinEquipment>(),
     trading = ref(false);
@@ -1379,6 +1385,7 @@ export const useGame = defineStore("game", () => {
     speed,
     flightContact,
     shipScanContacts,
+    radarShips,
     activeWeapon,
     canSwitchWeapon,
     switchWeapon,

@@ -725,6 +725,11 @@ function minutes() {
               >· <span class="radar-station-label">▣ Estação</span></template
             >
           </p>
+          <p v-if="g.state.mode === 'space'">
+            <span style="color: #8deaf2">▪ Naves</span> ·
+            <span style="color: #f4c478">▪ Mineradoras</span> ·
+            <span style="color: #ff8a83">▪ Piratas ou naves em combate</span>
+          </p>
           <p v-if="g.system.station" class="radar-station-label">
             {{ g.stationBearing }} {{ g.system.station.name }} ·
             {{ Math.round(g.stationDistance) }} km

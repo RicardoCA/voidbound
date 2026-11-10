@@ -1,3 +1,4 @@
+import { PLANET_DAY } from "../construction/habitat";
 import { jurisdiction } from "./law";
 import type { Inventory, Save, ShipModelId, StarSystem } from "../game/types";
 import { hash } from "../game/procedural/random";
@@ -7,13 +8,7 @@ import { awardCareerXP, careerLevel } from "../progression/careers";
 import { systemAt } from "../universe/generator";
 
 export type TrafficRole =
-  | "freighter"
-  | "miner"
-  | "escort"
-  | "pirate"
-  | "police"
-  | "bounty"
-  | "elite";
+  "freighter" | "miner" | "escort" | "pirate" | "police" | "bounty" | "elite";
 export interface Point {
   x: number;
   y: number;
@@ -26,6 +21,8 @@ export interface SpaceNpc extends Point {
   assaultReported?: boolean;
   wantedLevel?: number;
   bountyTarget?: true;
+  trafficSlot?: string;
+  trafficGeneration?: number;
   model: ShipModelId;
   angle: number;
   vx: number;
@@ -56,8 +53,11 @@ export interface Wreck extends Point {
   recovered: boolean;
 }
 
+export const TRAFFIC_RESPAWN_DELAY = PLANET_DAY / 24;
+
 export interface Piracy {
   wrecks: Record<string, Wreck>;
+  replacements?: Record<string, { generation: number; arrivesAt: number }>;
   recovered: number;
   sold: number;
 }
@@ -95,7 +95,40 @@ export function sellContraband(state: Save, amount: number) {
   );
 }
 
-export function trafficFor(system: StarSystem, piracy: Piracy): SpaceNpc[] {
+function trafficIdentity(
+  system: StarSystem,
+  piracy: Piracy,
+  role: TrafficRole,
+  time: number,
+) {
+  const trafficSlot = `${system.id}:traffic:${role}`;
+  const replacement = piracy.replacements?.[trafficSlot];
+  if (replacement && time < replacement.arrivesAt) return;
+  const trafficGeneration =
+    replacement?.generation ?? (piracy.wrecks[trafficSlot] ? 1 : 0);
+  const id = trafficGeneration
+    ? `${trafficSlot}:${trafficGeneration}`
+    : trafficSlot;
+  return { id, trafficSlot, trafficGeneration };
+}
+
+function trafficHome(
+  home: Point,
+  identity: { id: string; trafficGeneration: number },
+) {
+  if (!identity.trafficGeneration) return home;
+  const seed = hash(identity.id);
+  return {
+    x: home.x + (seed % 451) - 225,
+    y: home.y + (Math.floor(seed / 451) % 481) - 240,
+  };
+}
+
+export function trafficFor(
+  system: StarSystem,
+  piracy: Piracy,
+  time = 0,
+): SpaceNpc[] {
   const seed = hash(`${system.id}:traffic`);
   const roles: {
     role: TrafficRole;
@@ -150,17 +183,18 @@ export function trafficFor(system: StarSystem, piracy: Piracy): SpaceNpc[] {
   ];
   return roles.flatMap(({ hull, ...entry }) => {
     if (entry.role === "pirate" && !hasBlackMarket(system)) return [];
-    const id = `${system.id}:traffic:${entry.role}`;
-    if (piracy.wrecks[id]) return [];
-    const x = entry.x + (seed % 50),
-      y = entry.y;
+    const identity = trafficIdentity(system, piracy, entry.role, time);
+    if (!identity) return [];
+    const home = trafficHome(
+      { x: entry.x + (seed % 50), y: entry.y },
+      identity,
+    );
     return [
       {
         ...entry,
-        id,
-        x,
-        y,
-        home: { x, y },
+        ...identity,
+        ...home,
+        home,
         hull,
         maxHull: hull,
         vx: 0,
@@ -170,7 +204,7 @@ export function trafficFor(system: StarSystem, piracy: Piracy): SpaceNpc[] {
           entry.role === "pirate" || entry.role === "miner"
             ? "Independentes"
             : "Consórcio de Trânsito",
-        wantedLevel: entry.role === "pirate" ? 1 + (hash(id) % 5) : 0,
+        wantedLevel: entry.role === "pirate" ? 1 + (hash(identity.id) % 5) : 0,
         engaged: false,
         fireAt: 0,
       },
@@ -182,10 +216,12 @@ export function enforcementNpc(
   system: StarSystem,
   piracy: Piracy,
   role: "police" | "bounty" | "elite",
-  home: Point,
+  anchor: Point,
+  time = 0,
 ): SpaceNpc | undefined {
-  const id = `${system.id}:traffic:${role}`;
-  if (piracy.wrecks[id]) return;
+  const identity = trafficIdentity(system, piracy, role, time);
+  if (!identity) return;
+  const home = trafficHome(anchor, identity);
   const profile = {
     police: { name: "Patrulha policial", model: "viper", hull: 72, shield: 25 },
     bounty: {
@@ -203,7 +239,7 @@ export function enforcementNpc(
   } as const;
   return {
     ...profile[role],
-    id,
+    ...identity,
     role,
     ...home,
     home,
@@ -263,6 +299,12 @@ export function damageNpcHull(
     recovered: false,
   };
   piracy.wrecks[npc.id] = wreck;
+  if (npc.trafficSlot) {
+    (piracy.replacements ??= {})[npc.trafficSlot] = {
+      generation: (npc.trafficGeneration ?? 0) + 1,
+      arrivesAt: state.time + TRAFFIC_RESPAWN_DELAY,
+    };
+  }
   return wreck;
 }
 

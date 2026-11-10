@@ -485,6 +485,7 @@ export class WorldScene extends Phaser.Scene {
       this.combat.reset(s, g.system);
       g.flightContact = undefined;
       g.shipScanContacts = [];
+      g.radarShips = [];
       this.contactAt = 0;
       this.lastSystem = g.system.id;
       const r = random(hash(g.system.id + ":asteroids"));
@@ -865,6 +866,17 @@ export class WorldScene extends Phaser.Scene {
   private updateFlightContact() {
     const g = this.store;
     const ship = g.state.ship;
+    g.radarShips = this.combat.npcs
+      .filter((npc) => npc.hull > 0)
+      .map(({ id, name, x, y, role, engaged, bountyTarget }) => ({
+        id,
+        name,
+        x,
+        y,
+        role,
+        engaged,
+        bountyTarget,
+      }));
     g.shipScanContacts = g.state.upgrades.some(isShipScanner)
       ? scannerContacts(ship, this.combat.npcs)
       : [];
