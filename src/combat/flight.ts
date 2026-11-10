@@ -48,12 +48,14 @@ export class SpaceCombat {
   npcs: SpaceNpc[] = [];
   bolts: Bolt[] = [];
   private nextShot = 0;
+  private nextTrafficCheck = 0;
   private recoilUntil = new Map<string, number>();
 
   reset(state: Save, system: StarSystem) {
-    this.npcs = trafficFor(system, state.progression.piracy);
+    this.npcs = trafficFor(system, state.progression.piracy, state.time);
     this.bolts = [];
     this.nextShot = 0;
+    this.nextTrafficCheck = 0;
     this.recoilUntil.clear();
   }
 
@@ -85,7 +87,7 @@ export class SpaceCombat {
     for (const reinforcement of reinforcements) {
       if (
         !reinforcement.enabled ||
-        this.npcs.some((npc) => npc.role === reinforcement.role)
+        this.npcs.some((npc) => npc.role === reinforcement.role && npc.hull > 0)
       )
         continue;
       const npc = enforcementNpc(
@@ -93,9 +95,19 @@ export class SpaceCombat {
         state.progression.piracy,
         reinforcement.role,
         reinforcement.home,
+        state.time,
       );
       if (npc) this.npcs.push(npc);
     }
+  }
+
+  private updateTraffic(state: Save, system: StarSystem) {
+    if (state.time < this.nextTrafficCheck) return;
+    this.nextTrafficCheck = state.time + 0.25;
+    this.npcs = this.npcs.filter((npc) => npc.hull > 0);
+    for (const npc of trafficFor(system, state.progression.piracy, state.time))
+      if (!this.npcs.some((current) => current.id === npc.id))
+        this.npcs.push(npc);
   }
 
   target(ship: Point, range: number) {
@@ -225,6 +237,7 @@ export class SpaceCombat {
   update(state: Save, system: StarSystem, dt: number) {
     const ship = state.ship;
     const { level, security } = wantedStatus(state, system);
+    this.updateTraffic(state, system);
     this.updateEnforcement(state, system, level, security);
     this.updateBountyTargets(state, system);
     let crimeReported = false;

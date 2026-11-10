@@ -62,6 +62,28 @@ function position(target: { x: number; y: number }) {
     >
       <title>{{ g.system.station.name }}</title>
     </rect>
+    <template v-if="g.state.mode === 'space'">
+      <rect
+        v-for="npc in g.radarShips"
+        :key="npc.id"
+        :x="position(npc).x - 2"
+        :y="position(npc).y - 2"
+        width="4"
+        height="4"
+        rx="1"
+        :style="{
+          fill:
+            npc.role === 'pirate' || npc.engaged
+              ? '#ff8a83'
+              : npc.role === 'miner'
+                ? '#f4c478'
+                : '#8deaf2',
+          stroke: 'none',
+        }"
+      >
+        <title>{{ npc.name }}</title>
+      </rect>
+    </template>
     <path d="M45 40L48 49L45 47L42 49Z" class="radar-ship" />
   </svg>
 </template>

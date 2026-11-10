@@ -2,7 +2,13 @@ import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { SpaceCombat } from "../combat/flight";
-import { hitNpc, salvage, sellContraband, trafficFor } from "../combat/traffic";
+import {
+  hitNpc,
+  salvage,
+  sellContraband,
+  trafficFor,
+  TRAFFIC_RESPAWN_DELAY,
+} from "../combat/traffic";
 import {
   contractOffers,
   acceptContract,
@@ -81,6 +87,32 @@ describe("pirataria espacial", () => {
     });
     expect(s.progression.piracy.wrecks[npc.id]).toBeDefined();
     expect(s.ship.hull).toBe(0);
+  });
+
+  it("repõe o tráfego após uma hora do relógio planetário sem remover os destroços", () => {
+    setActivePinia(createPinia());
+    const g = useGame();
+    const s = g.state;
+    const combat = new SpaceCombat();
+    s.time = 100;
+    combat.reset(s, g.system);
+    const originals = [...combat.npcs];
+    for (const npc of originals) hitNpc(s, g.system, npc, 500);
+    s.time += TRAFFIC_RESPAWN_DELAY - 0.5;
+    combat.update(s, g.system, 0);
+    expect(combat.npcs.some((npc) => npc.role === "miner")).toBe(false);
+    s.time += 0.5;
+    combat.update(s, g.system, 0);
+    const renewed = trafficFor(g.system, s.progression.piracy, s.time);
+    for (const previous of originals) {
+      const next = renewed.find((npc) => npc.role === previous.role)!;
+      expect(next.id).not.toBe(previous.id);
+      expect(next.home).not.toEqual(previous.home);
+      expect(combat.npcs.some((npc) => npc.id === next.id)).toBe(true);
+      expect(s.progression.piracy.wrecks[previous.id]).toBeDefined();
+    }
+    const oldSave = { ...s.progression.piracy, replacements: undefined };
+    expect(trafficFor(g.system, oldSave, s.time)).toEqual(renewed);
   });
 
   it("exige proximidade, espaço e frenagem para saquear e não duplica após reload", async () => {
