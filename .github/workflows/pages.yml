@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - name: Configure Pages
         id: pages
@@ -38,6 +38,8 @@ jobs:
       - name: Build for the configured Pages URL
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build -- --base="${BASE_PATH}/"
       - name: Upload built game
         uses: actions/upload-pages-artifact@v4

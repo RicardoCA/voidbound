@@ -36,6 +36,7 @@ import { biomes, items } from "../game/types";
 import { systemAt, planetPosition } from "../universe/generator";
 import { add, consume, slots } from "../inventory/inventory";
 import { craft, recipes } from "../crafting/recipes";
+import { queueCloudSave } from "../persistence/cloudSaves";
 import { database } from "../persistence/database";
 import { audio } from "../game/systems/audio";
 import { HabitatSystem } from "../game/systems/habitat";
@@ -368,6 +369,7 @@ export const useGame = defineStore("game", () => {
   function recordSave() {
     hasSave.value = true;
     saveRevision.value++;
+    queueCloudSave();
     saveStatus.value = `Salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   }
   async function save(manual = false) {

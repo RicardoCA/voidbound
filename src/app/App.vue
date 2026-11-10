@@ -18,6 +18,8 @@ import StoragePanel from "../components/StoragePanel.vue";
 import { useConstruction } from "../stores/construction";
 import { isShipScanner } from "../combat/shipScanners";
 import ShipScannerPanel from "../components/ShipScannerPanel.vue";
+import CloudSavePanel from "../components/CloudSavePanel.vue";
+import { supabase, cloudStatus } from "../persistence/cloudSaves";
 import InventoryPanel from "../components/InventoryPanel.vue";
 import CraftingPanel from "../components/CraftingPanel.vue";
 import GalaxyMap from "../components/GalaxyMap.vue";
@@ -34,6 +36,7 @@ const g = useGame(),
   sound = ref(audio.enabled),
   volume = ref(Math.round(audio.volume * 100)),
   showOptions = ref(false),
+  showCloud = ref(false),
   confirmNew = ref(false);
 watch([sound, volume], ([enabled, percent]) => {
   audio.enabled = enabled;
@@ -232,7 +235,7 @@ function minutes() {
         "
       />
       <template v-if="!g.started">
-        <div class="start-menu">
+        <div class="start-menu" :inert="showCloud">
           <div class="eyebrow">
             <span class="little-line" /> UM UNIVERSO. INFINITAS FRONTEIRAS.
           </div>
@@ -257,6 +260,14 @@ function minutes() {
               @click="confirmNew = false"
             >
               Cancelar substituição do salvamento
+            </button>
+            <button
+              v-if="supabase"
+              class="secondary large"
+              aria-haspopup="dialog"
+              @click="showCloud = true"
+            >
+              SALVAMENTO NA NUVEM <span aria-hidden="true">→</span>
             </button>
           </div>
           <label class="seed-input"
@@ -590,6 +601,9 @@ function minutes() {
           <div class="radar"><LocalRadar /><span>RADAR LOCAL</span></div>
         </div>
       </template>
+      <div v-if="!g.started && showCloud" class="overlay">
+        <CloudSavePanel @close="showCloud = false" />
+      </div>
       <div
         v-if="
           g.started &&
@@ -643,6 +657,7 @@ function minutes() {
           <div class="eyebrow">TRANSMISSÃO EM ESPERA</div>
           <h2>Uma pausa entre estrelas.</h2>
           <p>A simulação está pausada.</p>
+          <p v-if="cloudStatus">{{ cloudStatus }}</p>
           <button class="primary" @click="unpause">RETOMAR EXPEDIÇÃO →</button
           ><button class="secondary" @click="saveManually">
             SALVAR PARTIDA</button

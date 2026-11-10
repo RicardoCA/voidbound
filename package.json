@@ -19,6 +19,7 @@
     "test:economy": "node scripts/economy-smoke.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "dexie": "^4.0.0",
     "phaser": "^3.90.0",
     "pinia": "^3.0.0",

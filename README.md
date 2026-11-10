@@ -176,3 +176,12 @@ Com Vite em execução, `npm run test:habitat` parte de uma casa e ingredientes 
 ### Regressão do pulo no desktop
 
 Com Vite em execução, `npm run test:jump` pilota, pousa e verifica Espaço normal/rápido, pulos consecutivos, foco em botão do HUD e pulo após carregar o save. O bloqueio da rolagem é aplicado depois da leitura do Phaser; pulsos de pulo preservam toques rápidos entre frames.
+
+## Salvamento na nuvem com Supabase
+
+1. Crie um projeto Supabase e execute [a migração de saves](supabase/migrations/20261110000000_cloud_saves.sql) no SQL Editor.
+2. Em Authentication, habilite o provedor Email e configure a URL de produção do jogo. Em Redirect URLs, permita o endereço local que você usa para testar, como `http://localhost:4173/`.
+3. Copie `.env.example` para `.env.local` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` com os valores do painel Connect. Use a chave pública publishable.
+4. Para GitHub Pages, crie as duas variáveis com esses mesmos nomes em Settings → Secrets and variables → Actions → Variables. Elas serão incorporadas ao build.
+
+Abra **Salvamento na nuvem** no menu inicial, crie uma conta e envie seu save local. No outro dispositivo, entre na mesma conta e escolha **Usar save da nuvem** antes de continuar a expedição. Depois de vinculada, a cópia local é enviada ao salvar. Se outro dispositivo tiver atualizado a nuvem, volte ao menu inicial para comparar e escolher a cópia desejada. O jogo mantém o save local durante indisponibilidade da rede.
