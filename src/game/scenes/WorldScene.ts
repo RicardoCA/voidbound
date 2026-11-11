@@ -1,3 +1,4 @@
+import { representativePosition } from "../../diplomacy/representative";
 import { isShipScanner, scannerContacts } from "../../combat/shipScanners";
 import { starClasses } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
@@ -923,8 +924,11 @@ export class WorldScene extends Phaser.Scene {
   }
   private representativePosition() {
     if (!this.store.civilization || !this.terrain) return;
-    const column = this.store.state.landingX + 6;
-    return { x: column * 16 + 8, y: this.terrain.height(column) * 16 - 13 };
+    return representativePosition(
+      this.terrain,
+      this.building.settlement,
+      this.store.state.landingX,
+    );
   }
   private talkToRepresentative(tap?: { wx: number; wy: number }) {
     const target = this.representativePosition();
