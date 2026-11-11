@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import Phaser from "phaser";
+import StationPanel from "./StationPanel.vue";
+import { stationServicesFor } from "../game/station/services";
 import PlanetGovernmentPanel from "./PlanetGovernmentPanel.vue";
 import { useGame } from "../stores/game";
 const g = useGame();
+const stationNpc = computed(() =>
+  g.state.mode === "docked"
+    ? stationServicesFor(g.system.station?.kind === "clandestine").find(
+        (npc) => g.panel === "station:" + npc.id,
+      )
+    : undefined,
+);
 import { WorldScene } from "../game/scenes/WorldScene";
 import { MOBILE_LAYOUT, logicalViewport } from "../game/rendering/viewport";
 const props = defineProps<{ playing: boolean }>();
@@ -56,6 +65,11 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <div ref="host" class="game-canvas" aria-label="Universo de Voidbound">
+    <StationPanel
+      v-if="stationNpc && !g.paused && !g.busy"
+      :key="stationNpc.id"
+      :npc="stationNpc"
+    />
     <PlanetGovernmentPanel
       v-if="
         g.panel === 'government' &&

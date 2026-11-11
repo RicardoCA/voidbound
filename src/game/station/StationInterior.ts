@@ -95,6 +95,7 @@ export class StationInterior {
     f: Phaser.GameObjects.Graphics,
     clandestine: boolean,
     drawAstronaut: (x: number, y: number, walk: number, facing: number) => void,
+    conversation = "",
   ) {
     const { width, height } = scene.scale;
     const extent = Math.hypot(radiusX, radiusY * skew) + 12;
@@ -266,5 +267,9 @@ export class StationInterior {
         .setColor(nearest === npc ? "#a1f2db" : "#d5e5eb");
     }
     if (!drawnPlayer) drawPlayer();
+    const target = order.find(
+      ({ npc }) => conversation === "station:" + npc.id,
+    );
+    if (target) return project(target.x, target.y - 16, 39);
   }
 }
