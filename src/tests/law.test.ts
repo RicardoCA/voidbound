@@ -114,7 +114,7 @@ describe("tráfego e autoridades espaciais", () => {
       s.time += 0.016;
       flight.update(s, system, 0.016);
     }
-    expect(flight.npcs.some((npc) => npc.role === "elite")).toBe(true);
+    expect(flight.npcs.filter((npc) => npc.role === "elite")).toHaveLength(4);
     expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
     expect(flight.policeContact).toBeUndefined();
     const patrol = flight.npcs.find((npc) => npc.role === "police")!;

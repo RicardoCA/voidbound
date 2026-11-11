@@ -150,6 +150,7 @@ export class SpaceCombat {
   }
 
   private updateEnforcement(state: Save, system: StarSystem, level: number) {
+    if (level < 5) this.npcs = this.npcs.filter((npc) => npc.role !== "elite");
     const reinforcements = [
       {
         role: "police",
@@ -171,6 +172,24 @@ export class SpaceCombat {
         role: "elite",
         enabled: level >= 5,
         home: { x: -610, y: 470 },
+      },
+      {
+        role: "elite",
+        enabled: level >= 5,
+        index: 1,
+        home: { x: 1040, y: -450 },
+      },
+      {
+        role: "elite",
+        enabled: level >= 5,
+        index: 2,
+        home: { x: 620, y: 820 },
+      },
+      {
+        role: "elite",
+        enabled: level >= 5,
+        index: 3,
+        home: { x: -1050, y: -780 },
       },
     ] as const;
     for (const reinforcement of reinforcements) {
