@@ -4,9 +4,7 @@ import { weatherLabels } from "../game/procedural/weather";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
-import StationPanel from "../components/StationPanel.vue";
 import { cabinEquipment } from "../game/cabin/CabinInterior";
-import { stationServicesFor } from "../game/station/services";
 import JumpSequence from "../components/JumpSequence.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
@@ -78,13 +76,6 @@ watch(
       }, 3000);
     }
   },
-);
-const stationNpc = computed(() =>
-  atStation.value
-    ? stationServicesFor(g.system.station?.kind === "clandestine").find(
-        (npc) => g.panel === "station:" + npc.id,
-      )
-    : undefined,
 );
 const localTime = computed(() => planetClock(g.state.time));
 const nav = computed(() => [
@@ -615,7 +606,9 @@ function minutes() {
           !g.busy &&
           (g.paused ||
             (!g.inSequence &&
-              ((g.panel && g.panel !== 'government') ||
+              ((g.panel &&
+                g.panel !== 'government' &&
+                !g.panel.startsWith('station:')) ||
                 g.state.mode === 'orbit')))
         "
         class="overlay"
@@ -687,11 +680,6 @@ function minutes() {
             minerar · E embarcar · B construir<br />I carga · Esc pausa
           </div>
         </section>
-        <StationPanel
-          v-else-if="stationNpc"
-          :key="stationNpc.id"
-          :npc="stationNpc"
-        />
         <section
           v-else-if="g.panel === 'mission'"
           class="dialog mission-dialog"

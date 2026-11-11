@@ -421,9 +421,37 @@ export class WorldScene extends Phaser.Scene {
       }
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
-      this.station.draw(this, this.gfx, clandestine, (x, y, step, facing) =>
-        this.drawAstronaut(x, y, step, facing),
+      const dialoguePosition = this.station.draw(
+        this,
+        this.gfx,
+        clandestine,
+        (x, y, step, facing) => this.drawAstronaut(x, y, step, facing),
+        g.panel,
       );
+      if (dialoguePosition) {
+        const canvas = this.game.canvas;
+        const host = canvas.parentElement!;
+        const anchor = {
+          x: Math.round(
+            canvas.offsetLeft +
+              (dialoguePosition.x / this.viewWidth) * canvas.clientWidth,
+          ),
+          y: Math.round(
+            canvas.offsetTop +
+              (dialoguePosition.y / this.viewHeight) * canvas.clientHeight,
+          ),
+          width: host.clientWidth,
+          height: host.clientHeight,
+        };
+        const previous = g.stationDialogueAnchor;
+        if (
+          anchor.x !== previous.x ||
+          anchor.y !== previous.y ||
+          anchor.width !== previous.width ||
+          anchor.height !== previous.height
+        )
+          g.stationDialogueAnchor = anchor;
+      }
       return;
     }
     if (this.wasAtStation) {
