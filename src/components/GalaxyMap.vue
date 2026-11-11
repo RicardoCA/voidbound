@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { starClasses, starKinds, starSystemLabel } from "../universe/stars";
 import { nearby, systemAt } from "../universe/generator";
 import { jumpFuel, plotJumpRoute, type JumpPoint } from "../universe/jumpRoute";
+import { explorationLevel, systemCatalogue } from "../progression/exploration";
 import CriminalRecord from "./CriminalRecord.vue";
 import { wantedBySystem } from "../combat/law";
 import { hasBlackMarket } from "../combat/traffic";
@@ -56,6 +57,9 @@ const mapX = ref(0),
         )
       : 0,
   );
+const catalogue = computed(() =>
+  destination.value ? systemCatalogue(g.state, destination.value) : undefined,
+);
 const origin = computed(() => ({ x: g.state.systemX, y: g.state.systemY }));
 const route = computed(() =>
   g.state.jumpDestination
@@ -369,6 +373,40 @@ function stationType(system: StarSystem) {
             {{ destination.id === g.system.id ? "Sistema atual · " : ""
             }}{{ stationType(destination) }}
           </p>
+          <div v-if="destination && catalogue" class="map-catalogue">
+            <strong v-if="catalogue.done === catalogue.total"
+              >✓ Sistema totalmente catalogado</strong
+            >
+            <strong v-else
+              >Catalogação · {{ catalogue.done }}/{{ catalogue.total }}</strong
+            >
+            <p>
+              Planetas {{ catalogue.planetsDone }}/{{
+                destination.planets.length
+              }}
+              <template v-if="catalogue.ruinsTotal">
+                · Ruínas {{ catalogue.ruinsDone }}/{{
+                  catalogue.ruinsTotal
+                }}</template
+              >
+              <template v-if="catalogue.anomaly">
+                · Anomalia
+                {{
+                  catalogue.anomalyDone ? "catalogada" : "pendente"
+                }}</template
+              >
+            </p>
+            <p
+              v-if="
+                catalogue.anomaly &&
+                !catalogue.anomalyDone &&
+                explorationLevel(g.state) < catalogue.anomaly.level
+              "
+            >
+              A anomalia exige nível {{ catalogue.anomaly.level }} de
+              explorador.
+            </p>
+          </div>
           <p
             v-if="destination"
             :class="{ 'map-wanted-legend': wantedLevels.has(destination.id) }"

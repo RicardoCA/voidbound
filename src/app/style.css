@@ -1701,3 +1701,13 @@ kbd {
   max-height: 128px;
   overflow: auto;
 }
+
+.map-catalogue {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 2px solid #77ddc3;
+  background: #112331;
+}
+.map-catalogue strong {
+  color: #a1e5d0;
+}

@@ -143,12 +143,43 @@ export function anomalyAt(system: StarSystem): ScienceSite | undefined {
   };
 }
 
+function ruinSeed(planet: Planet) {
+  const seed = hash(`${planet.id}:ruin`);
+  return seed % 4 === 0 ? seed : undefined;
+}
+
+export function systemCatalogue(state: Save, system: StarSystem) {
+  const discoveries = state.progression.discoveries;
+  const anomaly = anomalyAt(system);
+  const ruins = system.planets.filter(
+    (planet) => ruinSeed(planet) !== undefined,
+  );
+  const planetsDone = system.planets.filter(
+    (planet) => state.progression.cataloguedPlanets[planet.id],
+  ).length;
+  const ruinsDone = ruins.filter((planet) =>
+    Object.hasOwn(discoveries, `ruin:${planet.id}`),
+  ).length;
+  const anomalyDone = !!anomaly && Object.hasOwn(discoveries, anomaly.id);
+  const done = planetsDone + ruinsDone + Number(anomalyDone);
+  const total = system.planets.length + ruins.length + Number(!!anomaly);
+  return {
+    done,
+    total,
+    planetsDone,
+    ruinsDone,
+    ruinsTotal: ruins.length,
+    anomaly,
+    anomalyDone,
+  };
+}
+
 export function ruinAt(
   planet: Planet,
   terrain: Terrain,
 ): ScienceSite | undefined {
-  const seed = hash(`${planet.id}:ruin`);
-  if (seed % 4 !== 0) return;
+  const seed = ruinSeed(planet);
+  if (seed === undefined) return;
   const tile = 14 + (seed % 7);
   return {
     id: `ruin:${planet.id}`,
