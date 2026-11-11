@@ -114,10 +114,19 @@ describe("tráfego e autoridades espaciais", () => {
       s.time += 0.016;
       flight.update(s, system, 0.016);
     }
-    expect(flight.npcs.some((npc) => npc.role === "elite")).toBe(true);
-    expect(flight.bolts.some((bolt) => bolt.hostile) || s.ship.hull < 55).toBe(
-      true,
-    );
+    expect(flight.npcs.filter((npc) => npc.role === "elite")).toHaveLength(4);
+    expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
+    expect(flight.policeContact).toBeUndefined();
+    const patrol = flight.npcs.find((npc) => npc.role === "police")!;
+    Object.assign(patrol, { x: s.ship.x + 160, y: s.ship.y });
+    flight.update(s, system, 0.04);
+    expect(flight.policeContact?.phase).toBe("scan");
+    expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
+    for (let step = 0; step < 80; step++) {
+      s.time += 0.04;
+      flight.update(s, system, 0.04);
+    }
+    expect(flight.policeContact?.phase).toBe("combat");
     g.started = true;
     Object.assign(s.ship, {
       x: system.station!.x,
@@ -129,4 +138,94 @@ describe("tráfego e autoridades espaciais", () => {
     expect(s.mode).toBe("space");
     expect(g.notice).toContain("Acoplagem bloqueada");
   });
+});
+
+it.each([true, false])(
+  "processa rendição ou recusa após escanear (rendição: %s)",
+  (surrender) => {
+    setActivePinia(createPinia());
+    const g = useGame();
+    const state = g.state;
+    const system = g.system;
+    state.credits = 1000;
+    state.inventory.sealedCargo = 3;
+    expect(
+      reportCrime(state, system, "Mineradora", "destruction", false, false),
+    ).toBe(true);
+    const flight = new SpaceCombat();
+    flight.reset(state, system);
+    flight.update(state, system, 0.04);
+    const patrol = flight.npcs.find((npc) => npc.role === "police")!;
+    Object.assign(patrol, { x: state.ship.x + 160, y: state.ship.y });
+    for (let step = 0; step < 80; step++) {
+      state.time += 0.04;
+      flight.update(state, system, 0.04);
+    }
+    expect(flight.policeContact?.phase).toBe("offer");
+    expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
+    flight.answerPolice(state, system, surrender);
+    flight.update(state, system, 0.04);
+    if (surrender) {
+      expect(flight.policeContact).toBeUndefined();
+      expect(state.credits).toBe(560);
+      expect(state.inventory.sealedCargo).toBeUndefined();
+      expect(g.wanted.level).toBe(0);
+    } else {
+      expect(flight.policeContact?.phase).toBe("combat");
+      expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(true);
+      expect(state.credits).toBe(1000);
+    }
+  },
+);
+
+it("avisa outras patrulhas ao fugir da inspeção e retoma o scan no reencontro", () => {
+  setActivePinia(createPinia());
+  const g = useGame();
+  const state = g.state;
+  const flight = new SpaceCombat();
+  flight.reset(state, g.system);
+  flight.update(state, g.system, 0.04);
+  const [patrol, backup] = flight.npcs.filter((npc) => npc.role === "police");
+  Object.assign(patrol, { x: state.ship.x + 180, y: state.ship.y });
+  Object.assign(backup, { x: state.ship.x + 500, y: state.ship.y });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("scan");
+  state.ship.x -= 115;
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("pursuit");
+  expect(patrol.vx).toBeLessThan(-100);
+  expect(backup.vx).toBeLessThan(-100);
+  expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
+  state.ship.x = backup.x + 160;
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact).toMatchObject({
+    phase: "scan",
+    officerId: backup.id,
+  });
+});
+
+it("interrompe a inspeção e revida quando o jogador acerta a patrulha", () => {
+  setActivePinia(createPinia());
+  const g = useGame();
+  const state = g.state;
+  const flight = new SpaceCombat();
+  flight.reset(state, g.system);
+  flight.update(state, g.system, 0.04);
+  const patrol = flight.npcs.find((npc) => npc.role === "police")!;
+  Object.assign(patrol, { x: state.ship.x + 120, y: state.ship.y });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("scan");
+  flight.bolts.push({
+    x: patrol.x,
+    y: patrol.y,
+    vx: 0,
+    vy: 0,
+    life: 1,
+    hostile: false,
+    damage: 1,
+  });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("combat");
+  flight.update(state, g.system, 0.04);
+  expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(true);
 });

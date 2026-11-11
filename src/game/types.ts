@@ -187,6 +187,7 @@ export interface ParkedShip extends ShipIdentity {
 }
 export interface Save {
   version: 4;
+  escorts?: import("../fleet/escorts").EscortContract[];
   progression: Progression;
   credits: number;
   wardrobe?: Wardrobe;
@@ -222,6 +223,7 @@ export interface Save {
   asteroidRespawns?: Record<string, AsteroidRespawn>;
   activePlayTime?: number;
   visited: string[];
+  jumpDestination?: import("../universe/jumpRoute").JumpPoint;
   mission: number;
   flags: string[];
   time: number;

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { starClasses, starKinds, starSystemLabel } from "../universe/stars";
-import { nearby } from "../universe/generator";
+import { nearby, systemAt } from "../universe/generator";
+import { jumpFuel, plotJumpRoute, type JumpPoint } from "../universe/jumpRoute";
+import { explorationLevel, systemCatalogue } from "../progression/exploration";
 import CriminalRecord from "./CriminalRecord.vue";
 import { wantedBySystem } from "../combat/law";
 import { hasBlackMarket } from "../combat/traffic";
@@ -55,6 +57,67 @@ const mapX = ref(0),
         )
       : 0,
   );
+const catalogue = computed(() =>
+  destination.value ? systemCatalogue(g.state, destination.value) : undefined,
+);
+const origin = computed(() => ({ x: g.state.systemX, y: g.state.systemY }));
+const route = computed(() =>
+  g.state.jumpDestination
+    ? plotJumpRoute(
+        g.state.seed,
+        origin.value,
+        g.state.jumpDestination,
+        g.jumpRange,
+        g.maxFuel,
+      )
+    : undefined,
+);
+const routeStops = computed(() =>
+  (route.value ?? []).map(({ x, y }) => systemAt(g.state.seed, x, y)),
+);
+const nextStop = computed(() => routeStops.value[0]);
+const nextCost = computed(() =>
+  nextStop.value
+    ? jumpFuel(
+        Math.hypot(
+          nextStop.value.x - origin.value.x,
+          nextStop.value.y - origin.value.y,
+        ),
+      )
+    : 0,
+);
+const routeLine = computed(() =>
+  [origin.value, ...(route.value ?? [])]
+    .map(
+      ({ x, y }) =>
+        `${x - origin.value.x - mapX.value + 3.5},${y - origin.value.y - mapY.value + 3.5}`,
+    )
+    .join(" "),
+);
+const routeError = ref("");
+function plot(target: JumpPoint) {
+  if (
+    !plotJumpRoute(g.state.seed, origin.value, target, g.jumpRange, g.maxFuel)
+      ?.length
+  ) {
+    routeError.value =
+      "Nenhuma rota encontrada para esse destino. Selecione um sistema intermediário.";
+    return;
+  }
+  routeError.value = "";
+  g.state.jumpDestination = { x: target.x, y: target.y };
+  void g.save();
+}
+function cancelRoute() {
+  delete g.state.jumpDestination;
+  routeError.value = "";
+  void g.save();
+}
+function focusStop(stop: StarSystem) {
+  mapX.value = stop.x - g.state.systemX;
+  mapY.value = stop.y - g.state.systemY;
+  selected.value = stop.id;
+}
 function stationType(system: StarSystem) {
   if (!system.station) return "Sem estação";
   return hasBlackMarket(system) ? "Estação clandestina" : "Estação espacial";
@@ -180,12 +243,23 @@ function stationType(system: StarSystem) {
             top: `${50 - (mapY / 7) * 100}%`,
           }"
         />
+        <svg
+          v-if="route?.length"
+          class="galaxy-route"
+          viewBox="0 0 7 7"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <polyline :points="routeLine" vector-effect="non-scaling-stroke" />
+        </svg>
         <button
           v-for="s in mapSystems"
           :key="s.id"
           class="star-node"
           :class="{
             current: s.id === g.system.id,
+            'route-stop': routeStops.some((stop) => stop.id === s.id),
+            'route-next': nextStop?.id === s.id,
             chosen: s.id === selected,
             visited: g.state.visited.includes(s.id),
             'has-wanted': wantedLevels.has(s.id),
@@ -252,6 +326,46 @@ function stationType(system: StarSystem) {
         }}
         planetas governados
       </p>
+      <section
+        v-if="g.state.jumpDestination"
+        class="galaxy-route-summary"
+        aria-label="Rota galáctica"
+      >
+        <div class="station-actions">
+          <strong
+            >{{ routeStops.at(-1)?.name ?? "Rota indisponível" }} ·
+            {{ routeStops.length }} saltos restantes</strong
+          >
+          <button class="secondary" @click="cancelRoute">Cancelar rota</button>
+        </div>
+        <template v-if="nextStop">
+          <p>
+            Próximo salto · {{ nextStop.name }} · {{ nextCost }} combustível
+          </p>
+          <ol>
+            <li v-for="stop in routeStops" :key="stop.id">
+              <button class="secondary" @click="focusStop(stop)">
+                {{ stop.name }}
+              </button>
+            </li>
+          </ol>
+          <button
+            class="primary"
+            :disabled="
+              g.busy ||
+              g.state.mode !== 'space' ||
+              !g.state.upgrades.includes('jump') ||
+              g.state.ship.fuel < nextCost
+            "
+            @click="g.jump(nextStop.x, nextStop.y)"
+          >
+            Saltar para {{ nextStop.name }}
+          </button>
+          <p v-if="g.state.ship.fuel < nextCost" class="warning">
+            Combustível insuficiente para o próximo salto.
+          </p>
+        </template>
+      </section>
       <div class="map-selection">
         <div>
           <h3>{{ destination?.name ?? "Selecione um sistema" }}</h3>
@@ -259,6 +373,40 @@ function stationType(system: StarSystem) {
             {{ destination.id === g.system.id ? "Sistema atual · " : ""
             }}{{ stationType(destination) }}
           </p>
+          <div v-if="destination && catalogue" class="map-catalogue">
+            <strong v-if="catalogue.done === catalogue.total"
+              >✓ Sistema totalmente catalogado</strong
+            >
+            <strong v-else
+              >Catalogação · {{ catalogue.done }}/{{ catalogue.total }}</strong
+            >
+            <p>
+              Planetas {{ catalogue.planetsDone }}/{{
+                destination.planets.length
+              }}
+              <template v-if="catalogue.ruinsTotal">
+                · Ruínas {{ catalogue.ruinsDone }}/{{
+                  catalogue.ruinsTotal
+                }}</template
+              >
+              <template v-if="catalogue.anomaly">
+                · Anomalia
+                {{
+                  catalogue.anomalyDone ? "catalogada" : "pendente"
+                }}</template
+              >
+            </p>
+            <p
+              v-if="
+                catalogue.anomaly &&
+                !catalogue.anomalyDone &&
+                explorationLevel(g.state) < catalogue.anomaly.level
+              "
+            >
+              A anomalia exige nível {{ catalogue.anomaly.level }} de
+              explorador.
+            </p>
+          </div>
           <p
             v-if="destination"
             :class="{ 'map-wanted-legend': wantedLevels.has(destination.id) }"
@@ -285,7 +433,7 @@ function stationType(system: StarSystem) {
           <p>
             {{
               destination
-                ? `${starSystemLabel(destination.stars)} · ${destination.stars.map((star) => starClasses[star.kind].name).join(" + ")} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${Math.ceil(distance * 8)} combustível`
+                ? `${starSystemLabel(destination.stars)} · ${destination.stars.map((star) => starClasses[star.kind].name).join(" + ")} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${jumpFuel(distance)} combustível`
                 : "Explore os setores. O círculo indica o alcance do motor."
             }}
           </p>
@@ -298,7 +446,7 @@ function stationType(system: StarSystem) {
             distance === 0 ||
             distance > g.jumpRange ||
             !g.state.upgrades.includes('jump') ||
-            g.state.ship.fuel < Math.ceil(distance * 8) ||
+            g.state.ship.fuel < jumpFuel(distance) ||
             g.state.mode !== 'space'
           "
           @click="destination && g.jump(destination.x, destination.y)"
@@ -309,10 +457,14 @@ function stationType(system: StarSystem) {
       <p v-if="!g.state.upgrades.includes('jump')" class="warning">
         Propulsor de salto necessário. Disponível na missão 05.
       </p>
-      <p v-if="destination && distance > g.jumpRange" class="warning">
-        Destino fora do alcance. Avance por sistemas intermediários para
-        retornar.
-      </p>
+      <button
+        v-if="destination && distance > 0"
+        class="secondary"
+        @click="plot(destination)"
+      >
+        Traçar rota até {{ destination.name }}
+      </button>
+      <p v-if="routeError" class="warning" role="status">{{ routeError }}</p>
       <section
         v-if="destination && bases.bySystem.has(destination.id)"
         class="selected-system-bases"

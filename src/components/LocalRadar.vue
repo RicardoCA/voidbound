@@ -75,9 +75,11 @@ function position(target: { x: number; y: number }) {
           fill:
             npc.role === 'pirate' || npc.engaged
               ? '#ff8a83'
-              : npc.role === 'miner'
-                ? '#f4c478'
-                : '#8deaf2',
+              : npc.role === 'ally'
+                ? '#80e4ae'
+                : npc.role === 'miner'
+                  ? '#f4c478'
+                  : '#8deaf2',
           stroke: 'none',
         }"
       >

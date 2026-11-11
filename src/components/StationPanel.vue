@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EscortContracts from "./EscortContracts.vue";
 import DialogueBubble from "./DialogueBubble.vue";
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
@@ -72,7 +73,8 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
         </div>
       </template>
       <template v-else>
-        <template v-if="section === 'law'">
+        <EscortContracts v-if="section === 'escort-recruiter'" recruiting />
+        <template v-else-if="section === 'law'">
           <ScannerBlueprintPanel
             v-if="g.system.station?.kind === 'standard'"
             scanner="wantedScanner"

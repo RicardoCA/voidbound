@@ -69,8 +69,15 @@ describe("estações procedurais", () => {
       Object.assign(g.state.ship, { x: station.x, y: station.y + 90, vx: 60 });
       expect(g.dock()).toBe(true);
       expect(g.state.mode).toBe("space");
+      g.policeContact = {
+        officerId: "patrol",
+        name: "Patrulha policial",
+        phase: "scan",
+        progress: 0.5,
+      };
       g.state.ship.vx = 0;
       expect(g.dock()).toBe(true);
+      expect(g.policeContact).toBeUndefined();
       expect(g.state.mode).toBe("space");
       g.advanceDocking(1);
       expect(g.state.mode).toBe("space");
@@ -83,6 +90,10 @@ describe("estações procedurais", () => {
       ).toBe(true);
       expect(g.state.credits).toBe(488);
       g.undock();
+      expect(g.dockingSequence?.kind).toBe("departure");
+      expect(g.state.mode).toBe("docked");
+      expect(await g.stationTransaction(() => undefined)).toBe(false);
+      g.advanceDocking(1.8);
       expect(g.state.mode).toBe("space");
       expect(g.state.ship.x).toBeGreaterThan(station.x);
       expect(await g.stationTransaction(() => undefined)).toBe(false);

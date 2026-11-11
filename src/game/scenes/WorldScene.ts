@@ -20,7 +20,12 @@ import {
   type Wreck,
 } from "../../combat/traffic";
 import type { Save, ShipModelId } from "../types";
-import { anomalyAt, ruinAt } from "../../progression/exploration";
+import { drawScienceSite } from "../rendering/scienceArt";
+import {
+  anomalyAt,
+  ruinAt,
+  type ScienceSite,
+} from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
   clearPath,
@@ -38,6 +43,7 @@ import { shipArt } from "../../fleet/shipArt";
 import Phaser from "phaser";
 import {
   DOCKING_DURATION,
+  STATION_EXIT_DISTANCE,
   SURFACE_SEQUENCE_DURATION,
   useGame,
 } from "../../stores/game";
@@ -102,6 +108,7 @@ export class WorldScene extends Phaser.Scene {
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
   private gfx!: Phaser.GameObjects.Graphics;
+  private scienceSprite!: Phaser.GameObjects.Image;
   private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
   private surfaceArt = new SurfaceArt();
@@ -151,6 +158,11 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    for (const sprite of ["anomaly", "legendary", "arch", "monolith"])
+      this.load.image(
+        `science:${sprite}`,
+        `${import.meta.env.BASE_URL}science/${sprite}.webp`,
+      );
     this.load.svg(
       "clandestine-station",
       `${import.meta.env.BASE_URL}stations/clandestine.svg`,
@@ -178,6 +190,25 @@ export class WorldScene extends Phaser.Scene {
     };
     const press = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      const g = this.store;
+      if (
+        g.started &&
+        g.state.mode === "space" &&
+        !g.panel &&
+        !g.paused &&
+        !g.busy &&
+        !g.inSequence
+      ) {
+        const { wx, wy } = this.surfacePoint(event);
+        const escort = this.combat.escorts.find(
+          (ally) => Math.hypot(ally.x - wx, ally.y - wy) <= 21,
+        );
+        if (escort) {
+          releaseControls();
+          g.panel = "escort:" + escort.pilot.id;
+          return;
+        }
+      }
       this.surfaceTap = targetSurface(event);
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
@@ -194,7 +225,9 @@ export class WorldScene extends Phaser.Scene {
     canvas.addEventListener("pointerup", clearMouse);
     canvas.addEventListener("pointerleave", clearMouse);
     canvas.addEventListener("pointercancel", clearMouse);
+    const silenceEngine = () => audio.flightEngine("idle");
     this.game.events.on("blur", clearMouse);
+    this.game.events.on("blur", silenceEngine);
     this.events.once("shutdown", () => {
       canvas.removeEventListener("pointerdown", press);
       canvas.removeEventListener("pointermove", move);
@@ -202,12 +235,18 @@ export class WorldScene extends Phaser.Scene {
       canvas.removeEventListener("pointerleave", clearMouse);
       canvas.removeEventListener("pointercancel", clearMouse);
       this.game.events.off("blur", clearMouse);
+      this.game.events.off("blur", silenceEngine);
+      silenceEngine();
     });
     this.clandestineStation = this.add
       .image(0, 0, "clandestine-station")
       .setDepth(-0.1)
       .setVisible(false);
     this.gfx = this.add.graphics();
+    this.scienceSprite = this.add
+      .image(0, 0, "__MISSING")
+      .setDepth(0.1)
+      .setVisible(false);
     this.surfaceSky = this.add.graphics().setDepth(-1);
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
@@ -378,6 +417,24 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    const piloting =
+      g.started &&
+      g.state.mode === "space" &&
+      !g.flightCabin &&
+      !g.paused &&
+      !g.panel &&
+      !g.busy &&
+      !g.inSequence &&
+      !document.hidden;
+    const ship = g.state.ship;
+    const speed = Math.hypot(ship.vx, ship.vy);
+    const braking = piloting && speed > 1 && (this.down("S") || controls.down);
+    const thrusting =
+      piloting && ship.fuel > 0 && (this.down("W") || controls.up);
+    audio.flightEngine(
+      braking ? "brake" : thrusting ? "thrust" : "idle",
+      speed / g.model.speed,
+    );
     if (activeDt > 0) g.tickActiveTime(activeDt);
     g.advanceBlackHole(this.game.loop.rawDelta / 1000);
     g.advancePlanetScan(this.game.loop.rawDelta / 1000);
@@ -394,10 +451,14 @@ export class WorldScene extends Phaser.Scene {
     this.planetTextures.hide();
     this.stellarTextures.hide();
     this.clandestineStation.setVisible(false);
+    this.scienceSprite.setVisible(false);
     const s = g.state;
-    if (g.started && s.mode === "docked") {
+    if (g.started && s.mode === "docked" && !g.dockingSequence) {
       if (!this.wasAtStation) {
         this.station.reset();
+        this.combat.clearPoliceContact();
+        g.policeContact = undefined;
+        g.policeAnswer = undefined;
         this.wasAtStation = true;
       }
       const clandestine = hasBlackMarket(g.system);
@@ -508,6 +569,8 @@ export class WorldScene extends Phaser.Scene {
       }
       this.combatState = s;
       this.combat.reset(s, g.system);
+      g.policeContact = undefined;
+      g.policeAnswer = undefined;
       g.flightContact = undefined;
       g.shipScanContacts = [];
       g.radarShips = [];
@@ -528,6 +591,11 @@ export class WorldScene extends Phaser.Scene {
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
     }
     if (this.lastMode !== s.mode) {
+      if (s.mode !== "space" && !g.flightCabin) {
+        this.combat.clearPoliceContact();
+        g.policeContact = undefined;
+        g.policeAnswer = undefined;
+      }
       this.jumpBuffer.clear();
       this.jumpHeld = false;
       if (s.mode === "surface") {
@@ -548,8 +616,18 @@ export class WorldScene extends Phaser.Scene {
       this.lastMode = s.mode;
     }
     if (g.dockingSequence && g.system.station) {
+      this.combat.clearPoliceContact();
       if (!g.paused) {
-        this.camX = Phaser.Math.Linear(this.camX, g.system.station.x, 0.09);
+        const departureOffset =
+          g.dockingSequence.kind === "departure"
+            ? STATION_EXIT_DISTANCE *
+              Math.min(1, g.dockingSequence.elapsed / DOCKING_DURATION)
+            : 0;
+        this.camX = Phaser.Math.Linear(
+          this.camX,
+          g.system.station.x + departureOffset,
+          0.09,
+        );
         this.camY = Phaser.Math.Linear(this.camY, g.system.station.y, 0.09);
       }
       this.draw(dt);
@@ -779,7 +857,30 @@ export class WorldScene extends Phaser.Scene {
       this.combat.fire(g.state)
     )
       audio.play(260, 0.08);
+    if (g.policeAnswer) {
+      const result = this.combat.answerPolice(
+        g.state,
+        g.system,
+        g.policeAnswer === "surrender",
+      );
+      g.policeAnswer = undefined;
+      if (result) {
+        g.notify(result);
+        void g.save();
+      }
+    }
     const encounter = this.combat.update(g.state, g.system, dt);
+    g.policeContact = this.combat.policeContact;
+    if (g.policeContact?.phase === "offer") {
+      releaseControls();
+      g.panel = "police-radio";
+    }
+    if (encounter.retreated.length) {
+      g.notify(
+        `${encounter.retreated.join(", ")} recuou para reparar a nave por conta própria.`,
+      );
+      void g.save();
+    }
     if (encounter.impacts.length) {
       for (const { x, y } of encounter.impacts) {
         this.burst(x, y, 0xffbf66);
@@ -876,7 +977,7 @@ export class WorldScene extends Phaser.Scene {
   private updateFlightContact() {
     const g = this.store;
     const ship = g.state.ship;
-    g.radarShips = this.combat.npcs
+    const traffic = this.combat.npcs
       .filter((npc) => npc.hull > 0)
       .map(({ id, name, x, y, role, engaged, bountyTarget }) => ({
         id,
@@ -887,6 +988,17 @@ export class WorldScene extends Phaser.Scene {
         engaged,
         bountyTarget,
       }));
+    g.radarShips = [
+      ...traffic,
+      ...this.combat.escorts.map(({ pilot, x, y }) => ({
+        id: pilot.id,
+        name: pilot.name,
+        x,
+        y,
+        role: "ally" as const,
+        engaged: false,
+      })),
+    ];
     g.shipScanContacts = g.state.upgrades.some(isShipScanner)
       ? scannerContacts(ship, this.combat.npcs)
       : [];
@@ -1434,8 +1546,10 @@ export class WorldScene extends Phaser.Scene {
     }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
+    const departing = docking?.kind === "departure";
     const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
     const eased = t * t * (3 - 2 * t);
+    const approach = departing ? 1 - eased : eased;
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
@@ -1448,7 +1562,7 @@ export class WorldScene extends Phaser.Scene {
         const beacon = g.dockingSequence
           ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
           : Math.floor(this.elapsed * 2) % 4 === 0;
-        const scale = 1 + eased * 0.65;
+        const scale = 1 + approach * 0.65;
         if (station.kind === "clandestine") {
           this.clandestineStation
             .setPosition(x, y - 6 * scale)
@@ -1466,12 +1580,13 @@ export class WorldScene extends Phaser.Scene {
             f,
             x,
             y,
-            Math.atan2(s.y - station.y, s.x - station.x),
-            t,
+            departing ? 0 : Math.atan2(s.y - station.y, s.x - station.x),
+            departing ? 1 - t : t,
             scale,
           );
-        if (docking && t > 0.78) {
-          const glow = (t - 0.78) / 0.22;
+        const latch = departing ? 1 - t : t;
+        if (docking && latch > 0.78) {
+          const glow = (latch - 0.78) / 0.22;
           f.fillStyle(0x7af0cb, glow * 0.28).fillEllipse(
             x,
             y,
@@ -1517,7 +1632,7 @@ export class WorldScene extends Phaser.Scene {
       f.lineStyle(1, 0x88ded8, 0.75).strokeCircle(x, y, 9);
     }
     const anomaly = anomalyAt(g.system);
-    if (anomaly) this.drawScienceSignal(anomaly.x, anomaly.y, 0x9ac9ee);
+    if (anomaly) this.drawScienceSignal(anomaly);
     for (const rock of g.asteroids) {
       const x = Math.floor(rock.x - this.camX + this.centerX),
         y = Math.floor(rock.y - this.camY + this.centerY);
@@ -1531,6 +1646,21 @@ export class WorldScene extends Phaser.Scene {
       drawAsteroid(f, x, y, rock.r, rock.id, rock.ore);
     }
     if (g.started && g.state.mode === "space") {
+      for (const escort of this.combat.escorts) {
+        const x = escort.x - this.camX + this.centerX;
+        const y = escort.y - this.camY + this.centerY;
+        this.drawShip(
+          x,
+          y,
+          escort.angle,
+          true,
+          escort.pilot.model,
+          this.flightShipGfx,
+        );
+        this.flightShipGfx
+          .fillStyle(0x80e4ae)
+          .fillTriangle(x - 3, y - 20, x + 3, y - 20, x, y - 16);
+      }
       for (const npc of this.combat.npcs) {
         if (npc.hull <= 0) continue;
         const x = npc.x - this.camX + this.centerX;
@@ -1593,24 +1723,36 @@ export class WorldScene extends Phaser.Scene {
     }
     if (g.started && g.panel !== "route") {
       const x =
-        docking && station ? Phaser.Math.Linear(s.x, station.x, eased) : s.x;
+        docking && station
+          ? departing
+            ? station.x + STATION_EXIT_DISTANCE * eased
+            : Phaser.Math.Linear(s.x, station.x, eased)
+          : s.x;
       const y =
-        docking && station ? Phaser.Math.Linear(s.y, station.y, eased) : s.y;
+        docking && station
+          ? departing
+            ? station.y
+            : Phaser.Math.Linear(s.y, station.y, eased)
+          : s.y;
       const angle = docking
-        ? Phaser.Math.Angle.Wrap(s.angle) * (1 - eased)
+        ? departing
+          ? 0
+          : Phaser.Math.Angle.Wrap(s.angle) * (1 - eased)
         : s.angle;
       this.drawShip(
         x - this.camX + this.centerX,
         y - this.camY + this.centerY,
         angle,
         docking
-          ? t < 0.78
+          ? departing
+            ? t > 0.16
+            : t < 0.78
           : this.down("W") ||
               controls.up ||
               (g.routeDestination && g.speed > 5),
         undefined,
         this.flightShipGfx,
-        1 - 0.36 * eased,
+        1 - 0.36 * approach,
       );
     }
   }
@@ -1814,24 +1956,40 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawScienceSignal(wx: number, wy: number, color: number) {
-    const x = Math.round(wx - this.camX + this.centerX);
-    const y = Math.round(wy - this.camY + this.centerY);
+  private drawScienceSignal(site: ScienceSite) {
+    const x = Math.round(site.x - this.camX + this.centerX);
+    const y = Math.round(site.y - this.camY + this.centerY);
+    const margin = 42;
     if (
-      x < -30 ||
-      x > this.viewWidth + 30 ||
-      y < -30 ||
-      y > this.viewHeight + 30
+      x < -margin ||
+      x > this.viewWidth + margin ||
+      y < -margin ||
+      y > this.viewHeight + margin
     )
       return;
-    const f = this.gfx;
-    f.fillStyle(color, 0.15 + 0.08 * Math.sin(this.elapsed * 2));
-    f.fillRect(x - 13, y - 13, 26, 26);
-    f.fillStyle(0x324863);
-    f.fillRect(x - 6, y - 9, 12, 19);
-    f.fillStyle(color);
-    f.fillRect(x - 2, y - 6, 4, 11);
-    f.fillRect(x - 8, y - 1, 16, 3);
+    const ruin = site.kind === "ruin";
+    const sprite = ruin
+      ? hash(site.id) % 3 === 0
+        ? "arch"
+        : "monolith"
+      : site.level > 1
+        ? "legendary"
+        : "anomaly";
+    const texture = `science:${sprite}`;
+    if (!this.textures.exists(texture)) {
+      drawScienceSite(this.gfx, site, x, y, this.elapsed);
+      return;
+    }
+    const size = ruin ? 58 : site.level > 1 ? 74 : 60;
+    const image = this.scienceSprite.setTexture(texture);
+    const pulse = ruin ? 1 : 1 + Math.sin(this.elapsed * 2) * 0.035;
+    image
+      .setDepth(ruin ? -0.02 : 0.1)
+      .setOrigin(0.5, ruin ? 1 : 0.5)
+      .setPosition(x, ruin ? y + 14 : y)
+      .setScale((size * pulse) / Math.max(image.width, image.height))
+      .setRotation(ruin ? 0 : Math.sin(this.elapsed * 0.9) * 0.08)
+      .setVisible(true);
   }
   private drawWeather(
     storm: NonNullable<ReturnType<typeof useGame>["weather"]>,
@@ -2017,7 +2175,7 @@ export class WorldScene extends Phaser.Scene {
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
     const ruin = ruinAt(g.planet, t);
-    if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
+    if (ruin) this.drawScienceSignal(ruin);
     for (const fruit of this.fruit) {
       const x = Math.round(fruit.x + offsetX);
       const y = Math.round(fruit.y + offsetY);

@@ -6,6 +6,7 @@ import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import { cabinEquipment } from "../game/cabin/CabinInterior";
 import JumpSequence from "../components/JumpSequence.vue";
+import EscortContracts from "../components/EscortContracts.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -219,6 +220,29 @@ function minutes() {
       <GameCanvas :playing="g.started" />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
+      <aside
+        v-if="
+          g.started &&
+          g.state.mode === 'space' &&
+          !g.inSequence &&
+          (g.policeContact?.phase === 'scan' ||
+            g.policeContact?.phase === 'pursuit')
+        "
+        class="police-scan"
+        role="status"
+      >
+        <strong>{{ g.policeContact.name }}</strong>
+        <span v-if="g.policeContact.phase === 'pursuit'"
+          >Patrulhas alertadas. Buscando uma nave {{ g.model.name }}.</span
+        >
+        <span v-else>Escaneando sua carga e seu nível de procurado</span>
+        <progress
+          v-if="g.policeContact.phase === 'scan'"
+          :value="g.policeContact.progress"
+          max="1"
+          aria-label="Progresso da inspeção policial"
+        />
+      </aside>
       <div
         class="vignette"
         :style="
@@ -566,6 +590,9 @@ function minutes() {
           <nav v-if="piloting" aria-label="Controles da cabine">
             <button @click="g.standInFlight">Levantar</button>
             <button @click="open('route')">Traçar rota</button>
+            <button v-if="g.state.escorts?.length" @click="open('escorts')">
+              Rádio da escolta
+            </button>
             <button
               v-if="g.state.upgrades.some(isShipScanner)"
               @click="open('ship-scanner')"
@@ -594,7 +621,17 @@ function minutes() {
               ><kbd>{{ n.key }}</kbd>
             </button>
           </nav>
-          <div class="radar"><LocalRadar /><span>RADAR LOCAL</span></div>
+          <button
+            class="radar"
+            type="button"
+            aria-label="Expandir radar local"
+            :aria-expanded="g.panel === 'radar'"
+            aria-controls="local-radar-panel"
+            title="Expandir radar local"
+            @click="open('radar')"
+          >
+            <LocalRadar /><span>RADAR LOCAL</span>
+          </button>
         </div>
       </template>
       <div v-if="!g.started && showCloud" class="overlay">
@@ -706,6 +743,7 @@ function minutes() {
         </section>
         <section
           v-else-if="g.panel === 'radar'"
+          id="local-radar-panel"
           class="dialog radar-dialog"
           aria-label="Radar local"
         >
@@ -754,9 +792,54 @@ function minutes() {
             <button class="secondary" @click="g.panel = ''">Cancelar</button>
           </div>
         </section>
+        <section
+          v-else-if="g.panel === 'police-radio' && g.policeContact"
+          class="dialog narrow"
+          aria-label="Canal da patrulha"
+        >
+          <h2>{{ g.policeContact.name }}</h2>
+          <p>Inspeção concluída. Reduza a velocidade e se entregue.</p>
+          <p>
+            Procurado {{ g.wanted.level }}/5 · Multa
+            {{ g.wanted.fine.toLocaleString("pt-BR") }} CR
+          </p>
+          <p v-if="g.state.inventory.sealedCargo">
+            A patrulha recolherá {{ g.state.inventory.sealedCargo }} unidades de
+            carga lacrada.
+          </p>
+          <p v-if="g.state.credits < g.wanted.fine">
+            A multa continuará pendente se você se entregar sem saldo
+            suficiente.
+          </p>
+          <div class="station-actions">
+            <button
+              class="primary"
+              @click="
+                g.policeAnswer = 'surrender';
+                g.panel = '';
+              "
+            >
+              Aceitar rendição
+            </button>
+            <button
+              class="secondary"
+              @click="
+                g.policeAnswer = 'refuse';
+                g.panel = '';
+              "
+            >
+              Recusar
+            </button>
+          </div>
+        </section>
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
+        <EscortContracts
+          v-else-if="
+            piloting && (g.panel === 'escorts' || g.panel.startsWith('escort:'))
+          "
+        />
         <ShipScannerPanel v-else-if="piloting && g.panel === 'ship-scanner'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
@@ -818,7 +901,9 @@ function minutes() {
       >
         {{
           g.dockingSequence
-            ? "Acoplando à " + g.system.station?.name
+            ? g.dockingSequence.kind === "departure"
+              ? "Desacoplando da " + g.system.station?.name
+              : "Acoplando à " + g.system.station?.name
             : g.surfaceSequence?.kind === "landing"
               ? "Descida para " + g.planet.name
               : g.surfaceSequence?.kind === "takeoff"

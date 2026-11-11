@@ -23,6 +23,8 @@ export interface SpaceNpc extends Point {
   bountyTarget?: true;
   trafficSlot?: string;
   trafficGeneration?: number;
+  convoy?: number;
+  routePhase?: number;
   model: ShipModelId;
   angle: number;
   vx: number;
@@ -100,8 +102,9 @@ function trafficIdentity(
   piracy: Piracy,
   role: TrafficRole,
   time: number,
+  index = 0,
 ) {
-  const trafficSlot = `${system.id}:traffic:${role}`;
+  const trafficSlot = `${system.id}:traffic:${role}${index ? `-${index}` : ""}`;
   const replacement = piracy.replacements?.[trafficSlot];
   if (replacement && time < replacement.arrivesAt) return;
   const trafficGeneration =
@@ -130,7 +133,7 @@ export function trafficFor(
   time = 0,
 ): SpaceNpc[] {
   const seed = hash(`${system.id}:traffic`);
-  const roles: {
+  const profiles: {
     role: TrafficRole;
     name: string;
     model: ShipModelId;
@@ -181,34 +184,79 @@ export function trafficFor(
       cargo: { sealedCargo: 3, crystal: 4 },
     },
   ];
-  return roles.flatMap(({ hull, ...entry }) => {
-    if (entry.role === "pirate" && !hasBlackMarket(system)) return [];
-    const identity = trafficIdentity(system, piracy, entry.role, time);
-    if (!identity) return [];
-    const home = trafficHome(
-      { x: entry.x + (seed % 50), y: entry.y },
-      identity,
-    );
+  const routes = {
+    freighter: [
+      { x: -740, y: 340 },
+      { x: 860, y: -730 },
+      { x: -420, y: -830 },
+    ],
+    escort: [
+      { x: -670, y: 310 },
+      { x: 930, y: -760 },
+      { x: -350, y: -860 },
+    ],
+    miner: [
+      { x: -940, y: -310 },
+      { x: 570, y: 965 },
+      { x: 1080, y: 80 },
+      { x: -280, y: 790 },
+    ],
+    pirate: [
+      { x: -1090, y: 640 },
+      { x: 300, y: -1030 },
+    ],
+  };
+  const variants: Record<keyof typeof routes, ShipModelId[]> = {
+    freighter: ["atlas", "caravan", "mammoth"],
+    escort: ["bastion", "viper", "warden"],
+    miner: ["titan", "prospector", "quartz"],
+    pirate: ["viper", "raptor", "specter"],
+  };
+  return profiles.flatMap((profile) => {
+    const role = profile.role as keyof typeof routes;
     return [
-      {
-        ...entry,
-        ...identity,
-        ...home,
-        home,
-        hull,
-        maxHull: hull,
-        vx: 0,
-        vy: 0,
-        angle: 0,
-        faction:
-          entry.role === "pirate" || entry.role === "miner"
-            ? "Independentes"
-            : "Consórcio de Trânsito",
-        wantedLevel: entry.role === "pirate" ? 1 + (hash(identity.id) % 5) : 0,
-        engaged: false,
-        fireAt: 0,
-      },
-    ];
+      profile,
+      ...routes[role].map((point, i) => ({
+        ...profile,
+        ...point,
+        model: variants[role][(seed + i) % variants[role].length]!,
+      })),
+    ].flatMap(({ hull, ...entry }, index) => {
+      if (entry.role === "pirate" && !hasBlackMarket(system)) return [];
+      const identity = trafficIdentity(system, piracy, entry.role, time, index);
+      if (!identity) return [];
+      const home = trafficHome(
+        { x: entry.x + (seed % 50), y: entry.y },
+        identity,
+      );
+      return [
+        {
+          ...entry,
+          ...identity,
+          ...home,
+          home,
+          name: index ? `${entry.name} ${index + 1}` : entry.name,
+          cargo: { ...entry.cargo },
+          convoy: role === "freighter" || role === "escort" ? index : undefined,
+          routePhase: index
+            ? (hash(`${system.id}:route:${index}`) % 628) / 100
+            : undefined,
+          hull,
+          maxHull: hull,
+          vx: 0,
+          vy: 0,
+          angle: 0,
+          faction:
+            entry.role === "pirate" || entry.role === "miner"
+              ? "Independentes"
+              : "Consórcio de Trânsito",
+          wantedLevel:
+            entry.role === "pirate" ? 1 + (hash(identity.id) % 5) : 0,
+          engaged: false,
+          fireAt: 0,
+        },
+      ];
+    });
   });
 }
 
@@ -218,8 +266,9 @@ export function enforcementNpc(
   role: "police" | "bounty" | "elite",
   anchor: Point,
   time = 0,
+  index = 0,
 ): SpaceNpc | undefined {
-  const identity = trafficIdentity(system, piracy, role, time);
+  const identity = trafficIdentity(system, piracy, role, time, index);
   if (!identity) return;
   const home = trafficHome(anchor, identity);
   const profile = {
@@ -243,6 +292,8 @@ export function enforcementNpc(
     role,
     ...home,
     home,
+    name: index ? `${profile[role].name} ${index + 1}` : profile[role].name,
+    routePhase: index * Math.PI,
     maxHull: profile[role].hull,
     faction: jurisdiction(system).faction,
     angle: 0,

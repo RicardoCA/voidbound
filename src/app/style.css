@@ -554,6 +554,14 @@ kbd {
   width: 83px;
   text-align: center;
   position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+}
+.radar:hover:not(:disabled),
+.radar:focus-visible {
+  background: #243542;
 }
 .radar svg {
   width: 74px;
@@ -1626,4 +1634,80 @@ kbd {
 }
 .cabin-interaction:active:not(:disabled) {
   transform: translateX(-50%);
+}
+
+.police-scan {
+  position: absolute;
+  z-index: 8;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 24px));
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #142532;
+  border: 1px solid #8dc3d8;
+  border-radius: 8px;
+  color: #e1eef4;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.police-scan progress {
+  width: 100%;
+  height: 6px;
+  accent-color: #8dc3d8;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .police-scan {
+    top: calc(
+      var(--mobile-hud-height, 110px) + env(safe-area-inset-top, 0px) + 8px
+    );
+  }
+}
+
+.galaxy-route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke: #77ddc3;
+  stroke-width: 2;
+}
+
+.star-node.route-stop .map-star-symbols {
+  background: #102d32;
+  border-radius: 6px;
+}
+
+.star-node.route-next .map-star-symbols {
+  outline: 1px solid #77ddc3;
+  outline-offset: 3px;
+}
+
+.galaxy-route-summary {
+  margin: 14px 0;
+}
+
+.galaxy-route-summary ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  padding-left: 24px;
+  max-height: 128px;
+  overflow: auto;
+}
+
+.map-catalogue {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 2px solid #77ddc3;
+  background: #112331;
+}
+.map-catalogue strong {
+  color: #a1e5d0;
 }

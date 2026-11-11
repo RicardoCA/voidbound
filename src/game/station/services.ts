@@ -89,6 +89,14 @@ export const stationServices = [
       "Quer vestir as cores da Bandeira Negra? Tenho peças exclusivas para quem viaja fora da lei.",
   },
   {
+    id: "escort-recruiter",
+    label: "Recrutamento de escolta",
+    name: "Nara",
+    color: 0x89c4a0,
+    dialogue:
+      "Precisa de apoio lá fora? Tenho pilotos disponíveis para acompanhar sua nave.",
+  },
+  {
     id: "restricted-arms",
     label: "Armas restritas",
     name: "Kade",
@@ -108,7 +116,8 @@ const standardServices = stationServices.filter(
   ({ id }) =>
     id !== "black-market" &&
     id !== "pirate-clothing" &&
-    id !== "restricted-arms",
+    id !== "restricted-arms" &&
+    id !== "escort-recruiter",
 );
 const clandestineServices = stationServices.filter(
   ({ id }) => !standardOnly.has(id),

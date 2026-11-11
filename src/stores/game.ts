@@ -1,3 +1,4 @@
+import { jumpFuel } from "../universe/jumpRoute";
 import {
   applyCivicAction,
   civilizationOf,
@@ -70,6 +71,7 @@ import {
 } from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
+import { tickEscorts } from "../fleet/escorts";
 import { shipModels } from "../fleet/models";
 import { shipCapacity, shipFuelCapacity } from "../fleet/hangar";
 import {
@@ -84,6 +86,7 @@ export const BACKPACK_SLOTS = 24;
 export const PLANET_SCAN_SECONDS = 10;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
+export const STATION_EXIT_DISTANCE = 145;
 export const SURFACE_SEQUENCE_DURATION = {
   landing: 2.3,
   disembark: 1.1,
@@ -203,7 +206,7 @@ export const useGame = defineStore("game", () => {
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     surfaceSequence = ref<SurfaceSequence>(),
-    dockingSequence = ref<{ elapsed: number }>(),
+    dockingSequence = ref<{ elapsed: number; kind: "arrival" | "departure" }>(),
     planetScan = ref<{ index: number; name: string; elapsed: number }>(),
     panel = ref(""),
     governmentAnchor = ref({ x: 0, y: 0 }),
@@ -217,12 +220,14 @@ export const useGame = defineStore("game", () => {
     blackHoleTransit = ref<{ elapsed: number; x: number; y: number }>(),
     speed = ref(0),
     flightContact = ref<FlightContact>(),
+    policeContact = ref<import("../combat/flight").PoliceContact>(),
+    policeAnswer = ref<"surrender" | "refuse">(),
     shipScanContacts = ref<ScannerContact[]>([]),
     radarShips = ref<
-      Pick<
+      (Pick<
         SpaceNpc,
-        "id" | "name" | "x" | "y" | "role" | "engaged" | "bountyTarget"
-      >[]
+        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget"
+      > & { role: SpaceNpc["role"] | "ally" })[]
     >([]),
     stationContact = ref<string>(),
     cabinContact = ref<CabinEquipment>(),
@@ -444,6 +449,7 @@ export const useGame = defineStore("game", () => {
       trading.value ||
       !started.value ||
       paused.value ||
+      inSequence.value ||
       state.value.mode !== "docked" ||
       !station
     )
@@ -494,7 +500,10 @@ export const useGame = defineStore("game", () => {
       return true;
     }
     releaseControls();
-    dockingSequence.value = { elapsed: 0 };
+    policeContact.value = undefined;
+    policeAnswer.value = undefined;
+    dockingSequence.value = { elapsed: 0, kind: "arrival" };
+    audio.playStation(DOCKING_DURATION, false);
     return true;
   }
   function advanceDocking(dt: number) {
@@ -505,36 +514,37 @@ export const useGame = defineStore("game", () => {
     if (sequence.elapsed < DOCKING_DURATION) return;
     dockingSequence.value = undefined;
     const s = state.value;
+    const departing = sequence.kind === "departure";
     Object.assign(s.ship, {
-      x: station.x,
+      x: station.x + (departing ? STATION_EXIT_DISTANCE : 0),
       y: station.y,
       angle: 0,
       vx: 0,
       vy: 0,
     });
-    s.mode = "docked";
+    s.mode = departing ? "space" : "docked";
     speed.value = 0;
     releaseControls();
-    notify(`Acoplagem confirmada. ${station.name}.`);
+    notify(
+      departing
+        ? "Desacoplagem confirmada."
+        : `Acoplagem confirmada. ${station.name}.`,
+    );
     void save();
   }
   function undock() {
-    const s = state.value,
-      station = system.value.station;
-    if (trading.value || paused.value || s.mode !== "docked" || !station)
+    if (
+      trading.value ||
+      paused.value ||
+      inSequence.value ||
+      state.value.mode !== "docked" ||
+      !system.value.station
+    )
       return;
-    Object.assign(s.ship, {
-      x: station.x + 42,
-      y: station.y,
-      vx: 0,
-      vy: 0,
-      angle: 0,
-    });
-    s.mode = "space";
     panel.value = "";
+    dockingSequence.value = { elapsed: 0, kind: "departure" };
     releaseControls();
-    notify("Desacoplagem confirmada.");
-    void save();
+    audio.playStation(DOCKING_DURATION, true);
   }
   async function checkSave() {
     try {
@@ -858,6 +868,7 @@ export const useGame = defineStore("game", () => {
       landingX: zone * 24,
       elapsed: 0,
     };
+    audio.playSurface("landing", SURFACE_SEQUENCE_DURATION.landing);
   }
   function interactCabin() {
     if (
@@ -896,6 +907,7 @@ export const useGame = defineStore("game", () => {
       landingX: state.value.landingX,
       elapsed: 0,
     };
+    audio.playSurface("disembark", SURFACE_SEQUENCE_DURATION.disembark);
   }
   function advanceSurfaceSequence(dt: number) {
     const sequence = surfaceSequence.value;
@@ -959,7 +971,7 @@ export const useGame = defineStore("game", () => {
       landingX: state.value.landingX,
       elapsed: 0,
     };
-    audio.play(100, 0.5);
+    audio.playSurface("takeoff", SURFACE_SEQUENCE_DURATION.takeoff);
   }
   function takeoff() {
     if (!canTakeOff()) return;
@@ -973,7 +985,6 @@ export const useGame = defineStore("game", () => {
     panel.value = "";
     if (state.value.mission === 3) state.value.mission = 4;
     notify("Decolagem confirmada. Boa viagem, comandante.");
-    audio.play(100, 0.5);
     void save();
   }
   function arriveInSystem(x: number, y: number) {
@@ -981,6 +992,8 @@ export const useGame = defineStore("game", () => {
     s.planetIndex = 0;
     s.systemX = x;
     s.systemY = y;
+    if (s.jumpDestination?.x === x && s.jumpDestination.y === y)
+      delete s.jumpDestination;
     s.ship.x = 200;
     s.ship.y = 330;
     s.ship.vx = 0;
@@ -1033,7 +1046,7 @@ export const useGame = defineStore("game", () => {
     if (busy.value || inSequence.value) return;
     const s = state.value,
       d = Math.hypot(x - s.systemX, y - s.systemY),
-      cost = Math.ceil(d * 8);
+      cost = jumpFuel(d);
     if (s.mode !== "space") {
       notify("Decole antes de iniciar um salto.");
       return;
@@ -1048,7 +1061,7 @@ export const useGame = defineStore("game", () => {
     }
     busy.value = true;
     releaseControls();
-    audio.play(80, 0.7);
+    audio.playJump(JUMP_DURATION_MS / 1000);
     await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
     s.ship.fuel -= cost;
     arriveInSystem(x, y);
@@ -1385,6 +1398,11 @@ export const useGame = defineStore("game", () => {
     )
       return;
     state.value.activePlayTime = (state.value.activePlayTime ?? 0) + dt;
+    const notices = tickEscorts(state.value, dt);
+    if (notices.length) {
+      notify(notices.join(" "));
+      void save();
+    }
   }
   function tick(dt: number) {
     if (
@@ -1481,6 +1499,8 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     flightContact,
+    policeContact,
+    policeAnswer,
     shipScanContacts,
     radarShips,
     activeWeapon,
