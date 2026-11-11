@@ -1056,7 +1056,7 @@ export const useGame = defineStore("game", () => {
     }
     busy.value = true;
     releaseControls();
-    audio.play(80, 0.7);
+    audio.playJump(JUMP_DURATION_MS / 1000);
     await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
     s.ship.fuel -= cost;
     arriveInSystem(x, y);

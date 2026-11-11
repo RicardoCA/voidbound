@@ -14,6 +14,43 @@ export const audio = {
       // Audio is optional on unsupported devices.
     }
   },
+  playJump(duration: number) {
+    if (!this.enabled || this.volume <= 0) return;
+    this.unlock();
+    if (!context) return;
+    try {
+      const start = context.currentTime;
+      const reachLightSpeed = start + duration * 0.28;
+      const cruise = start + duration * 0.68;
+      const end = start + duration;
+      const engine = context.createOscillator();
+      const filter = context.createBiquadFilter();
+      const gain = context.createGain();
+      engine.type = "sawtooth";
+      engine.frequency.setValueAtTime(42, start);
+      engine.frequency.exponentialRampToValueAtTime(190, reachLightSpeed);
+      engine.frequency.linearRampToValueAtTime(210, cruise);
+      engine.frequency.exponentialRampToValueAtTime(65, end);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(110, start);
+      filter.frequency.exponentialRampToValueAtTime(940, reachLightSpeed);
+      filter.frequency.exponentialRampToValueAtTime(160, end);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.095 * this.volume, reachLightSpeed);
+      gain.gain.linearRampToValueAtTime(0.045 * this.volume, cruise);
+      gain.gain.linearRampToValueAtTime(0, end);
+      engine.connect(filter).connect(gain).connect(context.destination);
+      engine.start(start);
+      engine.stop(end);
+      engine.onended = () => {
+        engine.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      };
+    } catch {
+      // Audio is optional on unsupported devices.
+    }
+  },
   play(frequency = 220, duration = 0.07, waveform: OscillatorType = "square") {
     if (!this.enabled || this.volume <= 0) return;
     this.unlock();
