@@ -584,8 +584,7 @@ export class SpaceCombat {
       } else {
         if (!target) continue;
         bolt.life = 0;
-        const authorityTarget =
-          target.role === "police" || target.role === "elite";
+        const authorityTarget = isPolice(target);
         const witnessed = this.npcs.some(
           (other) =>
             other.id !== target.id &&
@@ -618,6 +617,17 @@ export class SpaceCombat {
                 witnessed,
                 authorityTarget,
               ) || crimeReported;
+        } else if (
+          authorityTarget &&
+          !bolt.escortTarget &&
+          this.policeContact?.phase !== "combat"
+        ) {
+          this.policeContact = {
+            officerId: target.id,
+            name: target.name,
+            phase: "combat",
+            progress: 0,
+          };
         }
       }
     }

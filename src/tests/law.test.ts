@@ -203,3 +203,29 @@ it("avisa outras patrulhas ao fugir da inspeção e retoma o scan no reencontro"
     officerId: backup.id,
   });
 });
+
+it("interrompe a inspeção e revida quando o jogador acerta a patrulha", () => {
+  setActivePinia(createPinia());
+  const g = useGame();
+  const state = g.state;
+  const flight = new SpaceCombat();
+  flight.reset(state, g.system);
+  flight.update(state, g.system, 0.04);
+  const patrol = flight.npcs.find((npc) => npc.role === "police")!;
+  Object.assign(patrol, { x: state.ship.x + 120, y: state.ship.y });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("scan");
+  flight.bolts.push({
+    x: patrol.x,
+    y: patrol.y,
+    vx: 0,
+    vy: 0,
+    life: 1,
+    hostile: false,
+    damage: 1,
+  });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("combat");
+  flight.update(state, g.system, 0.04);
+  expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(true);
+});
