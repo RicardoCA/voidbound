@@ -4,6 +4,7 @@ import type { ShipModelId } from "../game/types";
 import { items } from "../game/types";
 import { useGame } from "../stores/game";
 import { shipCategories, shipModels, type ShipCategory } from "../fleet/models";
+import { shipBlueprints } from "../fleet/shipBlueprints";
 import { buyShip } from "../fleet/hangar";
 import ShipSprite from "./ShipSprite.vue";
 import HangarPanel from "./HangarPanel.vue";
@@ -11,7 +12,9 @@ import HangarPanel from "./HangarPanel.vue";
 const g = useGame();
 const selected = ref<ShipModelId>();
 const category = ref<ShipCategory | "all">("all");
-const models = Object.keys(shipModels) as ShipModelId[];
+const models = (Object.keys(shipModels) as ShipModelId[]).filter(
+  (id) => !Object.hasOwn(shipBlueprints, id),
+);
 const visibleModels = computed(() =>
   models.filter(
     (id) =>

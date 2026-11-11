@@ -193,6 +193,7 @@ export interface Save {
   governments?: Record<string, PlanetGovernment>;
   weaponBlueprints?: RestrictedWeapon[];
   scannerBlueprints?: ScannerEquipment[];
+  shipBlueprints?: import("../fleet/shipBlueprints").SpecialShip[];
   activeShip: ShipIdentity;
   parkedShips: ParkedShip[];
   nextShipId: number;
