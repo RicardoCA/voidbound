@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { weatherLabels } from "../game/procedural/weather";
+import PlanetGovernmentPanel from "../components/PlanetGovernmentPanel.vue";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
@@ -325,6 +326,9 @@ function minutes() {
                 ? `${g.biome.name} · ${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
+          </p>
+          <p v-if="surface && g.civilization">
+            {{ g.civilization.name }} · Conselho a leste do pouso
           </p>
           <p v-if="g.routeDestination">
             Rota ativa · {{ g.routeDestination.name }}
@@ -760,6 +764,9 @@ function minutes() {
             <button class="secondary" @click="g.panel = ''">Cancelar</button>
           </div>
         </section>
+        <PlanetGovernmentPanel
+          v-else-if="g.panel === 'government' && surface && g.civilization"
+        />
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />

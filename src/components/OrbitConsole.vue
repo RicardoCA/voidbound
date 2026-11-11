@@ -81,6 +81,9 @@ function leaveOrbit() {
           RECURSOS <b>{{ g.biome.resources }}</b>
         </p>
         <p class="warning">△ {{ g.biome.hazard }}</p>
+        <p v-if="g.civilization">
+          {{ g.civilization.name }} · Conselho a leste da zona de pouso
+        </p>
         <PlanetBaseSummary :planet-id="g.planet.id" />
       </div>
     </div>

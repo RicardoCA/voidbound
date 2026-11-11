@@ -1,3 +1,4 @@
+import type { PlanetGovernment } from "../diplomacy/governance";
 import type { AsteroidRespawn } from "../universe/asteroids";
 import {
   weaponModules,
@@ -189,6 +190,7 @@ export interface Save {
   progression: Progression;
   credits: number;
   wardrobe?: Wardrobe;
+  governments?: Record<string, PlanetGovernment>;
   weaponBlueprints?: RestrictedWeapon[];
   scannerBlueprints?: ScannerEquipment[];
   activeShip: ShipIdentity;
