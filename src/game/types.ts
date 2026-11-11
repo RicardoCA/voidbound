@@ -223,6 +223,7 @@ export interface Save {
   asteroidRespawns?: Record<string, AsteroidRespawn>;
   activePlayTime?: number;
   visited: string[];
+  jumpDestination?: import("../universe/jumpRoute").JumpPoint;
   mission: number;
   flags: string[];
   time: number;

@@ -1,3 +1,4 @@
+import { jumpFuel } from "../universe/jumpRoute";
 import {
   applyCivicAction,
   civilizationOf,
@@ -986,6 +987,8 @@ export const useGame = defineStore("game", () => {
     s.planetIndex = 0;
     s.systemX = x;
     s.systemY = y;
+    if (s.jumpDestination?.x === x && s.jumpDestination.y === y)
+      delete s.jumpDestination;
     s.ship.x = 200;
     s.ship.y = 330;
     s.ship.vx = 0;
@@ -1038,7 +1041,7 @@ export const useGame = defineStore("game", () => {
     if (busy.value || inSequence.value) return;
     const s = state.value,
       d = Math.hypot(x - s.systemX, y - s.systemY),
-      cost = Math.ceil(d * 8);
+      cost = jumpFuel(d);
     if (s.mode !== "space") {
       notify("Decole antes de iniciar um salto.");
       return;

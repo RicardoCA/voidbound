@@ -74,15 +74,17 @@ export function systemAt(seed: string, x: number, y: number): StarSystem {
     blackHole: blackHoleAt(id, x === 0 && y === 0),
   });
 }
+export function systemExists(seed: string, x: number, y: number) {
+  return (
+    (y === 0 && (x === 0 || x === 1)) ||
+    hash(`${seed}:${x}:${y}:exists`) % 5 !== 0
+  );
+}
 export function nearby(seed: string, x: number, y: number, radius = 3) {
   const result: StarSystem[] = [];
   for (let dx = -radius; dx <= radius; dx++)
     for (let dy = -radius; dy <= radius; dy++) {
-      if (
-        (dx === 0 && dy === 0) ||
-        (y + dy === 0 && (x + dx === 0 || x + dx === 1)) ||
-        hash(`${seed}:${x + dx}:${y + dy}:exists`) % 5 !== 0
-      )
+      if ((dx === 0 && dy === 0) || systemExists(seed, x + dx, y + dy))
         result.push(systemAt(seed, x + dx, y + dy));
     }
   return result;
