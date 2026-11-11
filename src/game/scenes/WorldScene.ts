@@ -1611,15 +1611,17 @@ export class WorldScene extends Phaser.Scene {
       for (const escort of this.combat.escorts) {
         const x = escort.x - this.camX + this.centerX;
         const y = escort.y - this.camY + this.centerY;
-        this.drawShip(x, y, escort.angle, true, escort.pilot.model);
-        f.fillStyle(0x80e4ae).fillTriangle(
-          x - 3,
-          y - 20,
-          x + 3,
-          y - 20,
+        this.drawShip(
           x,
-          y - 16,
+          y,
+          escort.angle,
+          true,
+          escort.pilot.model,
+          this.flightShipGfx,
         );
+        this.flightShipGfx
+          .fillStyle(0x80e4ae)
+          .fillTriangle(x - 3, y - 20, x + 3, y - 20, x, y - 16);
       }
       for (const npc of this.combat.npcs) {
         if (npc.hull <= 0) continue;
