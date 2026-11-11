@@ -38,6 +38,7 @@ import { shipArt } from "../../fleet/shipArt";
 import Phaser from "phaser";
 import {
   DOCKING_DURATION,
+  STATION_EXIT_DISTANCE,
   SURFACE_SEQUENCE_DURATION,
   useGame,
 } from "../../stores/game";
@@ -414,7 +415,7 @@ export class WorldScene extends Phaser.Scene {
     this.stellarTextures.hide();
     this.clandestineStation.setVisible(false);
     const s = g.state;
-    if (g.started && s.mode === "docked") {
+    if (g.started && s.mode === "docked" && !g.dockingSequence) {
       if (!this.wasAtStation) {
         this.station.reset();
         this.combat.clearPoliceContact();
@@ -579,7 +580,16 @@ export class WorldScene extends Phaser.Scene {
     if (g.dockingSequence && g.system.station) {
       this.combat.clearPoliceContact();
       if (!g.paused) {
-        this.camX = Phaser.Math.Linear(this.camX, g.system.station.x, 0.09);
+        const departureOffset =
+          g.dockingSequence.kind === "departure"
+            ? STATION_EXIT_DISTANCE *
+              Math.min(1, g.dockingSequence.elapsed / DOCKING_DURATION)
+            : 0;
+        this.camX = Phaser.Math.Linear(
+          this.camX,
+          g.system.station.x + departureOffset,
+          0.09,
+        );
         this.camY = Phaser.Math.Linear(this.camY, g.system.station.y, 0.09);
       }
       this.draw(dt);
@@ -1498,8 +1508,10 @@ export class WorldScene extends Phaser.Scene {
     }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
+    const departing = docking?.kind === "departure";
     const t = docking ? Math.min(1, docking.elapsed / DOCKING_DURATION) : 0;
     const eased = t * t * (3 - 2 * t);
+    const approach = departing ? 1 - eased : eased;
     if (station) {
       const x = Math.round(station.x - this.camX + this.centerX);
       const y = Math.round(station.y - this.camY + this.centerY);
@@ -1512,7 +1524,7 @@ export class WorldScene extends Phaser.Scene {
         const beacon = g.dockingSequence
           ? Math.floor(g.dockingSequence.elapsed * 9) % 2 === 0
           : Math.floor(this.elapsed * 2) % 4 === 0;
-        const scale = 1 + eased * 0.65;
+        const scale = 1 + approach * 0.65;
         if (station.kind === "clandestine") {
           this.clandestineStation
             .setPosition(x, y - 6 * scale)
@@ -1530,12 +1542,13 @@ export class WorldScene extends Phaser.Scene {
             f,
             x,
             y,
-            Math.atan2(s.y - station.y, s.x - station.x),
-            t,
+            departing ? 0 : Math.atan2(s.y - station.y, s.x - station.x),
+            departing ? 1 - t : t,
             scale,
           );
-        if (docking && t > 0.78) {
-          const glow = (t - 0.78) / 0.22;
+        const latch = departing ? 1 - t : t;
+        if (docking && latch > 0.78) {
+          const glow = (latch - 0.78) / 0.22;
           f.fillStyle(0x7af0cb, glow * 0.28).fillEllipse(
             x,
             y,
@@ -1670,24 +1683,36 @@ export class WorldScene extends Phaser.Scene {
     }
     if (g.started && g.panel !== "route") {
       const x =
-        docking && station ? Phaser.Math.Linear(s.x, station.x, eased) : s.x;
+        docking && station
+          ? departing
+            ? station.x + STATION_EXIT_DISTANCE * eased
+            : Phaser.Math.Linear(s.x, station.x, eased)
+          : s.x;
       const y =
-        docking && station ? Phaser.Math.Linear(s.y, station.y, eased) : s.y;
+        docking && station
+          ? departing
+            ? station.y
+            : Phaser.Math.Linear(s.y, station.y, eased)
+          : s.y;
       const angle = docking
-        ? Phaser.Math.Angle.Wrap(s.angle) * (1 - eased)
+        ? departing
+          ? 0
+          : Phaser.Math.Angle.Wrap(s.angle) * (1 - eased)
         : s.angle;
       this.drawShip(
         x - this.camX + this.centerX,
         y - this.camY + this.centerY,
         angle,
         docking
-          ? t < 0.78
+          ? departing
+            ? t > 0.16
+            : t < 0.78
           : this.down("W") ||
               controls.up ||
               (g.routeDestination && g.speed > 5),
         undefined,
         this.flightShipGfx,
-        1 - 0.36 * eased,
+        1 - 0.36 * approach,
       );
     }
   }

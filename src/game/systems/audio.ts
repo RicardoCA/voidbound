@@ -51,6 +51,50 @@ export const audio = {
       // Audio is optional on unsupported devices.
     }
   },
+  playStation(duration: number, departing: boolean) {
+    if (!this.enabled || this.volume <= 0) return;
+    this.unlock();
+    if (!context) return;
+    try {
+      const start = context.currentTime;
+      const end = start + duration;
+      const motor = context.createOscillator();
+      const gain = context.createGain();
+      motor.type = "triangle";
+      motor.frequency.setValueAtTime(departing ? 48 : 130, start);
+      motor.frequency.exponentialRampToValueAtTime(departing ? 156 : 42, end);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(
+        0.08 * this.volume,
+        start + duration * 0.22,
+      );
+      gain.gain.linearRampToValueAtTime(0, end);
+      motor.connect(gain).connect(context.destination);
+      motor.start(start);
+      motor.stop(end);
+      motor.onended = () => {
+        motor.disconnect();
+        gain.disconnect();
+      };
+
+      const latch = context.createOscillator();
+      const click = context.createGain();
+      const cue = start + duration * (departing ? 0.08 : 0.82);
+      latch.type = "square";
+      latch.frequency.setValueAtTime(departing ? 180 : 105, cue);
+      click.gain.setValueAtTime(0.055 * this.volume, cue);
+      click.gain.exponentialRampToValueAtTime(0.001, cue + 0.12);
+      latch.connect(click).connect(context.destination);
+      latch.start(cue);
+      latch.stop(cue + 0.12);
+      latch.onended = () => {
+        latch.disconnect();
+        click.disconnect();
+      };
+    } catch {
+      // Audio is optional on unsupported devices.
+    }
+  },
   play(frequency = 220, duration = 0.07, waveform: OscillatorType = "square") {
     if (!this.enabled || this.volume <= 0) return;
     this.unlock();

@@ -86,6 +86,7 @@ export const BACKPACK_SLOTS = 24;
 export const PLANET_SCAN_SECONDS = 10;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
+export const STATION_EXIT_DISTANCE = 145;
 export const SURFACE_SEQUENCE_DURATION = {
   landing: 2.3,
   disembark: 1.1,
@@ -205,7 +206,7 @@ export const useGame = defineStore("game", () => {
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
     surfaceSequence = ref<SurfaceSequence>(),
-    dockingSequence = ref<{ elapsed: number }>(),
+    dockingSequence = ref<{ elapsed: number; kind: "arrival" | "departure" }>(),
     planetScan = ref<{ index: number; name: string; elapsed: number }>(),
     panel = ref(""),
     governmentAnchor = ref({ x: 0, y: 0 }),
@@ -448,6 +449,7 @@ export const useGame = defineStore("game", () => {
       trading.value ||
       !started.value ||
       paused.value ||
+      inSequence.value ||
       state.value.mode !== "docked" ||
       !station
     )
@@ -500,7 +502,8 @@ export const useGame = defineStore("game", () => {
     releaseControls();
     policeContact.value = undefined;
     policeAnswer.value = undefined;
-    dockingSequence.value = { elapsed: 0 };
+    dockingSequence.value = { elapsed: 0, kind: "arrival" };
+    audio.playStation(DOCKING_DURATION, false);
     return true;
   }
   function advanceDocking(dt: number) {
@@ -511,36 +514,37 @@ export const useGame = defineStore("game", () => {
     if (sequence.elapsed < DOCKING_DURATION) return;
     dockingSequence.value = undefined;
     const s = state.value;
+    const departing = sequence.kind === "departure";
     Object.assign(s.ship, {
-      x: station.x,
+      x: station.x + (departing ? STATION_EXIT_DISTANCE : 0),
       y: station.y,
       angle: 0,
       vx: 0,
       vy: 0,
     });
-    s.mode = "docked";
+    s.mode = departing ? "space" : "docked";
     speed.value = 0;
     releaseControls();
-    notify(`Acoplagem confirmada. ${station.name}.`);
+    notify(
+      departing
+        ? "Desacoplagem confirmada."
+        : `Acoplagem confirmada. ${station.name}.`,
+    );
     void save();
   }
   function undock() {
-    const s = state.value,
-      station = system.value.station;
-    if (trading.value || paused.value || s.mode !== "docked" || !station)
+    if (
+      trading.value ||
+      paused.value ||
+      inSequence.value ||
+      state.value.mode !== "docked" ||
+      !system.value.station
+    )
       return;
-    Object.assign(s.ship, {
-      x: station.x + 42,
-      y: station.y,
-      vx: 0,
-      vy: 0,
-      angle: 0,
-    });
-    s.mode = "space";
     panel.value = "";
+    dockingSequence.value = { elapsed: 0, kind: "departure" };
     releaseControls();
-    notify("Desacoplagem confirmada.");
-    void save();
+    audio.playStation(DOCKING_DURATION, true);
   }
   async function checkSave() {
     try {

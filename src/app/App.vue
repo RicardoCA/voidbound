@@ -901,7 +901,9 @@ function minutes() {
       >
         {{
           g.dockingSequence
-            ? "Acoplando à " + g.system.station?.name
+            ? g.dockingSequence.kind === "departure"
+              ? "Desacoplando da " + g.system.station?.name
+              : "Acoplando à " + g.system.station?.name
             : g.surfaceSequence?.kind === "landing"
               ? "Descida para " + g.planet.name
               : g.surfaceSequence?.kind === "takeoff"

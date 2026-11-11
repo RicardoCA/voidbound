@@ -90,6 +90,10 @@ describe("estações procedurais", () => {
       ).toBe(true);
       expect(g.state.credits).toBe(488);
       g.undock();
+      expect(g.dockingSequence?.kind).toBe("departure");
+      expect(g.state.mode).toBe("docked");
+      expect(await g.stationTransaction(() => undefined)).toBe(false);
+      g.advanceDocking(1.8);
       expect(g.state.mode).toBe("space");
       expect(g.state.ship.x).toBeGreaterThan(station.x);
       expect(await g.stationTransaction(() => undefined)).toBe(false);
