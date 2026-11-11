@@ -1,4 +1,5 @@
-import type { Planet, Save, StarSystem } from "../game/types";
+import { openSurfacePosition } from "../construction/openSurfacePosition";
+import type { Planet, Save, Settlement, StarSystem } from "../game/types";
 import { biomes } from "../game/types";
 import { hash } from "../game/procedural/random";
 import type { Terrain } from "../game/procedural/terrain";
@@ -177,16 +178,18 @@ export function systemCatalogue(state: Save, system: StarSystem) {
 export function ruinAt(
   planet: Planet,
   terrain: Terrain,
+  settlement?: Settlement,
 ): ScienceSite | undefined {
   const seed = ruinSeed(planet);
   if (seed === undefined) return;
-  const tile = 14 + (seed % 7);
+  const position = openSurfacePosition(terrain, settlement, 14 + (seed % 7), 2);
+  if (!position) return;
   return {
     id: `ruin:${planet.id}`,
     kind: "ruin",
     name: "Ruína alienígena",
-    x: tile * 16 + 8,
-    y: terrain.height(tile) * 16 - 14,
+    x: position.x,
+    y: position.y - 1,
     level: 1,
     credits: 2500 + (seed % 4501),
     planetId: planet.id,

@@ -367,6 +367,24 @@ export const useGame = defineStore("game", () => {
       () =>
         new Terrain(planet.value, state.value.changes[planet.value.id] ?? {}),
     ),
+    surfaceRuin = computed(() =>
+      state.value.mode === "surface" || surfaceSequence.value
+        ? ruinAt(
+            planet.value,
+            planetTerrain.value,
+            state.value.settlements[planet.value.id],
+          )
+        : undefined,
+    ),
+    nearbyUnscannedRuin = computed(() => {
+      const site = surfaceRuin.value;
+      const s = state.value;
+      return (
+        !!site &&
+        !s.progression.discoveries[site.id] &&
+        Math.hypot(s.player.x - site.x, s.player.y - site.y) <= 44
+      );
+    }),
     biome = computed(() => biomes[planet.value.kind]!),
     sicknessRemaining = computed(() =>
       Math.ceil(state.value.player.sickness ?? 0),
@@ -1184,7 +1202,7 @@ export const useGame = defineStore("game", () => {
       s.mode === "space"
         ? anomalyAt(system.value)
         : s.mode === "surface"
-          ? ruinAt(planet.value, planetTerrain.value)
+          ? surfaceRuin.value
           : undefined;
     if (!signal || !scanSite(s, system.value, signal)) {
       notify(
@@ -1568,6 +1586,8 @@ export const useGame = defineStore("game", () => {
     planetScan,
     advancePlanetScan,
     scanSignal,
+    surfaceRuin,
+    nearbyUnscannedRuin,
     make,
     use,
     orbit,

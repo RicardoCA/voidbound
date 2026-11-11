@@ -463,7 +463,13 @@ function minutes() {
         </div>
         <div v-if="surface && !b.enabled" class="surface-tip">
           MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
-          <kbd>E</kbd> Nave / fogueira / armário <kbd>B</kbd> Construir
+          <kbd>E</kbd>
+          {{
+            g.nearbyUnscannedRuin
+              ? "Escanear ruína"
+              : "Nave / fogueira / armário"
+          }}
+          <kbd>B</kbd> Construir
         </div>
         <TouchControls
           v-if="

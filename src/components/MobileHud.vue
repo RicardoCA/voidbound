@@ -245,6 +245,9 @@ function pause() {
       >{{ habitatMessage(g.habitat) }} · Traje
       {{ Math.ceil(g.state.player.oxygen) }}%</template
     >
+    <template v-else-if="surface && g.nearbyUnscannedRuin"
+      >Ruína alienígena · Toque em Interagir para escanear</template
+    >
     <template v-else-if="surface && g.weather">{{
       weatherLabels[g.weather.kind]
     }}</template>

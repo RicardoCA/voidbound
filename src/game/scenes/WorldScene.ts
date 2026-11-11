@@ -21,11 +21,7 @@ import {
 } from "../../combat/traffic";
 import type { Save, ShipModelId } from "../types";
 import { drawScienceSite } from "../rendering/scienceArt";
-import {
-  anomalyAt,
-  ruinAt,
-  type ScienceSite,
-} from "../../progression/exploration";
+import { anomalyAt, type ScienceSite } from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
   clearPath,
@@ -688,7 +684,9 @@ export class WorldScene extends Phaser.Scene {
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
           if (this.talkToRepresentative()) return;
-          if (
+          if (g.nearbyUnscannedRuin && !this.building.enabled) {
+            g.scanSignal();
+          } else if (
             cabinet.key &&
             cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
           ) {
@@ -2174,7 +2172,7 @@ export class WorldScene extends Phaser.Scene {
       material,
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
-    const ruin = ruinAt(g.planet, t);
+    const ruin = g.surfaceRuin;
     if (ruin) this.drawScienceSignal(ruin);
     for (const fruit of this.fruit) {
       const x = Math.round(fruit.x + offsetX);
