@@ -1,4 +1,6 @@
 import { expect, it } from "vitest";
+import { ruinAt } from "../progression/exploration";
+import { systemAt } from "../universe/generator";
 import { emptySettlement } from "../construction/building";
 import { representativePosition } from "../diplomacy/representative";
 import type { Terrain } from "../game/procedural/terrain";
@@ -31,4 +33,21 @@ it("reposiciona quando há construção e acompanha o solo minerado", () => {
     x: 136,
     y: 499,
   });
+});
+
+it("desloca a ruína inteira para fora do telhado e preserva a descoberta", () => {
+  const planets = Array.from(
+    { length: 12 },
+    (_, x) => systemAt("VOIDBOUND", x, 0).planets,
+  ).flat();
+  const planet = planets.find((body) => ruinAt(body, terrain))!;
+  const original = ruinAt(planet, terrain)!;
+  const column = Math.floor(original.x / 16);
+  const settlement = emptySettlement();
+  settlement.pieces[`${column + 2},20`] = { kind: "woodBlock", facing: 1 };
+  const relocated = ruinAt(planet, terrain, settlement)!;
+  expect(relocated.id).toBe(original.id);
+  expect(Math.abs(Math.floor(relocated.x / 16) - (column + 2))).toBeGreaterThan(
+    2,
+  );
 });

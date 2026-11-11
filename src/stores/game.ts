@@ -1184,7 +1184,11 @@ export const useGame = defineStore("game", () => {
       s.mode === "space"
         ? anomalyAt(system.value)
         : s.mode === "surface"
-          ? ruinAt(planet.value, planetTerrain.value)
+          ? ruinAt(
+              planet.value,
+              planetTerrain.value,
+              state.value.settlements[planet.value.id],
+            )
           : undefined;
     if (!signal || !scanSite(s, system.value, signal)) {
       notify(

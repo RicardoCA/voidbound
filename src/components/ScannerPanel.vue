@@ -44,7 +44,7 @@ const contact = computed(() => {
     g.state.mode === "space"
       ? anomalyAt(g.system)
       : g.state.mode === "surface"
-        ? ruinAt(g.planet, terrain.value)
+        ? ruinAt(g.planet, terrain.value, g.state.settlements[g.planet.id])
         : undefined;
   if (!site || explorationLevel(g.state) < site.level) return;
   const actor = site.kind === "ruin" ? g.state.player : g.state.ship;

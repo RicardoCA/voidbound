@@ -2174,7 +2174,7 @@ export class WorldScene extends Phaser.Scene {
       material,
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
-    const ruin = ruinAt(g.planet, t);
+    const ruin = ruinAt(g.planet, t, this.building.settlement);
     if (ruin) this.drawScienceSignal(ruin);
     for (const fruit of this.fruit) {
       const x = Math.round(fruit.x + offsetX);
