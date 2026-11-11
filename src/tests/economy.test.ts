@@ -13,6 +13,7 @@ import {
   transferShipCargo,
 } from "../fleet/hangar";
 import { database, SaveDatabase } from "../persistence/database";
+import { shipBlueprints } from "../fleet/shipBlueprints";
 import { shipModels } from "../fleet/models";
 
 describe("mercado galáctico", () => {
@@ -168,7 +169,9 @@ describe("frota e hangar", () => {
   it("vende 20 modelos premium na concessionária e permite assumir a nave de 2 milhões", () => {
     const g = docked();
     expect(
-      Object.values(shipModels).filter(({ price }) => price > 2950),
+      Object.entries(shipModels).filter(
+        ([id, { price }]) => price > 2950 && !Object.hasOwn(shipBlueprints, id),
+      ),
     ).toHaveLength(20);
     expect(
       Math.max(...Object.values(shipModels).map(({ price }) => price)),

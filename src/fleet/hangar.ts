@@ -1,6 +1,7 @@
 import type { Item, ParkedShip, Save, ShipModelId } from "../game/types";
 import { transfer } from "../construction/building";
 import { slots } from "../inventory/inventory";
+import { shipBlueprints } from "./shipBlueprints";
 import { shipModels } from "./models";
 
 export function shipCapacity(model: ShipModelId, upgrades: readonly Item[]) {
@@ -30,8 +31,17 @@ export function buyShip(state: Save, modelId: ShipModelId) {
   const model = shipModels[modelId];
   if (state.mode !== "docked" || !Object.hasOwn(shipModels, modelId))
     return "Compre naves na concessionária de uma estação.";
+  if (Object.hasOwn(shipBlueprints, modelId))
+    return "Esta nave é fabricada na oficina.";
   if (state.credits < model.price)
     return "Saldo insuficiente para comprar a nave.";
+  const error = registerShip(state, modelId);
+  if (error) return error;
+  state.credits -= model.price;
+}
+
+export function registerShip(state: Save, modelId: ShipModelId) {
+  const model = shipModels[modelId];
   const serial = state.nextShipId,
     id = `ship-${serial}`;
   if (
@@ -60,7 +70,6 @@ export function buyShip(state: Save, modelId: ShipModelId) {
     upgrades: [...model.equipment],
   });
   state.nextShipId++;
-  state.credits -= model.price;
 }
 
 export function activateShip(state: Save, id: string) {

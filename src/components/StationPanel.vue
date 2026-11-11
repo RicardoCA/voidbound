@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
+import ShipBlueprintPanel from "./ShipBlueprintPanel.vue";
 import HangarPanel from "./HangarPanel.vue";
 import DealershipPanel from "./DealershipPanel.vue";
 import CriminalRecord from "./CriminalRecord.vue";
@@ -82,6 +83,7 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
         :clandestine="section === 'pirate-clothing'"
       />
       <div v-else-if="section === 'workshop'" class="station-form">
+        <ShipBlueprintPanel />
         <ScannerBlueprintPanel
           v-if="g.system.station?.kind === 'standard'"
           scanner="asteroidRadar"
