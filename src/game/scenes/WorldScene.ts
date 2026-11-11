@@ -20,7 +20,12 @@ import {
   type Wreck,
 } from "../../combat/traffic";
 import type { Save, ShipModelId } from "../types";
-import { anomalyAt, ruinAt } from "../../progression/exploration";
+import { drawScienceSite } from "../rendering/scienceArt";
+import {
+  anomalyAt,
+  ruinAt,
+  type ScienceSite,
+} from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
 import {
   clearPath,
@@ -1594,7 +1599,7 @@ export class WorldScene extends Phaser.Scene {
       f.lineStyle(1, 0x88ded8, 0.75).strokeCircle(x, y, 9);
     }
     const anomaly = anomalyAt(g.system);
-    if (anomaly) this.drawScienceSignal(anomaly.x, anomaly.y, 0x9ac9ee);
+    if (anomaly) this.drawScienceSignal(anomaly);
     for (const rock of g.asteroids) {
       const x = Math.floor(rock.x - this.camX + this.centerX),
         y = Math.floor(rock.y - this.camY + this.centerY);
@@ -1918,9 +1923,9 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawScienceSignal(wx: number, wy: number, color: number) {
-    const x = Math.round(wx - this.camX + this.centerX);
-    const y = Math.round(wy - this.camY + this.centerY);
+  private drawScienceSignal(site: ScienceSite) {
+    const x = Math.round(site.x - this.camX + this.centerX);
+    const y = Math.round(site.y - this.camY + this.centerY);
     if (
       x < -30 ||
       x > this.viewWidth + 30 ||
@@ -1928,14 +1933,7 @@ export class WorldScene extends Phaser.Scene {
       y > this.viewHeight + 30
     )
       return;
-    const f = this.gfx;
-    f.fillStyle(color, 0.15 + 0.08 * Math.sin(this.elapsed * 2));
-    f.fillRect(x - 13, y - 13, 26, 26);
-    f.fillStyle(0x324863);
-    f.fillRect(x - 6, y - 9, 12, 19);
-    f.fillStyle(color);
-    f.fillRect(x - 2, y - 6, 4, 11);
-    f.fillRect(x - 8, y - 1, 16, 3);
+    drawScienceSite(this.gfx, site, x, y, this.elapsed);
   }
   private drawWeather(
     storm: NonNullable<ReturnType<typeof useGame>["weather"]>,
@@ -2121,7 +2119,7 @@ export class WorldScene extends Phaser.Scene {
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
     const ruin = ruinAt(g.planet, t);
-    if (ruin) this.drawScienceSignal(ruin.x, ruin.y, 0xc3a2e6);
+    if (ruin) this.drawScienceSignal(ruin);
     for (const fruit of this.fruit) {
       const x = Math.round(fruit.x + offsetX);
       const y = Math.round(fruit.y + offsetY);
