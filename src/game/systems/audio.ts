@@ -1,4 +1,9 @@
 let context: AudioContext | undefined;
+let engine:
+  | { tone: OscillatorNode; filter: BiquadFilterNode; gain: GainNode }
+  | undefined;
+let engineFrequency = 0;
+let engineVolume = 0;
 function surfaceTone(
   ctx: AudioContext,
   start: number,
@@ -36,6 +41,47 @@ export const audio = {
         void context.resume().catch(() => {
           // A later user interaction can retry if playback is blocked.
         });
+      }
+    } catch {
+      // Audio is optional on unsupported devices.
+    }
+  },
+  flightEngine(mode: "thrust" | "brake" | "idle", speed = 0) {
+    const powered = this.enabled && this.volume > 0 && mode !== "idle";
+    if (!engine && !powered) return;
+    if (!engine) this.unlock();
+    if (!context) return;
+    try {
+      if (!engine) {
+        const tone = context.createOscillator();
+        const filter = context.createBiquadFilter();
+        const gain = context.createGain();
+        tone.type = "sawtooth";
+        filter.type = "lowpass";
+        gain.gain.value = 0;
+        tone.connect(filter).connect(gain).connect(context.destination);
+        tone.start();
+        engine = { tone, filter, gain };
+      }
+      const braking = mode === "brake";
+      const load = Math.round(Math.max(0, Math.min(1, speed)) * 32) / 32;
+      const frequency = braking ? 38 + 23 * load : 52 + 60 * load;
+      const volume = powered
+        ? this.volume * (braking ? 0.048 * load : 0.036 + 0.02 * load)
+        : 0;
+      const now = context.currentTime;
+      if (powered && frequency !== engineFrequency) {
+        engine.tone.frequency.setTargetAtTime(frequency, now, 0.1);
+        engine.filter.frequency.setTargetAtTime(
+          braking ? 150 : 290 + load * 200,
+          now,
+          0.1,
+        );
+        engineFrequency = frequency;
+      }
+      if (volume !== engineVolume) {
+        engine.gain.gain.setTargetAtTime(volume, now, volume ? 0.06 : 0.085);
+        engineVolume = volume;
       }
     } catch {
       // Audio is optional on unsupported devices.

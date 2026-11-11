@@ -225,7 +225,9 @@ export class WorldScene extends Phaser.Scene {
     canvas.addEventListener("pointerup", clearMouse);
     canvas.addEventListener("pointerleave", clearMouse);
     canvas.addEventListener("pointercancel", clearMouse);
+    const silenceEngine = () => audio.flightEngine("idle");
     this.game.events.on("blur", clearMouse);
+    this.game.events.on("blur", silenceEngine);
     this.events.once("shutdown", () => {
       canvas.removeEventListener("pointerdown", press);
       canvas.removeEventListener("pointermove", move);
@@ -233,6 +235,8 @@ export class WorldScene extends Phaser.Scene {
       canvas.removeEventListener("pointerleave", clearMouse);
       canvas.removeEventListener("pointercancel", clearMouse);
       this.game.events.off("blur", clearMouse);
+      this.game.events.off("blur", silenceEngine);
+      silenceEngine();
     });
     this.clandestineStation = this.add
       .image(0, 0, "clandestine-station")
@@ -413,6 +417,24 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    const piloting =
+      g.started &&
+      g.state.mode === "space" &&
+      !g.flightCabin &&
+      !g.paused &&
+      !g.panel &&
+      !g.busy &&
+      !g.inSequence &&
+      !document.hidden;
+    const ship = g.state.ship;
+    const speed = Math.hypot(ship.vx, ship.vy);
+    const braking = piloting && speed > 1 && (this.down("S") || controls.down);
+    const thrusting =
+      piloting && ship.fuel > 0 && (this.down("W") || controls.up);
+    audio.flightEngine(
+      braking ? "brake" : thrusting ? "thrust" : "idle",
+      speed / g.model.speed,
+    );
     if (activeDt > 0) g.tickActiveTime(activeDt);
     g.advanceBlackHole(this.game.loop.rawDelta / 1000);
     g.advancePlanetScan(this.game.loop.rawDelta / 1000);
