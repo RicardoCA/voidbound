@@ -243,6 +243,15 @@ function stationType(system: StarSystem) {
           {{ starClasses[kind].name }}
         </span>
       </div>
+      <p>
+        Influência galáctica · {{ g.galacticInfluence }} ·
+        {{
+          Object.values(g.state.governments ?? {}).filter(
+            (record) => record.governed,
+          ).length
+        }}
+        planetas governados
+      </p>
       <div class="map-selection">
         <div>
           <h3>{{ destination?.name ?? "Selecione um sistema" }}</h3>
@@ -256,6 +265,14 @@ function stationType(system: StarSystem) {
           >
             Procurado neste sistema:
             {{ wantedLevels.get(destination.id) ?? 0 }}/5
+          </p>
+          <p
+            v-for="world in destination?.planets.filter(
+              (planet) => g.state.governments?.[planet.id]?.governed,
+            )"
+            :key="world.id"
+          >
+            {{ world.name }} · Sob seu governo
           </p>
           <p v-if="destination?.station">
             {{ destination.station.name }} ·

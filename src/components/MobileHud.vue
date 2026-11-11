@@ -192,6 +192,9 @@ function pause() {
       >Chuva ácida · Procure abrigo</template
     >
     <template v-else-if="transient">{{ transient }}</template>
+    <template v-else-if="surface && g.civilization"
+      >{{ g.civilization.name }} · A leste do pouso</template
+    >
     <template v-else-if="g.routeDestination"
       >Rota ativa · {{ g.routeDestination.name }}</template
     >

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 import Phaser from "phaser";
+import PlanetGovernmentPanel from "./PlanetGovernmentPanel.vue";
+import { useGame } from "../stores/game";
+const g = useGame();
 import { WorldScene } from "../game/scenes/WorldScene";
 import { MOBILE_LAYOUT, logicalViewport } from "../game/rendering/viewport";
 const props = defineProps<{ playing: boolean }>();
@@ -52,5 +55,14 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div ref="host" class="game-canvas" aria-label="Universo de Voidbound" />
+  <div ref="host" class="game-canvas" aria-label="Universo de Voidbound">
+    <PlanetGovernmentPanel
+      v-if="
+        g.panel === 'government' &&
+        g.state.mode === 'surface' &&
+        g.civilization &&
+        !g.paused
+      "
+    />
+  </div>
 </template>

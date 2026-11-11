@@ -326,6 +326,9 @@ function minutes() {
                 : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
             }}
           </p>
+          <p v-if="surface && g.civilization">
+            {{ g.civilization.name }} · Conselho a leste do pouso
+          </p>
           <p v-if="g.routeDestination">
             Rota ativa · {{ g.routeDestination.name }}
           </p>
@@ -610,7 +613,10 @@ function minutes() {
         v-if="
           g.started &&
           !g.busy &&
-          (g.paused || (!g.inSequence && (g.panel || g.state.mode === 'orbit')))
+          (g.paused ||
+            (!g.inSequence &&
+              ((g.panel && g.panel !== 'government') ||
+                g.state.mode === 'orbit')))
         "
         class="overlay"
         :class="{

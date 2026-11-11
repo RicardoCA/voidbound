@@ -580,6 +580,7 @@ export class WorldScene extends Phaser.Scene {
           if (!this.recoverWreck() && !g.dock()) g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
+          if (this.talkToRepresentative()) return;
           if (
             cabinet.key &&
             cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
@@ -892,6 +893,29 @@ export class WorldScene extends Phaser.Scene {
       clearPath(this.terrain!, this.building.settlement, p.x, p.y, x, y)
     );
   }
+  private representativePosition() {
+    if (!this.store.civilization || !this.terrain) return;
+    const column = this.store.state.landingX + 6;
+    return { x: column * 16 + 8, y: this.terrain.height(column) * 16 - 13 };
+  }
+  private talkToRepresentative(tap?: { wx: number; wy: number }) {
+    const target = this.representativePosition();
+    if (
+      !target ||
+      (tap && Math.hypot(target.x - tap.wx, target.y - tap.wy) > 17)
+    )
+      return false;
+    const g = this.store;
+    if (
+      Math.hypot(target.x - g.state.player.x, target.y - g.state.player.y) > 34
+    ) {
+      if (tap) g.notify("Aproxime-se do representante para conversar.");
+      return Boolean(tap);
+    }
+    releaseControls();
+    g.panel = "government";
+    return true;
+  }
   private gatherFruit(fruit: Fruit) {
     const g = this.store;
     if (!this.canReachFood(fruit.x, fruit.y)) {
@@ -985,7 +1009,11 @@ export class WorldScene extends Phaser.Scene {
       }
       return;
     }
-    if (tap && this.building.interactAt(tap.x, tap.y)) return;
+    if (
+      tap &&
+      (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))
+    )
+      return;
     if (tap) {
       const fruit = this.fruit.find(
         (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
@@ -2114,6 +2142,37 @@ export class WorldScene extends Phaser.Scene {
             1,
           );
       } else if (g.state.mode === "surface") {
+        const representative = this.representativePosition();
+        if (representative && g.civilization) {
+          const x = Math.round(representative.x + offsetX);
+          const y = Math.round(representative.y + offsetY);
+          if (g.panel === "government") {
+            const canvas = this.game.canvas;
+            const anchorX = Math.round(
+              canvas.offsetLeft + (x / this.viewWidth) * canvas.clientWidth,
+            );
+            const anchorY = Math.round(
+              canvas.offsetTop +
+                ((y - 23) / this.viewHeight) * canvas.clientHeight,
+            );
+            if (
+              anchorX !== g.governmentAnchor.x ||
+              anchorY !== g.governmentAnchor.y
+            )
+              g.governmentAnchor = { x: anchorX, y: anchorY };
+          }
+          contactShadow(representative.x, representative.y + 12, 14);
+          this.drawAstronaut(x, y, 0, p.x < representative.x ? -1 : 1, false);
+          f.fillStyle(g.civilization.color).fillRect(x - 4, y - 5, 9, 6);
+          f.fillStyle(g.civilization.color).fillTriangle(
+            x - 4,
+            y - 23,
+            x + 4,
+            y - 23,
+            x,
+            y - 18,
+          );
+        }
         contactShadow(p.x, p.y + 12, 13);
         this.drawAstronaut(
           Math.round(p.x - this.camX + this.centerX),
@@ -2160,10 +2219,16 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
-  private drawAstronaut(x: number, y: number, walk: number, facing: number) {
+  private drawAstronaut(
+    x: number,
+    y: number,
+    walk: number,
+    facing: number,
+    player = true,
+  ) {
     const f = this.gfx;
     for (const pixel of astronautArt(
-      this.store.state.wardrobe?.equipped,
+      player ? this.store.state.wardrobe?.equipped : undefined,
       walk,
     )) {
       const dx = facing < 0 ? -pixel.x - pixel.w : pixel.x;

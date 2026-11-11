@@ -1,4 +1,10 @@
 import {
+  applyCivicAction,
+  civilizationOf,
+  planetaryInfluence,
+  type CivicAction,
+} from "../diplomacy/governance";
+import {
   ASTEROID_RESPAWN_SECONDS,
   asteroidsIn,
   availableAsteroids,
@@ -200,6 +206,7 @@ export const useGame = defineStore("game", () => {
     dockingSequence = ref<{ elapsed: number }>(),
     planetScan = ref<{ index: number; name: string; elapsed: number }>(),
     panel = ref(""),
+    governmentAnchor = ref({ x: 0, y: 0 }),
     paused = ref(false),
     notice = ref("Sinal de emergência detectado. Explore o planeta próximo."),
     saveStatus = ref("Sem salvamento"),
@@ -556,6 +563,30 @@ export const useGame = defineStore("game", () => {
     } catch {
       notify("Não foi possível recuperar a partida.");
     }
+  }
+  const civilization = computed(() => civilizationOf(planet.value));
+  const government = computed(() => state.value.governments?.[planet.value.id]);
+  const galacticInfluence = computed(() =>
+    Object.values(state.value.governments ?? {}).reduce(
+      (total, record) => total + planetaryInfluence(record),
+      0,
+    ),
+  );
+  function governPlanet(action: CivicAction) {
+    if (panel.value !== "government" || paused.value || busy.value) return;
+    const error = applyCivicAction(
+      state.value,
+      planet.value,
+      action,
+      maxFuel.value,
+    );
+    notify(
+      error ??
+        (action === "govern"
+          ? "O conselho aprovou seu mandato."
+          : "Ação concluída com o conselho."),
+    );
+    if (!error) void save();
   }
   function collect(id: Item, n = 1) {
     if (!add(workingInventory.value, id, n, workingCapacity.value)) {
@@ -1436,6 +1467,7 @@ export const useGame = defineStore("game", () => {
     beginDisembark,
     advanceSurfaceSequence,
     panel,
+    governmentAnchor,
     paused,
     notice,
     saveStatus,
@@ -1501,6 +1533,10 @@ export const useGame = defineStore("game", () => {
     progress,
     save,
     checkSave,
+    civilization,
+    government,
+    galacticInfluence,
+    governPlanet,
     newGame,
     resume,
     collect,
