@@ -15,6 +15,8 @@ export const supabase = url && key ? createClient(url, key) : undefined;
 export const cloudSession = ref<Session | null>(null);
 export const cloudStatus = ref("");
 export const cloudBusy = ref(false);
+const syncConfirmation = "Salvamento sincronizado.";
+let confirmationTimer: ReturnType<typeof setTimeout> | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 supabase?.auth.onAuthStateChange((_event, session) => {
@@ -74,7 +76,13 @@ async function upload(
     if (!data) return false;
   }
   await database.markSynced(local, owner, revision);
-  cloudStatus.value = "Salvamento sincronizado.";
+  if (cloudSession.value?.user.id === owner) {
+    clearTimeout(confirmationTimer);
+    cloudStatus.value = syncConfirmation;
+    confirmationTimer = setTimeout(() => {
+      if (cloudStatus.value === syncConfirmation) cloudStatus.value = "";
+    }, 3000);
+  }
   return true;
 }
 
