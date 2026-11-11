@@ -177,3 +177,29 @@ it.each([true, false])(
     }
   },
 );
+
+it("avisa outras patrulhas ao fugir da inspeção e retoma o scan no reencontro", () => {
+  setActivePinia(createPinia());
+  const g = useGame();
+  const state = g.state;
+  const flight = new SpaceCombat();
+  flight.reset(state, g.system);
+  flight.update(state, g.system, 0.04);
+  const [patrol, backup] = flight.npcs.filter((npc) => npc.role === "police");
+  Object.assign(patrol, { x: state.ship.x + 180, y: state.ship.y });
+  Object.assign(backup, { x: state.ship.x + 500, y: state.ship.y });
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("scan");
+  state.ship.x -= 115;
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact?.phase).toBe("pursuit");
+  expect(patrol.vx).toBeLessThan(-100);
+  expect(backup.vx).toBeLessThan(-100);
+  expect(flight.bolts.some((bolt) => bolt.hostile)).toBe(false);
+  state.ship.x = backup.x + 160;
+  flight.update(state, g.system, 0.04);
+  expect(flight.policeContact).toMatchObject({
+    phase: "scan",
+    officerId: backup.id,
+  });
+});

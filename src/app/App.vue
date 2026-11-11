@@ -221,13 +221,21 @@ function minutes() {
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
       <aside
-        v-if="g.started && g.policeContact?.phase === 'scan'"
+        v-if="
+          g.started &&
+          (g.policeContact?.phase === 'scan' ||
+            g.policeContact?.phase === 'pursuit')
+        "
         class="police-scan"
         role="status"
       >
         <strong>{{ g.policeContact.name }}</strong>
-        <span>Escaneando sua carga e seu nível de procurado</span>
+        <span v-if="g.policeContact.phase === 'pursuit'"
+          >Patrulhas alertadas. Buscando uma nave {{ g.model.name }}.</span
+        >
+        <span v-else>Escaneando sua carga e seu nível de procurado</span>
         <progress
+          v-if="g.policeContact.phase === 'scan'"
           :value="g.policeContact.progress"
           max="1"
           aria-label="Progresso da inspeção policial"

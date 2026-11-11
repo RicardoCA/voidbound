@@ -59,7 +59,7 @@ interface EscortFlight extends Point {
 export interface PoliceContact {
   officerId: string;
   name: string;
-  phase: "scan" | "offer" | "combat";
+  phase: "scan" | "pursuit" | "offer" | "combat";
   progress: number;
 }
 
@@ -72,9 +72,11 @@ export class SpaceCombat {
   escorts: EscortFlight[] = [];
   policeContact?: PoliceContact;
   private nextInspection = 0;
+  private policeSearch?: Point & { expires: number };
 
   clearPoliceContact() {
     this.policeContact = undefined;
+    this.policeSearch = undefined;
     this.nextInspection = 0;
   }
 
@@ -85,6 +87,7 @@ export class SpaceCombat {
       return "Rendição recusada. A patrulha abriu combate.";
     }
     this.policeContact = undefined;
+    this.policeSearch = undefined;
     this.nextInspection = state.time + 60;
     state.ship.vx = 0;
     state.ship.vy = 0;
@@ -93,32 +96,48 @@ export class SpaceCombat {
 
   private inspectPlayer(state: Save, level: number, dt: number) {
     const current = this.policeContact;
-    const officer = this.npcs.find(
-      (npc) => npc.id === current?.officerId && npc.hull > 0,
-    );
+    const patrols = this.npcs.filter((npc) => isPolice(npc) && npc.hull > 0);
+    const ship = state.ship;
+    const officer = patrols.find((npc) => npc.id === current?.officerId);
+    const nearby = patrols.find((npc) => distance(npc, ship) <= SCAN_RANGE);
     if (
+      current?.phase === "scan" &&
+      officer &&
+      distance(officer, ship) > SCAN_RANGE + 35
+    ) {
+      this.policeSearch = { x: ship.x, y: ship.y, expires: state.time + 25 };
+      this.policeContact = { ...current, phase: "pursuit", progress: 0 };
+    } else if (
       current &&
+      current.phase !== "pursuit" &&
       (!officer ||
-        distance(officer, state.ship) >
-          (current.phase === "combat" ? 480 : SCAN_RANGE + 35))
-    )
+        (current.phase === "combat" && distance(officer, ship) > 480))
+    ) {
       this.policeContact = undefined;
-
-    if (!this.policeContact && state.time >= this.nextInspection) {
-      const nearby = this.npcs.find(
-        (npc) =>
-          isPolice(npc) &&
-          npc.hull > 0 &&
-          distance(npc, state.ship) <= SCAN_RANGE,
-      );
-      if (nearby)
-        this.policeContact = {
-          officerId: nearby.id,
-          name: nearby.name,
-          phase: "scan",
-          progress: 0,
-        };
     }
+
+    if (this.policeSearch) {
+      if (patrols.some((npc) => distance(npc, ship) <= 480))
+        this.policeSearch = { x: ship.x, y: ship.y, expires: state.time + 25 };
+      else if (state.time >= this.policeSearch.expires) {
+        this.policeSearch = undefined;
+        if (this.policeContact?.phase === "pursuit")
+          this.policeContact = undefined;
+      }
+    }
+
+    if (
+      nearby &&
+      state.time >= this.nextInspection &&
+      (!this.policeContact || this.policeContact.phase === "pursuit")
+    )
+      this.policeContact = {
+        officerId: nearby.id,
+        name: nearby.name,
+        phase: "scan",
+        progress: 0,
+      };
+
     const scan = this.policeContact;
     if (scan?.phase !== "scan") return;
     const progress = Math.min(1, scan.progress + dt / SCAN_DURATION);
@@ -129,6 +148,7 @@ export class SpaceCombat {
       this.policeContact = { ...scan, progress, phase: "offer" };
     else {
       this.policeContact = undefined;
+      this.policeSearch = undefined;
       this.nextInspection = state.time + 45;
     }
   }
@@ -429,19 +449,23 @@ export class SpaceCombat {
       const phase =
         state.time * (police || commercialRoute ? 0.05 : 0.22) +
         (npc.routePhase ?? 0);
+      const search = police ? this.policeSearch : undefined;
       const aim =
-        chasing || contact
+        chasing || (contact && contact.phase !== "pursuit")
           ? ship
-          : fleeing
-            ? { x: npc.x * 2 - ship.x, y: npc.y * 2 - ship.y }
-            : {
-                x:
-                  npc.home.x +
-                  Math.cos(phase) * (police ? 560 : commercialRoute ? 240 : 55),
-                y:
-                  npc.home.y +
-                  Math.sin(phase) * (police ? 430 : commercialRoute ? 125 : 29),
-              };
+          : (search ??
+            (fleeing
+              ? { x: npc.x * 2 - ship.x, y: npc.y * 2 - ship.y }
+              : {
+                  x:
+                    npc.home.x +
+                    Math.cos(phase) *
+                      (police ? 560 : commercialRoute ? 240 : 55),
+                  y:
+                    npc.home.y +
+                    Math.sin(phase) *
+                      (police ? 430 : commercialRoute ? 125 : 29),
+                }));
       const dx = aim.x - npc.x,
         dy = aim.y - npc.y;
       const length = Math.hypot(dx, dy);
@@ -452,15 +476,17 @@ export class SpaceCombat {
         : fleeing
           ? 48
           : Math.min(
-              contact
-                ? separation > 135
-                  ? 55
-                  : 0
-                : police
-                  ? level
-                    ? 76
-                    : 64
-                  : 21,
+              search && (!contact || contact.phase === "pursuit")
+                ? 165
+                : contact
+                  ? separation > 135
+                    ? 55
+                    : 0
+                  : police
+                    ? level
+                      ? 76
+                      : 64
+                    : 21,
               length,
             );
       npc.angle = Math.atan2(dy, dx);
