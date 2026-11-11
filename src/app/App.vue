@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { weatherLabels } from "../game/procedural/weather";
-import PlanetGovernmentPanel from "../components/PlanetGovernmentPanel.vue";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
@@ -614,7 +613,10 @@ function minutes() {
         v-if="
           g.started &&
           !g.busy &&
-          (g.paused || (!g.inSequence && (g.panel || g.state.mode === 'orbit')))
+          (g.paused ||
+            (!g.inSequence &&
+              ((g.panel && g.panel !== 'government') ||
+                g.state.mode === 'orbit')))
         "
         class="overlay"
         :class="{
@@ -764,9 +766,6 @@ function minutes() {
             <button class="secondary" @click="g.panel = ''">Cancelar</button>
           </div>
         </section>
-        <PlanetGovernmentPanel
-          v-else-if="g.panel === 'government' && surface && g.civilization"
-        />
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />

@@ -137,6 +137,7 @@ a {
   background: #080f20;
 }
 .game-canvas {
+  container-type: inline-size;
   position: absolute;
   inset: 0;
   overflow: hidden;

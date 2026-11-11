@@ -2146,6 +2146,21 @@ export class WorldScene extends Phaser.Scene {
         if (representative && g.civilization) {
           const x = Math.round(representative.x + offsetX);
           const y = Math.round(representative.y + offsetY);
+          if (g.panel === "government") {
+            const canvas = this.game.canvas;
+            const anchorX = Math.round(
+              canvas.offsetLeft + (x / this.viewWidth) * canvas.clientWidth,
+            );
+            const anchorY = Math.round(
+              canvas.offsetTop +
+                ((y - 23) / this.viewHeight) * canvas.clientHeight,
+            );
+            if (
+              anchorX !== g.governmentAnchor.x ||
+              anchorY !== g.governmentAnchor.y
+            )
+              g.governmentAnchor = { x: anchorX, y: anchorY };
+          }
           contactShadow(representative.x, representative.y + 12, 14);
           this.drawAstronaut(x, y, 0, p.x < representative.x ? -1 : 1, false);
           f.fillStyle(g.civilization.color).fillRect(x - 4, y - 5, 9, 6);
