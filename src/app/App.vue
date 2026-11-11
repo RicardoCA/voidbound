@@ -223,6 +223,8 @@ function minutes() {
       <aside
         v-if="
           g.started &&
+          g.state.mode === 'space' &&
+          !g.inSequence &&
           (g.policeContact?.phase === 'scan' ||
             g.policeContact?.phase === 'pursuit')
         "

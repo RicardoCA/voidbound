@@ -69,8 +69,15 @@ describe("estações procedurais", () => {
       Object.assign(g.state.ship, { x: station.x, y: station.y + 90, vx: 60 });
       expect(g.dock()).toBe(true);
       expect(g.state.mode).toBe("space");
+      g.policeContact = {
+        officerId: "patrol",
+        name: "Patrulha policial",
+        phase: "scan",
+        progress: 0.5,
+      };
       g.state.ship.vx = 0;
       expect(g.dock()).toBe(true);
+      expect(g.policeContact).toBeUndefined();
       expect(g.state.mode).toBe("space");
       g.advanceDocking(1);
       expect(g.state.mode).toBe("space");

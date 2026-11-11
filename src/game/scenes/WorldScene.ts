@@ -577,6 +577,7 @@ export class WorldScene extends Phaser.Scene {
       this.lastMode = s.mode;
     }
     if (g.dockingSequence && g.system.station) {
+      this.combat.clearPoliceContact();
       if (!g.paused) {
         this.camX = Phaser.Math.Linear(this.camX, g.system.station.x, 0.09);
         this.camY = Phaser.Math.Linear(this.camY, g.system.station.y, 0.09);

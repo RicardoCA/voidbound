@@ -497,6 +497,8 @@ export const useGame = defineStore("game", () => {
       return true;
     }
     releaseControls();
+    policeContact.value = undefined;
+    policeAnswer.value = undefined;
     dockingSequence.value = { elapsed: 0 };
     return true;
   }
