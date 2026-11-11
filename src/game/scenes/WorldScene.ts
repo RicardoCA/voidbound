@@ -108,6 +108,7 @@ export class WorldScene extends Phaser.Scene {
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
   private gfx!: Phaser.GameObjects.Graphics;
+  private scienceSprite!: Phaser.GameObjects.Image;
   private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
   private surfaceArt = new SurfaceArt();
@@ -157,6 +158,11 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    for (const sprite of ["anomaly", "legendary", "arch", "monolith"])
+      this.load.image(
+        `science:${sprite}`,
+        `${import.meta.env.BASE_URL}science/${sprite}.webp`,
+      );
     this.load.svg(
       "clandestine-station",
       `${import.meta.env.BASE_URL}stations/clandestine.svg`,
@@ -233,6 +239,10 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(-0.1)
       .setVisible(false);
     this.gfx = this.add.graphics();
+    this.scienceSprite = this.add
+      .image(0, 0, "__MISSING")
+      .setDepth(0.1)
+      .setVisible(false);
     this.surfaceSky = this.add.graphics().setDepth(-1);
     this.surfaceBase = this.add.graphics().setDepth(-0.5);
     this.backdrop = this.add.graphics().setDepth(-2);
@@ -419,6 +429,7 @@ export class WorldScene extends Phaser.Scene {
     this.planetTextures.hide();
     this.stellarTextures.hide();
     this.clandestineStation.setVisible(false);
+    this.scienceSprite.setVisible(false);
     const s = g.state;
     if (g.started && s.mode === "docked" && !g.dockingSequence) {
       if (!this.wasAtStation) {
@@ -1926,14 +1937,37 @@ export class WorldScene extends Phaser.Scene {
   private drawScienceSignal(site: ScienceSite) {
     const x = Math.round(site.x - this.camX + this.centerX);
     const y = Math.round(site.y - this.camY + this.centerY);
+    const margin = 42;
     if (
-      x < -30 ||
-      x > this.viewWidth + 30 ||
-      y < -30 ||
-      y > this.viewHeight + 30
+      x < -margin ||
+      x > this.viewWidth + margin ||
+      y < -margin ||
+      y > this.viewHeight + margin
     )
       return;
-    drawScienceSite(this.gfx, site, x, y, this.elapsed);
+    const ruin = site.kind === "ruin";
+    const sprite = ruin
+      ? hash(site.id) % 3 === 0
+        ? "arch"
+        : "monolith"
+      : site.level > 1
+        ? "legendary"
+        : "anomaly";
+    const texture = `science:${sprite}`;
+    if (!this.textures.exists(texture)) {
+      drawScienceSite(this.gfx, site, x, y, this.elapsed);
+      return;
+    }
+    const size = ruin ? 58 : site.level > 1 ? 74 : 60;
+    const image = this.scienceSprite.setTexture(texture);
+    const pulse = ruin ? 1 : 1 + Math.sin(this.elapsed * 2) * 0.035;
+    image
+      .setDepth(ruin ? -0.02 : 0.1)
+      .setOrigin(0.5, ruin ? 1 : 0.5)
+      .setPosition(x, ruin ? y + 14 : y)
+      .setScale((size * pulse) / Math.max(image.width, image.height))
+      .setRotation(ruin ? 0 : Math.sin(this.elapsed * 0.9) * 0.08)
+      .setVisible(true);
   }
   private drawWeather(
     storm: NonNullable<ReturnType<typeof useGame>["weather"]>,
