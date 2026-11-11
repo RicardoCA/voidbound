@@ -171,6 +171,7 @@ export class SpaceCombat {
 
   private updateEnforcement(state: Save, system: StarSystem, level: number) {
     if (level < 5) this.npcs = this.npcs.filter((npc) => npc.role !== "elite");
+    const clandestine = system.station?.kind === "clandestine";
     const reinforcements = [
       {
         role: "police",
@@ -179,7 +180,7 @@ export class SpaceCombat {
       },
       {
         role: "police",
-        enabled: true,
+        enabled: !clandestine,
         index: 1,
         home: { x: -290, y: 710 },
       },
@@ -195,19 +196,19 @@ export class SpaceCombat {
       },
       {
         role: "elite",
-        enabled: level >= 5,
+        enabled: level >= 5 && !clandestine,
         index: 1,
         home: { x: 1040, y: -450 },
       },
       {
         role: "elite",
-        enabled: level >= 5,
+        enabled: level >= 5 && !clandestine,
         index: 2,
         home: { x: 620, y: 820 },
       },
       {
         role: "elite",
-        enabled: level >= 5,
+        enabled: level >= 5 && !clandestine,
         index: 3,
         home: { x: -1050, y: -780 },
       },
