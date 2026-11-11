@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LocalRadar from "./LocalRadar.vue";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
 import { weatherLabels } from "../game/procedural/weather";
@@ -114,11 +115,12 @@ function pause() {
       </div>
       <button
         class="mobile-radar-toggle"
-        aria-label="Abrir radar local"
+        aria-label="Expandir radar local"
+        aria-controls="local-radar-panel"
         :aria-expanded="g.panel === 'radar'"
         @click="open('radar')"
       >
-        <span aria-hidden="true">⌖</span> Radar
+        <LocalRadar aria-hidden="true" />
       </button>
     </div>
     <nav class="mobile-tools" aria-label="Painéis do jogo">

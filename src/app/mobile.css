@@ -137,19 +137,21 @@
     gap: 3px;
   }
   .mobile-radar-toggle {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 3px 6px;
-    border: 1px solid var(--line);
-    background: #101c2a;
-    color: var(--mint);
-    font-size: 9px;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    border-radius: 8px;
     touch-action: manipulation;
   }
-  .mobile-radar-toggle span {
+  .mobile-radar-toggle .local-radar {
     display: block;
-    font-size: 16px;
-    line-height: 1;
+    width: 44px;
+    height: 44px;
   }
   .mobile-meter {
     color: var(--mint);
