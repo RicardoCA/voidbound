@@ -5,7 +5,7 @@ import {
 } from "../fleet/escorts";
 import { bountyTargets } from "../progression/contracts";
 import { selectedWeapon, shipWeapons } from "./weapons";
-import { reportCrime, wantedStatus } from "./law";
+import { reportCrime, surrenderToPolice, wantedStatus } from "./law";
 import type { Save, StarSystem } from "../game/types";
 import {
   damageNpcHull,
@@ -56,8 +56,83 @@ interface EscortFlight extends Point {
   fireAt: number;
 }
 
+export interface PoliceContact {
+  officerId: string;
+  name: string;
+  phase: "scan" | "offer" | "combat";
+  progress: number;
+}
+
+const SCAN_RANGE = 225;
+const SCAN_DURATION = 3;
+const isPolice = (npc: SpaceNpc) =>
+  npc.role === "police" || npc.role === "elite";
+
 export class SpaceCombat {
   escorts: EscortFlight[] = [];
+  policeContact?: PoliceContact;
+  private nextInspection = 0;
+
+  clearPoliceContact() {
+    this.policeContact = undefined;
+    this.nextInspection = 0;
+  }
+
+  answerPolice(state: Save, system: StarSystem, surrender: boolean) {
+    if (this.policeContact?.phase !== "offer") return;
+    if (!surrender) {
+      this.policeContact = { ...this.policeContact, phase: "combat" };
+      return "Rendição recusada. A patrulha abriu combate.";
+    }
+    this.policeContact = undefined;
+    this.nextInspection = state.time + 60;
+    state.ship.vx = 0;
+    state.ship.vy = 0;
+    return surrenderToPolice(state, system);
+  }
+
+  private inspectPlayer(state: Save, level: number, dt: number) {
+    const current = this.policeContact;
+    const officer = this.npcs.find(
+      (npc) => npc.id === current?.officerId && npc.hull > 0,
+    );
+    if (
+      current &&
+      (!officer ||
+        distance(officer, state.ship) >
+          (current.phase === "combat" ? 480 : SCAN_RANGE + 35))
+    )
+      this.policeContact = undefined;
+
+    if (!this.policeContact && state.time >= this.nextInspection) {
+      const nearby = this.npcs.find(
+        (npc) =>
+          isPolice(npc) &&
+          npc.hull > 0 &&
+          distance(npc, state.ship) <= SCAN_RANGE,
+      );
+      if (nearby)
+        this.policeContact = {
+          officerId: nearby.id,
+          name: nearby.name,
+          phase: "scan",
+          progress: 0,
+        };
+    }
+    const scan = this.policeContact;
+    if (scan?.phase !== "scan") return;
+    const progress = Math.min(1, scan.progress + dt / SCAN_DURATION);
+    if (progress < 1) this.policeContact = { ...scan, progress };
+    else if (level >= 5)
+      this.policeContact = { ...scan, progress, phase: "combat" };
+    else if (level || (state.inventory.sealedCargo ?? 0) > 0)
+      this.policeContact = { ...scan, progress, phase: "offer" };
+    else {
+      this.policeContact = undefined;
+      this.nextInspection = state.time + 45;
+    }
+  }
+
   npcs: SpaceNpc[] = [];
   bolts: Bolt[] = [];
   private nextShot = 0;
@@ -68,34 +143,28 @@ export class SpaceCombat {
     this.npcs = trafficFor(system, state.progression.piracy, state.time);
     this.bolts = [];
     this.escorts = [];
+    this.clearPoliceContact();
     this.nextShot = 0;
     this.nextTrafficCheck = 0;
     this.recoilUntil.clear();
   }
 
-  private updateEnforcement(
-    state: Save,
-    system: StarSystem,
-    level: number,
-    security: number,
-  ) {
-    const ship = state.ship;
+  private updateEnforcement(state: Save, system: StarSystem, level: number) {
     const reinforcements = [
       {
         role: "police",
-        enabled: security >= 2 || level >= 2,
-        home:
-          level >= 2 ? { x: ship.x + 295, y: ship.y - 95 } : { x: 755, y: 60 },
+        enabled: true,
+        home: { x: -520, y: -385 },
       },
       {
         role: "bounty",
         enabled: level >= 4,
-        home: { x: ship.x - 275, y: ship.y + 95 },
+        home: { x: 680, y: -620 },
       },
       {
         role: "elite",
         enabled: level >= 5,
-        home: { x: ship.x + 60, y: ship.y + 325 },
+        home: { x: -610, y: 470 },
       },
     ] as const;
     for (const reinforcement of reinforcements) {
@@ -274,11 +343,12 @@ export class SpaceCombat {
 
   update(state: Save, system: StarSystem, dt: number) {
     const ship = state.ship;
-    const { level, security } = wantedStatus(state, system);
+    const { level } = wantedStatus(state, system);
     this.updateTraffic(state, system);
-    this.updateEnforcement(state, system, level, security);
+    this.updateEnforcement(state, system, level);
     this.updateBountyTargets(state, system);
     this.flyEscorts(state, dt);
+    this.inspectPlayer(state, level, dt);
     const retreated: string[] = [];
     let crimeReported = false;
     let bountyCompleted = false;
@@ -291,7 +361,8 @@ export class SpaceCombat {
     );
     const threats: SpaceNpc[] = [];
     for (const npc of this.npcs) {
-      if (npc.hull <= 0 || distance(ship, npc) > 800) continue;
+      if (npc.hull <= 0 || (!isPolice(npc) && distance(ship, npc) > 800))
+        continue;
       if ((this.recoilUntil.get(npc.id) ?? 0) > state.time) {
         const drag = Math.exp(-dt * 4);
         npc.vx *= drag;
@@ -301,17 +372,20 @@ export class SpaceCombat {
         continue;
       }
       const separation = distance(ship, npc);
-      const police = npc.role === "police" || npc.role === "elite";
+      const police = isPolice(npc);
       const bounty = npc.role === "bounty";
       const armed =
         npc.role === "escort" || npc.role === "pirate" || police || bounty;
-      const chasing =
-        armed &&
-        (npc.engaged ||
-          (police
-            ? level >= 2 && separation < 600
-            : bounty
-              ? level >= 4 && separation < 650
+      const contact =
+        police && this.policeContact?.officerId === npc.id
+          ? this.policeContact
+          : undefined;
+      const chasing = police
+        ? contact?.phase === "combat"
+        : armed &&
+          (npc.engaged ||
+            (bounty
+              ? level >= 4 && separation < 225
               : npc.role === "pirate"
                 ? separation < 220
                 : threatened));
@@ -321,15 +395,16 @@ export class SpaceCombat {
         npc.engaged &&
         separation < 500 &&
         distance(npc, npc.home) < 420;
-      const phase = state.time * 0.22;
-      const aim = chasing
-        ? ship
-        : fleeing
-          ? { x: npc.x * 2 - ship.x, y: npc.y * 2 - ship.y }
-          : {
-              x: npc.home.x + Math.cos(phase) * 55,
-              y: npc.home.y + Math.sin(phase) * 29,
-            };
+      const phase = state.time * (police ? 0.05 : 0.22);
+      const aim =
+        chasing || contact
+          ? ship
+          : fleeing
+            ? { x: npc.x * 2 - ship.x, y: npc.y * 2 - ship.y }
+            : {
+                x: npc.home.x + Math.cos(phase) * (police ? 560 : 55),
+                y: npc.home.y + Math.sin(phase) * (police ? 430 : 29),
+              };
       const dx = aim.x - npc.x,
         dy = aim.y - npc.y;
       const length = Math.hypot(dx, dy);
@@ -339,7 +414,18 @@ export class SpaceCombat {
           : 12
         : fleeing
           ? 48
-          : Math.min(21, length);
+          : Math.min(
+              contact
+                ? separation > 135
+                  ? 55
+                  : 0
+                : police
+                  ? level
+                    ? 76
+                    : 64
+                  : 21,
+              length,
+            );
       npc.angle = Math.atan2(dy, dx);
       npc.vx = Math.cos(npc.angle) * speed;
       npc.vy = Math.sin(npc.angle) * speed;
@@ -471,7 +557,10 @@ export class SpaceCombat {
         }
       }
     }
-    if (playerDisabled) for (const npc of this.npcs) npc.engaged = false;
+    if (playerDisabled) {
+      this.clearPoliceContact();
+      for (const npc of this.npcs) npc.engaged = false;
+    }
     this.bolts = playerDisabled
       ? []
       : this.bolts.filter((bolt) => bolt.life > 0);

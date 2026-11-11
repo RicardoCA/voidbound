@@ -99,7 +99,10 @@ export function reportCrime(
   const crimes = state.progression.crimes;
   const id = `${system.id}:crime:${crimes.length + 1}`;
   const detected =
-    witnessed || authorityTarget || hash(id) % 100 < 25 * security;
+    type === "destruction" ||
+    witnessed ||
+    authorityTarget ||
+    hash(id) % 100 < 25 * security;
   crimes.push({
     id,
     type,
@@ -127,7 +130,24 @@ export function payFines(state: Save) {
   if (!status.fine) return "Nenhuma multa pendente nesta jurisdição.";
   if (state.credits < status.fine)
     return "Créditos insuficientes para regularizar o registro.";
+  settleJurisdiction(state, status);
+}
+
+function settleJurisdiction(
+  state: Save,
+  status: ReturnType<typeof wantedStatus>,
+) {
   state.credits -= status.fine;
   for (const crime of state.progression.crimes)
     if (crime.reported && crime.faction === status.faction) crime.paid = true;
+}
+
+export function surrenderToPolice(state: Save, system: StarSystem) {
+  const status = wantedStatus(state, system);
+  const confiscated = state.inventory.sealedCargo ?? 0;
+  delete state.inventory.sealedCargo;
+  if (state.credits < status.fine)
+    return `Rendição aceita. Carga lacrada recolhida: ${confiscated}. A multa de ${status.fine.toLocaleString("pt-BR")} CR continua pendente por falta de saldo.`;
+  settleJurisdiction(state, status);
+  return `Rendição aceita. Multa paga: ${status.fine.toLocaleString("pt-BR")} CR. Carga lacrada recolhida: ${confiscated}.`;
 }

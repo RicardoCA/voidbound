@@ -1627,3 +1627,35 @@ kbd {
 .cabin-interaction:active:not(:disabled) {
   transform: translateX(-50%);
 }
+
+.police-scan {
+  position: absolute;
+  z-index: 8;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 24px));
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #142532;
+  border: 1px solid #8dc3d8;
+  border-radius: 8px;
+  color: #e1eef4;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.police-scan progress {
+  width: 100%;
+  height: 6px;
+  accent-color: #8dc3d8;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .police-scan {
+    top: calc(
+      var(--mobile-hud-height, 110px) + env(safe-area-inset-top, 0px) + 8px
+    );
+  }
+}

@@ -218,6 +218,8 @@ export const useGame = defineStore("game", () => {
     blackHoleTransit = ref<{ elapsed: number; x: number; y: number }>(),
     speed = ref(0),
     flightContact = ref<FlightContact>(),
+    policeContact = ref<import("../combat/flight").PoliceContact>(),
+    policeAnswer = ref<"surrender" | "refuse">(),
     shipScanContacts = ref<ScannerContact[]>([]),
     radarShips = ref<
       (Pick<
@@ -1487,6 +1489,8 @@ export const useGame = defineStore("game", () => {
     busy,
     speed,
     flightContact,
+    policeContact,
+    policeAnswer,
     shipScanContacts,
     radarShips,
     activeWeapon,

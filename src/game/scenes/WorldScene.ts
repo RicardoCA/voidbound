@@ -417,6 +417,9 @@ export class WorldScene extends Phaser.Scene {
     if (g.started && s.mode === "docked") {
       if (!this.wasAtStation) {
         this.station.reset();
+        this.combat.clearPoliceContact();
+        g.policeContact = undefined;
+        g.policeAnswer = undefined;
         this.wasAtStation = true;
       }
       const clandestine = hasBlackMarket(g.system);
@@ -527,6 +530,8 @@ export class WorldScene extends Phaser.Scene {
       }
       this.combatState = s;
       this.combat.reset(s, g.system);
+      g.policeContact = undefined;
+      g.policeAnswer = undefined;
       g.flightContact = undefined;
       g.shipScanContacts = [];
       g.radarShips = [];
@@ -547,6 +552,11 @@ export class WorldScene extends Phaser.Scene {
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
     }
     if (this.lastMode !== s.mode) {
+      if (s.mode !== "space" && !g.flightCabin) {
+        this.combat.clearPoliceContact();
+        g.policeContact = undefined;
+        g.policeAnswer = undefined;
+      }
       this.jumpBuffer.clear();
       this.jumpHeld = false;
       if (s.mode === "surface") {
@@ -798,7 +808,24 @@ export class WorldScene extends Phaser.Scene {
       this.combat.fire(g.state)
     )
       audio.play(260, 0.08);
+    if (g.policeAnswer) {
+      const result = this.combat.answerPolice(
+        g.state,
+        g.system,
+        g.policeAnswer === "surrender",
+      );
+      g.policeAnswer = undefined;
+      if (result) {
+        g.notify(result);
+        void g.save();
+      }
+    }
     const encounter = this.combat.update(g.state, g.system, dt);
+    g.policeContact = this.combat.policeContact;
+    if (g.policeContact?.phase === "offer") {
+      releaseControls();
+      g.panel = "police-radio";
+    }
     if (encounter.retreated.length) {
       g.notify(
         `${encounter.retreated.join(", ")} recuou para reparar a nave por conta própria.`,

@@ -220,6 +220,19 @@ function minutes() {
       <GameCanvas :playing="g.started" />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
+      <aside
+        v-if="g.started && g.policeContact?.phase === 'scan'"
+        class="police-scan"
+        role="status"
+      >
+        <strong>{{ g.policeContact.name }}</strong>
+        <span>Escaneando sua carga e seu nível de procurado</span>
+        <progress
+          :value="g.policeContact.progress"
+          max="1"
+          aria-label="Progresso da inspeção policial"
+        />
+      </aside>
       <div
         class="vignette"
         :style="
@@ -756,6 +769,46 @@ function minutes() {
           <div class="station-actions">
             <button class="primary" @click="b.sleep()">Dormir 8 horas</button>
             <button class="secondary" @click="g.panel = ''">Cancelar</button>
+          </div>
+        </section>
+        <section
+          v-else-if="g.panel === 'police-radio' && g.policeContact"
+          class="dialog narrow"
+          aria-label="Canal da patrulha"
+        >
+          <h2>{{ g.policeContact.name }}</h2>
+          <p>Inspeção concluída. Reduza a velocidade e se entregue.</p>
+          <p>
+            Procurado {{ g.wanted.level }}/5 · Multa
+            {{ g.wanted.fine.toLocaleString("pt-BR") }} CR
+          </p>
+          <p v-if="g.state.inventory.sealedCargo">
+            A patrulha recolherá {{ g.state.inventory.sealedCargo }} unidades de
+            carga lacrada.
+          </p>
+          <p v-if="g.state.credits < g.wanted.fine">
+            A multa continuará pendente se você se entregar sem saldo
+            suficiente.
+          </p>
+          <div class="station-actions">
+            <button
+              class="primary"
+              @click="
+                g.policeAnswer = 'surrender';
+                g.panel = '';
+              "
+            >
+              Aceitar rendição
+            </button>
+            <button
+              class="secondary"
+              @click="
+                g.policeAnswer = 'refuse';
+                g.panel = '';
+              "
+            >
+              Recusar
+            </button>
           </div>
         </section>
         <CookingPanel v-else-if="g.panel === 'cook'" />
