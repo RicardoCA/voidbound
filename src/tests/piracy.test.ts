@@ -105,7 +105,9 @@ describe("pirataria espacial", () => {
     combat.update(s, g.system, 0);
     const renewed = trafficFor(g.system, s.progression.piracy, s.time);
     for (const previous of originals) {
-      const next = renewed.find((npc) => npc.role === previous.role)!;
+      const next = renewed.find(
+        (npc) => npc.trafficSlot === previous.trafficSlot,
+      )!;
       expect(next.id).not.toBe(previous.id);
       expect(next.home).not.toEqual(previous.home);
       expect(combat.npcs.some((npc) => npc.id === next.id)).toBe(true);
@@ -113,6 +115,16 @@ describe("pirataria espacial", () => {
     }
     const oldSave = { ...s.progression.piracy, replacements: undefined };
     expect(trafficFor(g.system, oldSave, s.time)).toEqual(renewed);
+    expect(renewed.filter((npc) => npc.role === "miner")).toHaveLength(5);
+    const replacement = combat.npcs.find(
+      (npc) => npc.trafficSlot === originals[0].trafficSlot,
+    )!;
+    hitNpc(s, g.system, replacement, 500);
+    s.time += TRAFFIC_RESPAWN_DELAY;
+    combat.update(s, g.system, 0);
+    expect(
+      combat.npcs.find((npc) => npc.trafficSlot === replacement.trafficSlot),
+    ).toMatchObject({ trafficGeneration: 2 });
   });
 
   it("exige proximidade, espaço e frenagem para saquear e não duplica após reload", async () => {

@@ -157,6 +157,12 @@ export class SpaceCombat {
         home: { x: -520, y: -385 },
       },
       {
+        role: "police",
+        enabled: true,
+        index: 1,
+        home: { x: -290, y: 710 },
+      },
+      {
         role: "bounty",
         enabled: level >= 4,
         home: { x: 680, y: -620 },
@@ -168,19 +174,17 @@ export class SpaceCombat {
       },
     ] as const;
     for (const reinforcement of reinforcements) {
-      if (
-        !reinforcement.enabled ||
-        this.npcs.some((npc) => npc.role === reinforcement.role && npc.hull > 0)
-      )
-        continue;
+      if (!reinforcement.enabled) continue;
       const npc = enforcementNpc(
         system,
         state.progression.piracy,
         reinforcement.role,
         reinforcement.home,
         state.time,
+        "index" in reinforcement ? reinforcement.index : 0,
       );
-      if (npc) this.npcs.push(npc);
+      if (npc && !this.npcs.some((existing) => existing.id === npc.id))
+        this.npcs.push(npc);
     }
   }
 
@@ -355,14 +359,20 @@ export class SpaceCombat {
     const impacts: Point[] = [];
     let destroyed = false,
       playerDisabled = false;
-    const threatened = this.npcs.some(
-      (npc) =>
-        npc.role === "freighter" && npc.engaged && distance(npc, ship) < 530,
+    const threatenedConvoys = new Set(
+      this.npcs
+        .filter(
+          (npc) =>
+            npc.role === "freighter" &&
+            npc.hull > 0 &&
+            npc.engaged &&
+            distance(npc, ship) < 530,
+        )
+        .map((npc) => npc.convoy),
     );
     const threats: SpaceNpc[] = [];
     for (const npc of this.npcs) {
-      if (npc.hull <= 0 || (!isPolice(npc) && distance(ship, npc) > 800))
-        continue;
+      if (npc.hull <= 0) continue;
       if ((this.recoilUntil.get(npc.id) ?? 0) > state.time) {
         const drag = Math.exp(-dt * 4);
         npc.vx *= drag;
@@ -383,27 +393,35 @@ export class SpaceCombat {
       const chasing = police
         ? contact?.phase === "combat"
         : armed &&
+          separation <= 800 &&
           (npc.engaged ||
             (bounty
               ? level >= 4 && separation < 225
               : npc.role === "pirate"
                 ? separation < 220
-                : threatened));
+                : threatenedConvoys.has(npc.convoy)));
       if (chasing) threats.push(npc);
       const fleeing =
         !armed &&
         npc.engaged &&
         separation < 500 &&
         distance(npc, npc.home) < 420;
-      const phase = state.time * (police ? 0.05 : 0.22);
+      const commercialRoute = !police && npc.routePhase !== undefined;
+      const phase =
+        state.time * (police || commercialRoute ? 0.05 : 0.22) +
+        (npc.routePhase ?? 0);
       const aim =
         chasing || contact
           ? ship
           : fleeing
             ? { x: npc.x * 2 - ship.x, y: npc.y * 2 - ship.y }
             : {
-                x: npc.home.x + Math.cos(phase) * (police ? 560 : 55),
-                y: npc.home.y + Math.sin(phase) * (police ? 430 : 29),
+                x:
+                  npc.home.x +
+                  Math.cos(phase) * (police ? 560 : commercialRoute ? 240 : 55),
+                y:
+                  npc.home.y +
+                  Math.sin(phase) * (police ? 430 : commercialRoute ? 125 : 29),
               };
       const dx = aim.x - npc.x,
         dy = aim.y - npc.y;
