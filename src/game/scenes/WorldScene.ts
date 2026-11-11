@@ -178,6 +178,25 @@ export class WorldScene extends Phaser.Scene {
     };
     const press = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      const g = this.store;
+      if (
+        g.started &&
+        g.state.mode === "space" &&
+        !g.panel &&
+        !g.paused &&
+        !g.busy &&
+        !g.inSequence
+      ) {
+        const { wx, wy } = this.surfacePoint(event);
+        const escort = this.combat.escorts.find(
+          (ally) => Math.hypot(ally.x - wx, ally.y - wy) <= 21,
+        );
+        if (escort) {
+          releaseControls();
+          g.panel = "escort:" + escort.pilot.id;
+          return;
+        }
+      }
       this.surfaceTap = targetSurface(event);
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
@@ -780,6 +799,12 @@ export class WorldScene extends Phaser.Scene {
     )
       audio.play(260, 0.08);
     const encounter = this.combat.update(g.state, g.system, dt);
+    if (encounter.retreated.length) {
+      g.notify(
+        `${encounter.retreated.join(", ")} recuou para reparar a nave por conta própria.`,
+      );
+      void g.save();
+    }
     if (encounter.impacts.length) {
       for (const { x, y } of encounter.impacts) {
         this.burst(x, y, 0xffbf66);
@@ -876,7 +901,7 @@ export class WorldScene extends Phaser.Scene {
   private updateFlightContact() {
     const g = this.store;
     const ship = g.state.ship;
-    g.radarShips = this.combat.npcs
+    const traffic = this.combat.npcs
       .filter((npc) => npc.hull > 0)
       .map(({ id, name, x, y, role, engaged, bountyTarget }) => ({
         id,
@@ -887,6 +912,17 @@ export class WorldScene extends Phaser.Scene {
         engaged,
         bountyTarget,
       }));
+    g.radarShips = [
+      ...traffic,
+      ...this.combat.escorts.map(({ pilot, x, y }) => ({
+        id: pilot.id,
+        name: pilot.name,
+        x,
+        y,
+        role: "ally" as const,
+        engaged: false,
+      })),
+    ];
     g.shipScanContacts = g.state.upgrades.some(isShipScanner)
       ? scannerContacts(ship, this.combat.npcs)
       : [];
@@ -1531,6 +1567,19 @@ export class WorldScene extends Phaser.Scene {
       drawAsteroid(f, x, y, rock.r, rock.id, rock.ore);
     }
     if (g.started && g.state.mode === "space") {
+      for (const escort of this.combat.escorts) {
+        const x = escort.x - this.camX + this.centerX;
+        const y = escort.y - this.camY + this.centerY;
+        this.drawShip(x, y, escort.angle, true, escort.pilot.model);
+        f.fillStyle(0x80e4ae).fillTriangle(
+          x - 3,
+          y - 20,
+          x + 3,
+          y - 20,
+          x,
+          y - 16,
+        );
+      }
       for (const npc of this.combat.npcs) {
         if (npc.hull <= 0) continue;
         const x = npc.x - this.camX + this.centerX;

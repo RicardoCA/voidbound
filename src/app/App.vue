@@ -6,6 +6,7 @@ import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import { cabinEquipment } from "../game/cabin/CabinInterior";
 import JumpSequence from "../components/JumpSequence.vue";
+import EscortContracts from "../components/EscortContracts.vue";
 import GameCanvas from "../components/GameCanvas.vue";
 import MobileHud from "../components/MobileHud.vue";
 import TouchControls from "../components/TouchControls.vue";
@@ -566,6 +567,9 @@ function minutes() {
           <nav v-if="piloting" aria-label="Controles da cabine">
             <button @click="g.standInFlight">Levantar</button>
             <button @click="open('route')">Traçar rota</button>
+            <button v-if="g.state.escorts?.length" @click="open('escorts')">
+              Rádio da escolta
+            </button>
             <button
               v-if="g.state.upgrades.some(isShipScanner)"
               @click="open('ship-scanner')"
@@ -757,6 +761,11 @@ function minutes() {
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />
+        <EscortContracts
+          v-else-if="
+            piloting && (g.panel === 'escorts' || g.panel.startsWith('escort:'))
+          "
+        />
         <ShipScannerPanel v-else-if="piloting && g.panel === 'ship-scanner'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />

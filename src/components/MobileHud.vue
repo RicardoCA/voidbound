@@ -128,6 +128,14 @@ function pause() {
           Traçar rota
         </button>
         <button
+          v-if="g.state.escorts?.length"
+          class="flight-action"
+          aria-label="Rádio da escolta"
+          @click="open('escorts')"
+        >
+          Escolta
+        </button>
+        <button
           class="flight-action"
           :disabled="!g.canSwitchWeapon"
           :aria-label="'Trocar arma. Arma ativa: ' + g.activeWeapon.name"

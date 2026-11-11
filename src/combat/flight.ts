@@ -1,3 +1,8 @@
+import {
+  escortTiers,
+  REPAIR_DURATION,
+  type EscortContract,
+} from "../fleet/escorts";
 import { bountyTargets } from "../progression/contracts";
 import { selectedWeapon, shipWeapons } from "./weapons";
 import { reportCrime, wantedStatus } from "./law";
@@ -19,6 +24,7 @@ export interface Bolt extends Point {
   damage: number;
   color?: number;
   shieldMultiplier?: number;
+  escortTarget?: string;
 }
 
 function distance(a: Point, b: Point) {
@@ -44,7 +50,14 @@ function launch(
   };
 }
 
+interface EscortFlight extends Point {
+  pilot: EscortContract;
+  angle: number;
+  fireAt: number;
+}
+
 export class SpaceCombat {
+  escorts: EscortFlight[] = [];
   npcs: SpaceNpc[] = [];
   bolts: Bolt[] = [];
   private nextShot = 0;
@@ -54,6 +67,7 @@ export class SpaceCombat {
   reset(state: Save, system: StarSystem) {
     this.npcs = trafficFor(system, state.progression.piracy, state.time);
     this.bolts = [];
+    this.escorts = [];
     this.nextShot = 0;
     this.nextTrafficCheck = 0;
     this.recoilUntil.clear();
@@ -128,7 +142,8 @@ export class SpaceCombat {
     let first: SpaceNpc | undefined;
     let firstT = Infinity;
     for (const npc of this.npcs) {
-      if (npc.hull <= 0) continue;
+      if (npc.hull <= 0 || (bolt.escortTarget && bolt.escortTarget !== npc.id))
+        continue;
       const t = lengthSquared
         ? Math.max(
             0,
@@ -234,12 +249,37 @@ export class SpaceCombat {
         this.npcs.push(target);
   }
 
+  private flyEscorts(state: Save, dt: number) {
+    const ship = state.ship;
+    const active = (state.escorts ?? []).filter(
+      (pilot) => pilot.remaining > 0 && !pilot.repairUntil,
+    );
+    this.escorts = active.map((pilot, index) => {
+      const bearing = ship.angle + Math.PI + (index === 0 ? -0.65 : 0.65);
+      const x = ship.x + Math.cos(bearing) * 58;
+      const y = ship.y + Math.sin(bearing) * 58;
+      const previous = this.escorts.find(
+        (escort) => escort.pilot.id === pilot.id,
+      );
+      const blend = 1 - Math.exp(-dt * 5);
+      return {
+        pilot,
+        x: previous ? previous.x + (x - previous.x) * blend : x,
+        y: previous ? previous.y + (y - previous.y) * blend : y,
+        angle: ship.angle,
+        fireAt: previous?.fireAt ?? 0,
+      };
+    });
+  }
+
   update(state: Save, system: StarSystem, dt: number) {
     const ship = state.ship;
     const { level, security } = wantedStatus(state, system);
     this.updateTraffic(state, system);
     this.updateEnforcement(state, system, level, security);
     this.updateBountyTargets(state, system);
+    this.flyEscorts(state, dt);
+    const retreated: string[] = [];
     let crimeReported = false;
     let bountyCompleted = false;
     const impacts: Point[] = [];
@@ -249,6 +289,7 @@ export class SpaceCombat {
       (npc) =>
         npc.role === "freighter" && npc.engaged && distance(npc, ship) < 530,
     );
+    const threats: SpaceNpc[] = [];
     for (const npc of this.npcs) {
       if (npc.hull <= 0 || distance(ship, npc) > 800) continue;
       if ((this.recoilUntil.get(npc.id) ?? 0) > state.time) {
@@ -274,6 +315,7 @@ export class SpaceCombat {
               : npc.role === "pirate"
                 ? separation < 220
                 : threatened));
+      if (chasing) threats.push(npc);
       const fleeing =
         !armed &&
         npc.engaged &&
@@ -304,11 +346,19 @@ export class SpaceCombat {
       npc.x += npc.vx * dt;
       npc.y += npc.vy * dt;
       if (chasing && separation < 260 && state.time >= npc.fireAt) {
+        const ally = this.escorts.find(
+          (escort) =>
+            distance(npc, escort) < 260 &&
+            distance(npc, escort) < separation + 25,
+        );
         const travel = separation / 315;
         this.bolts.push(
           launch(
             npc,
-            { x: ship.x + ship.vx * travel, y: ship.y + ship.vy * travel },
+            ally ?? {
+              x: ship.x + ship.vx * travel,
+              y: ship.y + ship.vy * travel,
+            },
             315,
             npc.role === "elite" ? 9 : bounty ? 7 : 5,
             true,
@@ -316,6 +366,23 @@ export class SpaceCombat {
         );
         npc.fireAt = state.time + 1.1;
       }
+    }
+    for (const escort of this.escorts) {
+      const target = threats.find((npc) => distance(npc, escort) < 310);
+      if (!target) continue;
+      escort.angle = Math.atan2(target.y - escort.y, target.x - escort.x);
+      if (state.time < escort.fireAt) continue;
+      const tier = escortTiers[escort.pilot.tier];
+      const travel = distance(escort, target) / 420;
+      const bolt = launch(
+        escort,
+        { x: target.x + target.vx * travel, y: target.y + target.vy * travel },
+        420,
+        tier.damage,
+        false,
+      );
+      this.bolts.push({ ...bolt, color: 0x80e4ae, escortTarget: target.id });
+      escort.fireAt = state.time + tier.cooldown;
     }
     for (const npc of this.npcs) {
       if (npc.hull <= 0) continue;
@@ -342,6 +409,19 @@ export class SpaceCombat {
       bolt.x += dx;
       bolt.y += dy;
       if (bolt.hostile) {
+        const ally = this.escorts.find(
+          (escort) => !escort.pilot.repairUntil && distance(bolt, escort) <= 15,
+        );
+        if (ally) {
+          bolt.life = 0;
+          const pilot = ally.pilot;
+          pilot.hull = Math.max(0, pilot.hull - bolt.damage);
+          if (pilot.hull <= escortTiers[pilot.tier].hull * 0.2) {
+            pilot.repairUntil = (state.activePlayTime ?? 0) + REPAIR_DURATION;
+            retreated.push(pilot.name);
+          }
+          continue;
+        }
         if (distance(bolt, ship) > 15) continue;
         bolt.life = 0;
         ship.hull -=
@@ -395,7 +475,9 @@ export class SpaceCombat {
     this.bolts = playerDisabled
       ? []
       : this.bolts.filter((bolt) => bolt.life > 0);
+    this.escorts = this.escorts.filter(({ pilot }) => !pilot.repairUntil);
     return {
+      retreated,
       destroyed,
       playerDisabled,
       crimeReported,

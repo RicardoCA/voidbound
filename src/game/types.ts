@@ -187,6 +187,7 @@ export interface ParkedShip extends ShipIdentity {
 }
 export interface Save {
   version: 4;
+  escorts?: import("../fleet/escorts").EscortContract[];
   progression: Progression;
   credits: number;
   wardrobe?: Wardrobe;

@@ -70,6 +70,7 @@ import {
 } from "../construction/habitat";
 import { releaseControls } from "../game/input";
 import { advancePilotTrips } from "../fleet/pilots";
+import { tickEscorts } from "../fleet/escorts";
 import { shipModels } from "../fleet/models";
 import { shipCapacity, shipFuelCapacity } from "../fleet/hangar";
 import {
@@ -219,10 +220,10 @@ export const useGame = defineStore("game", () => {
     flightContact = ref<FlightContact>(),
     shipScanContacts = ref<ScannerContact[]>([]),
     radarShips = ref<
-      Pick<
+      (Pick<
         SpaceNpc,
-        "id" | "name" | "x" | "y" | "role" | "engaged" | "bountyTarget"
-      >[]
+        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget"
+      > & { role: SpaceNpc["role"] | "ally" })[]
     >([]),
     stationContact = ref<string>(),
     cabinContact = ref<CabinEquipment>(),
@@ -1385,6 +1386,11 @@ export const useGame = defineStore("game", () => {
     )
       return;
     state.value.activePlayTime = (state.value.activePlayTime ?? 0) + dt;
+    const notices = tickEscorts(state.value, dt);
+    if (notices.length) {
+      notify(notices.join(" "));
+      void save();
+    }
   }
   function tick(dt: number) {
     if (

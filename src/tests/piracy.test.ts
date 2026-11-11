@@ -209,6 +209,7 @@ describe("pirataria espacial", () => {
       "law",
       "black-market",
       "pirate-clothing",
+      "escort-recruiter",
       "restricted-arms",
     ]);
     expect(
