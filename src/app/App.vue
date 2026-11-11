@@ -611,7 +611,17 @@ function minutes() {
               ><kbd>{{ n.key }}</kbd>
             </button>
           </nav>
-          <div class="radar"><LocalRadar /><span>RADAR LOCAL</span></div>
+          <button
+            class="radar"
+            type="button"
+            aria-label="Expandir radar local"
+            :aria-expanded="g.panel === 'radar'"
+            aria-controls="local-radar-panel"
+            title="Expandir radar local"
+            @click="open('radar')"
+          >
+            <LocalRadar /><span>RADAR LOCAL</span>
+          </button>
         </div>
       </template>
       <div v-if="!g.started && showCloud" class="overlay">
@@ -723,6 +733,7 @@ function minutes() {
         </section>
         <section
           v-else-if="g.panel === 'radar'"
+          id="local-radar-panel"
           class="dialog radar-dialog"
           aria-label="Radar local"
         >
