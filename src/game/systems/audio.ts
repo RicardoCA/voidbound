@@ -1,4 +1,31 @@
 let context: AudioContext | undefined;
+function surfaceTone(
+  ctx: AudioContext,
+  start: number,
+  duration: number,
+  from: number,
+  to: number,
+  volume: number,
+  type: OscillatorType = "triangle",
+) {
+  const source = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const end = start + duration;
+  source.type = type;
+  source.frequency.setValueAtTime(from, start);
+  source.frequency.exponentialRampToValueAtTime(to, end);
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(volume, start + duration * 0.18);
+  gain.gain.linearRampToValueAtTime(0, end);
+  source.connect(gain).connect(ctx.destination);
+  source.start(start);
+  source.stop(end);
+  source.onended = () => {
+    source.disconnect();
+    gain.disconnect();
+  };
+}
+
 export const audio = {
   enabled: true,
   volume: 1,
@@ -91,6 +118,50 @@ export const audio = {
         latch.disconnect();
         click.disconnect();
       };
+    } catch {
+      // Audio is optional on unsupported devices.
+    }
+  },
+  playSurface(kind: "landing" | "disembark" | "takeoff", duration: number) {
+    if (!this.enabled || this.volume <= 0) return;
+    this.unlock();
+    if (!context) return;
+    try {
+      const start = context.currentTime;
+      const level = this.volume;
+      if (kind === "landing") {
+        surfaceTone(context, start, duration * 0.9, 132, 39, level * 0.07);
+        surfaceTone(
+          context,
+          start + duration * 0.86,
+          duration * 0.14,
+          98,
+          38,
+          level * 0.1,
+        );
+      } else if (kind === "disembark") {
+        surfaceTone(context, start, duration * 0.28, 265, 120, level * 0.045);
+        for (const step of [0.36, 0.61, 0.86])
+          surfaceTone(
+            context,
+            start + duration * step,
+            duration * 0.12,
+            155,
+            67,
+            level * 0.045,
+          );
+      } else {
+        surfaceTone(context, start, duration, 40, 160, level * 0.085);
+        surfaceTone(
+          context,
+          start + duration * 0.16,
+          duration * 0.84,
+          72,
+          230,
+          level * 0.025,
+          "sawtooth",
+        );
+      }
     } catch {
       // Audio is optional on unsupported devices.
     }

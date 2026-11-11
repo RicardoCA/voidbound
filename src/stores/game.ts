@@ -868,6 +868,7 @@ export const useGame = defineStore("game", () => {
       landingX: zone * 24,
       elapsed: 0,
     };
+    audio.playSurface("landing", SURFACE_SEQUENCE_DURATION.landing);
   }
   function interactCabin() {
     if (
@@ -906,6 +907,7 @@ export const useGame = defineStore("game", () => {
       landingX: state.value.landingX,
       elapsed: 0,
     };
+    audio.playSurface("disembark", SURFACE_SEQUENCE_DURATION.disembark);
   }
   function advanceSurfaceSequence(dt: number) {
     const sequence = surfaceSequence.value;
@@ -969,7 +971,7 @@ export const useGame = defineStore("game", () => {
       landingX: state.value.landingX,
       elapsed: 0,
     };
-    audio.play(100, 0.5);
+    audio.playSurface("takeoff", SURFACE_SEQUENCE_DURATION.takeoff);
   }
   function takeoff() {
     if (!canTakeOff()) return;
@@ -983,7 +985,6 @@ export const useGame = defineStore("game", () => {
     panel.value = "";
     if (state.value.mission === 3) state.value.mission = 4;
     notify("Decolagem confirmada. Boa viagem, comandante.");
-    audio.play(100, 0.5);
     void save();
   }
   function arriveInSystem(x: number, y: number) {
