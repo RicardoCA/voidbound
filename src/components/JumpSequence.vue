@@ -4,7 +4,7 @@ import { random } from "../game/procedural/random";
 import { BLACK_HOLE_DURATION_MS } from "../universe/blackHoles";
 import { JUMP_DURATION_MS } from "../stores/game";
 
-const props = defineProps<{ blackHoleElapsed?: number }>();
+const props = defineProps<{ blackHoleElapsed?: number; duration?: number }>();
 const spirals = Array.from({ length: 13 }, (_, arm) =>
   Array.from({ length: 32 }, (_, i) => {
     const radius = 14 + i * 7;
@@ -39,7 +39,7 @@ const stars = Array.from({ length: 108 }, (_, i) => {
     :style="{
       '--jump-duration':
         (props.blackHoleElapsed === undefined
-          ? JUMP_DURATION_MS
+          ? (props.duration ?? JUMP_DURATION_MS)
           : BLACK_HOLE_DURATION_MS) + 'ms',
     }"
   >

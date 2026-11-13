@@ -16,7 +16,11 @@ export function shipFuelCapacity(
 }
 
 export function inLocalHangar(state: Save, ship: ParkedShip) {
-  return ship.location.x === state.systemX && ship.location.y === state.systemY;
+  return (
+    !state.colossal?.ships.includes(ship.id) &&
+    ship.location.x === state.systemX &&
+    ship.location.y === state.systemY
+  );
 }
 
 export function resalePrice(ship: ParkedShip) {

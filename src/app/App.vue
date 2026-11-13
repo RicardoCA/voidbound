@@ -5,6 +5,7 @@ import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
 import { cabinEquipment } from "../game/cabin/CabinInterior";
+import ColossalPanel from "../components/ColossalPanel.vue";
 import JumpSequence from "../components/JumpSequence.vue";
 import EscortContracts from "../components/EscortContracts.vue";
 import GameCanvas from "../components/GameCanvas.vue";
@@ -48,8 +49,12 @@ watch(
   },
 );
 const surface = computed(() => g.state.mode === "surface"),
-  inShip = computed(() => g.state.mode === "interior" || g.flightCabin);
-const piloting = computed(() => g.state.mode === "space" && !g.flightCabin);
+  inShip = computed(
+    () => g.state.mode === "interior" || g.flightCabin || g.aboardColossal,
+  );
+const piloting = computed(
+  () => g.state.mode === "space" && !g.flightCabin && !g.aboardColossal,
+);
 const routeConsole = computed(
   () => piloting.value && g.panel === "route" && !g.paused,
 );
@@ -220,6 +225,47 @@ function minutes() {
       <GameCanvas :playing="g.started" />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
+      <div
+        v-if="
+          g.started &&
+          g.state.mode === 'space' &&
+          g.localColossal &&
+          !g.panel &&
+          !g.busy &&
+          !g.paused
+        "
+        class="surface-sequence-caption"
+      >
+        <template v-if="g.aboardColossal">
+          {{
+            g.colossalHelm
+              ? "Manobrar · E / Interagir para voltar à ponte"
+              : g.colossalContact === "colossal-hangar"
+                ? "Hangar · E / Interagir"
+                : g.colossalContact === "colossal-bridge"
+                  ? "Ponte · E / Interagir"
+                  : "Hangar à esquerda · Ponte à direita"
+          }}
+        </template>
+        <template v-else>
+          Colossal ·
+          {{
+            Math.round(
+              Math.hypot(
+                g.state.ship.x - g.localColossal.x,
+                g.state.ship.y - g.localColossal.y,
+              ),
+            )
+          }}
+          km
+          <template v-if="g.localColossal.stage === 3">
+            · E / Interagir para embarcar até 35 km/s</template
+          >
+          <template v-else>
+            · Construção {{ g.localColossal.stage }}/3</template
+          >
+        </template>
+      </div>
       <aside
         v-if="
           g.started &&
@@ -862,6 +908,16 @@ function minutes() {
           </div>
           <BaseRegistry :can-locate="false" />
         </section>
+        <ColossalPanel
+          v-else-if="
+            g.aboardColossal &&
+            (g.panel === 'colossal-bridge' || g.panel === 'colossal-hangar')
+          "
+        />
+        <GalaxyMap
+          v-else-if="g.aboardColossal && g.panel === 'colossal-map'"
+          colossal
+        />
         <GalaxyMap
           v-else-if="g.panel === 'map' || g.panel === 'bases'"
           :initial-tab="g.panel === 'bases' ? 'bases' : 'navigation'"
@@ -920,6 +976,7 @@ function minutes() {
       <JumpSequence
         v-if="g.busy"
         :black-hole-elapsed="g.blackHoleTransit?.elapsed"
+        :duration="g.colossalJumpMs"
       />
     </section>
     <Transition name="save-tooltip">

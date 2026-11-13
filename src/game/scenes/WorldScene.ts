@@ -1,3 +1,4 @@
+import { ColossalInterior } from "../cabin/ColossalInterior";
 import { representativePosition } from "../../diplomacy/representative";
 import { isShipScanner, scannerContacts } from "../../combat/shipScanners";
 import { starClasses } from "../../universe/stars";
@@ -104,6 +105,9 @@ export class WorldScene extends Phaser.Scene {
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
   private gfx!: Phaser.GameObjects.Graphics;
+  private colossalInterior = new ColossalInterior();
+  private wasAboardColossal = false;
+  private colossalSprite!: Phaser.GameObjects.Image;
   private scienceSprite!: Phaser.GameObjects.Image;
   private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
@@ -154,6 +158,11 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    for (const stage of [1, 2, 3])
+      this.load.image(
+        `colossal:${stage}`,
+        `${import.meta.env.BASE_URL}colossal/${stage}.webp`,
+      );
     for (const sprite of ["anomaly", "legendary", "arch", "monolith"])
       this.load.image(
         `science:${sprite}`,
@@ -239,6 +248,10 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(-0.1)
       .setVisible(false);
     this.gfx = this.add.graphics();
+    this.colossalSprite = this.add
+      .image(0, 0, "colossal:1")
+      .setDepth(-0.08)
+      .setVisible(false);
     this.scienceSprite = this.add
       .image(0, 0, "__MISSING")
       .setDepth(0.1)
@@ -313,6 +326,7 @@ export class WorldScene extends Phaser.Scene {
         e.code === "KeyX" &&
         this.store.state.mode === "space" &&
         !this.store.flightCabin &&
+        !this.store.aboardColossal &&
         !this.store.paused &&
         (!this.store.panel || this.store.panel === "ship-scanner") &&
         this.store.state.upgrades.some(isShipScanner)
@@ -324,6 +338,7 @@ export class WorldScene extends Phaser.Scene {
       if (
         e.code === "KeyF" &&
         !this.store.flightCabin &&
+        !this.store.aboardColossal &&
         this.store.state.mode === "space" &&
         !this.store.panel &&
         !this.store.paused
@@ -415,6 +430,7 @@ export class WorldScene extends Phaser.Scene {
     if (!g) return;
     const piloting =
       g.started &&
+      !g.aboardColossal &&
       g.state.mode === "space" &&
       !g.flightCabin &&
       !g.paused &&
@@ -448,6 +464,7 @@ export class WorldScene extends Phaser.Scene {
     this.stellarTextures.hide();
     this.clandestineStation.setVisible(false);
     this.scienceSprite.setVisible(false);
+    this.colossalSprite.setVisible(false);
     const s = g.state;
     if (g.started && s.mode === "docked" && !g.dockingSequence) {
       if (!this.wasAtStation) {
@@ -517,6 +534,75 @@ export class WorldScene extends Phaser.Scene {
       g.stationContact = undefined;
       this.wasAtStation = false;
     }
+    if (g.started && g.aboardColossal && g.localColossal) {
+      const carrier = g.localColossal;
+      if (!this.wasAboardColossal) {
+        this.colossalInterior.reset();
+        this.combat.clearPoliceContact();
+        this.wasAboardColossal = true;
+      }
+      const held = this.down("E") || controls.interact;
+      if (!g.paused && !g.panel && !g.busy) {
+        const direction = this.walkingDirection();
+        const interact = takePulse("interact") || (held && !this.interactHeld);
+        if (g.colossalHelm) {
+          if (interact) {
+            g.colossalHelm = false;
+            void g.save();
+          }
+          if (carrier.fuel > 0 && (direction.x || direction.y)) {
+            const distance = Math.min(carrier.fuel * 100, dt * 68);
+            carrier.x +=
+              (direction.x * distance) /
+              Math.max(1, Math.hypot(direction.x, direction.y));
+            carrier.y +=
+              (direction.y * distance) /
+              Math.max(1, Math.hypot(direction.x, direction.y));
+            carrier.fuel -= distance / 100;
+          }
+        } else {
+          this.colossalInterior.walk(
+            direction.x,
+            direction.y,
+            dt,
+            carrier.slots,
+          );
+          const contact = this.colossalInterior.contact(carrier.slots);
+          if (contact && interact) {
+            releaseControls();
+            g.panel = contact;
+          }
+          g.colossalContact = contact;
+        }
+      }
+      this.interactHeld = held;
+      s.ship.x = carrier.x;
+      s.ship.y = carrier.y;
+      for (const label of this.planetLabels.values()) label.setVisible(false);
+      this.gfx.clear();
+      if (g.colossalHelm) {
+        this.camX = carrier.x;
+        this.camY = carrier.y;
+        this.draw(dt);
+      } else {
+        this.colossalInterior.draw(
+          this.gfx,
+          this.viewWidth,
+          this.viewHeight,
+          [
+            s.activeShip.model,
+            ...s.parkedShips
+              .filter((ship) => carrier.ships.includes(ship.id))
+              .map((ship) => ship.model),
+          ],
+          carrier.slots,
+          (x, y, step, facing) => this.drawAstronaut(x, y, step, facing),
+          (model, x, y) => this.drawShip(x, y, 0, false, model, this.gfx, 0.75),
+        );
+      }
+      return;
+    }
+    this.wasAboardColossal = false;
     if (
       g.started &&
       (s.mode === "interior" || g.flightCabin) &&
@@ -680,7 +766,8 @@ export class WorldScene extends Phaser.Scene {
         s.mode === "surface" && Phaser.Input.Keyboard.JustDown(this.keys.E!);
       if (pressed || surfacePress || (held && !this.interactHeld)) {
         if (s.mode === "space") {
-          if (!this.recoverWreck() && !g.dock()) g.interactFlightTarget();
+          if (!g.boardColossal() && !this.recoverWreck() && !g.dock())
+            g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
           if (this.talkToRepresentative()) return;
@@ -1542,6 +1629,22 @@ export class WorldScene extends Phaser.Scene {
       )
         drawBlackHole(this.backdrop, x, y, this.elapsed);
     }
+    const carrier = !inOrbit && g.localColossal;
+    if (carrier) {
+      const x = carrier.x - this.camX + this.centerX;
+      const y = carrier.y - this.camY + this.centerY;
+      if (
+        x > -190 &&
+        x < this.viewWidth + 190 &&
+        y > -80 &&
+        y < this.viewHeight + 80
+      )
+        this.colossalSprite
+          .setTexture(`colossal:${carrier.stage}`)
+          .setPosition(x, y)
+          .setDisplaySize(350, 117)
+          .setVisible(true);
+    }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
     const departing = docking?.kind === "departure";
@@ -1719,7 +1822,7 @@ export class WorldScene extends Phaser.Scene {
       );
       return;
     }
-    if (g.started && g.panel !== "route") {
+    if (g.started && !g.aboardColossal && g.panel !== "route") {
       const x =
         docking && station
           ? departing

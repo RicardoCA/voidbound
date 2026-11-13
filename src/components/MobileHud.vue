@@ -9,8 +9,12 @@ import { releaseControls } from "../game/input";
 const g = useGame(),
   b = useConstruction();
 const surface = computed(() => g.state.mode === "surface");
-const cabin = computed(() => g.state.mode === "interior" || g.flightCabin);
-const piloting = computed(() => g.state.mode === "space" && !g.flightCabin);
+const cabin = computed(
+  () => g.state.mode === "interior" || g.flightCabin || g.aboardColossal,
+);
+const piloting = computed(
+  () => g.state.mode === "space" && !g.flightCabin && !g.aboardColossal,
+);
 const station = computed(() => g.state.mode === "docked");
 const localTime = computed(() => planetClock(g.state.time));
 const location = computed(() =>
