@@ -1872,3 +1872,51 @@ kbd {
     flex-wrap: wrap;
   }
 }
+
+/* Keep the menu in flow so every action stays reachable at short heights. */
+.flight-deck:has(.start-menu) {
+  height: auto;
+  min-height: max(380px, calc(100dvh - 132px));
+  max-height: none;
+  display: flex;
+  align-items: center;
+}
+
+.flight-deck .start-menu {
+  position: relative;
+  inset: auto;
+  width: min(660px, 88%);
+  margin-inline-start: 7%;
+  padding-block: clamp(16px, 3dvh, 32px);
+}
+
+.start-menu h1 {
+  font-size: clamp(34px, min(5vw, 8dvh), 80px);
+  margin-block: clamp(10px, 2dvh, 24px);
+}
+
+.start-menu .menu-actions {
+  max-width: 100%;
+  margin-block: clamp(12px, 2.5dvh, 24px) 12px;
+  gap: 8px;
+}
+
+.start-menu .large {
+  min-height: 44px;
+  align-items: center;
+  padding-block: 10px;
+}
+
+@media (pointer: fine) and (min-width: 761px) {
+  .desktop-docks.desktop-cinematic {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .desktop-cinematic > .game-canvas {
+    grid-area: 1 / 1;
+  }
+
+  .desktop-cinematic > :is(.flight-info, .bottom-hud) {
+    display: none;
+  }
+}

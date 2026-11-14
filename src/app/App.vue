@@ -52,6 +52,7 @@ const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(
     () => g.state.mode === "interior" || g.flightCabin || g.aboardColossal,
   );
+const cinematic = computed(() => g.started && (g.inSequence || g.busy));
 const piloting = computed(
   () => g.state.mode === "space" && !g.flightCabin && !g.aboardColossal,
 );
@@ -224,13 +225,20 @@ function minutes() {
     <section
       class="flight-deck"
       :class="{
+        'desktop-cinematic': cinematic,
         'desktop-docks':
-          g.started && (piloting || surface) && !orbitConsole && !routeConsole,
+          cinematic ||
+          (g.started &&
+            (piloting || surface) &&
+            !orbitConsole &&
+            !routeConsole),
       }"
     >
       <GameCanvas
         :playing="g.started"
-        :expanded="(piloting || surface) && !orbitConsole && !routeConsole"
+        :expanded="
+          cinematic || ((piloting || surface) && !orbitConsole && !routeConsole)
+        "
       />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
@@ -355,11 +363,6 @@ function minutes() {
               maxlength="48"
               aria-label="Seed do universo"
           /></label>
-          <div class="menu-bottom">
-            <span>01 / EXPLORAÇÃO PROCEDURAL</span
-            ><span>02 / SOBREVIVÊNCIA</span
-            ><span>03 / SEU PRÓPRIO CAMINHO</span>
-          </div>
           <p v-if="confirmNew" class="warning">
             A nova partida substituirá o salvamento existente.
           </p>
