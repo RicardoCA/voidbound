@@ -172,6 +172,20 @@ describe("modo sobrevivente e inventários isolados", () => {
     expect(g.state.backpack).toEqual({});
     expect(g.state.inventory).toEqual({ iron: 3 });
     expect(cabinet["2,28"]).toEqual({ iron: 5 });
+    const drop = g.state.droppedBackpacks![0];
+    expect(drop.inventory).toEqual({ copper: 2 });
+    g.state.mode = "surface";
+    Object.assign(g.state.player, { x: drop.x, y: drop.y });
+    expect(g.recoverBackpack()).toBe(true);
+    expect(g.state.backpack).toEqual({ copper: 2 });
+    expect(g.recoverBackpack()).toBe(false);
+    g.state.player.health = 0;
+    g.tick(0);
+    g.state.droppedBackpacks![0].expiresAt = Date.now() - 1;
+    g.state.mode = "surface";
+    expect(g.recoverBackpack()).toBe(false);
+    g.tickActiveTime(0);
+    expect(g.state.droppedBackpacks).toEqual([]);
   });
 
   it("preserva os itens ao zerar o casco com a opção desligada", () => {
