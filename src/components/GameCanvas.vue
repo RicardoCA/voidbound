@@ -72,6 +72,8 @@ const show3D = computed(
 );
 let space: Space3D | undefined;
 let frame = 0;
+let cabinPreload = 0;
+const cabinLoading = ref(false);
 watch(
   [
     spaceCanvas,
@@ -83,6 +85,8 @@ watch(
   ],
   () => {
     cancelAnimationFrame(frame);
+    clearTimeout(cabinPreload);
+    cabinLoading.value = false;
     flight3D.enabled = false;
     flight3D.stationView = false;
     flight3D.colossalView = false;
@@ -93,6 +97,11 @@ watch(
       flight3D.enabled = freeFlight.value;
       flight3D.stationView = inStation.value;
       flight3D.colossalView = inColossal.value;
+      if (freeFlight.value && !g.aboardColossal)
+        cabinPreload = window.setTimeout(
+          () => space?.prepareCabin(g.state.wardrobe?.equipped),
+          250,
+        );
       const startedAt = performance.now();
       const draw = () => {
         if (lightJump.value)
@@ -103,12 +112,16 @@ watch(
         else if (surfaceCinematic.value) space!.drawSurfaceCinematic(g);
         else if (landingComputer.value) space!.drawLandingComputer(g.planet);
         else if (inCabin.value)
-          space!.drawCabin(g.flightCabin, g.state.wardrobe?.equipped);
+          cabinLoading.value = !space!.drawCabin(
+            g.flightCabin,
+            g.state.wardrobe?.equipped,
+          );
         else if (inColossal.value) {
           if (flight3D.colossalBoarding) space!.draw(g);
           else space!.drawColossalInterior(g);
         } else if (inStation.value) space!.drawStationInterior(g);
         else space!.draw(g);
+        if (!inCabin.value) cabinLoading.value = false;
         frame = requestAnimationFrame(draw);
       };
       draw();
@@ -163,6 +176,7 @@ onMounted(() => {
   media.addEventListener("change", resize);
 });
 onBeforeUnmount(() => {
+  clearTimeout(cabinPreload);
   cancelAnimationFrame(frame);
   flight3D.selected = false;
   flight3D.enabled = false;
@@ -191,6 +205,9 @@ onBeforeUnmount(() => {
         use3D = false;
       "
     />
+    <div v-if="inCabin && show3D && cabinLoading" class="cabin-loading" role="status">
+      Carregando cabine…
+    </div>
     <button
       v-if="
         (freeFlight || inCabin || inStation) &&
@@ -256,6 +273,16 @@ onBeforeUnmount(() => {
   inset: 0;
   width: 100%;
   height: 100%;
+  pointer-events: none;
+}
+.cabin-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  background: #080f20;
+  color: #a7dedb;
   pointer-events: none;
 }
 .space-view-toggle {

@@ -95,6 +95,8 @@ export class Space3D {
   private readonly walkAxis = new T.Vector3(1, 0, 0);
   private readonly walkRotation = new T.Quaternion();
   private cabinScene?: T.Scene;
+  private cabinLoading = false;
+  private readonly loadingPilots = new WeakSet<T.Group>();
   private outfitKey = "";
   private cabinActor?: T.Group;
   private cabinHatch?: T.Group;
@@ -1024,6 +1026,7 @@ export class Space3D {
       room.add(prop);
     }
     scene.add(room);
+    this.cabinLoading = true;
     void new GLTFLoader()
       .loadAsync(import.meta.env.BASE_URL + "models/specter-x8-interior.glb")
       .then(({ scene: model }) => {
@@ -1044,7 +1047,10 @@ export class Space3D {
       })
       .catch((error: unknown) =>
         console.warn("Interior do Blender indisponível.", error),
-      );
+      )
+      .finally(() => {
+        this.cabinLoading = false;
+      });
     return scene;
   }
 
@@ -1056,6 +1062,7 @@ export class Space3D {
         else this.playerTemplate = scene;
         return scene;
       });
+    this.loadingPilots.add(actor);
     void this.playerAsset
       .then((template) => {
         if (this.disposed || !actor.parent) return;
@@ -1099,7 +1106,8 @@ export class Space3D {
       })
       .catch((error: unknown) =>
         console.warn("Modelo do jogador indisponível.", error),
-      );
+      )
+      .finally(() => this.loadingPilots.delete(actor));
   }
 
   private animatePilot(actor: T.Group, stride: number) {
@@ -1408,8 +1416,9 @@ export class Space3D {
     }
   }
 
-  drawCabin(inFlight: boolean, outfit?: Outfit) {
-    if (!this.resize()) return;
+  prepareCabin(outfit?: Outfit) {
+    if (this.disposed) return;
+
     this.cabinScene ??= this.buildCabin();
     const key = JSON.stringify(outfit ?? {});
     if (!this.cabinActor || this.outfitKey !== key) {
@@ -1420,6 +1429,13 @@ export class Space3D {
       this.cabinScene.add(this.cabinActor);
       this.outfitKey = key;
     }
+  }
+
+  drawCabin(inFlight: boolean, outfit?: Outfit) {
+    if (!this.resize()) return false;
+    this.prepareCabin(outfit);
+    if (this.cabinLoading || !this.cabinActor || this.loadingPilots.has(this.cabinActor))
+      return false;
     const { x, z, stride, heading } = flight3D.cabin;
     this.cabinActor!.position.set(x, 0, z);
     const rotation = this.cabinActor!.rotation;
@@ -1433,7 +1449,8 @@ export class Space3D {
     this.cabinCamera.position.set(x * 0.78, 60, z * 0.25 + distance);
     this.cabinCamera.lookAt(x * 0.73, 15, -15);
     this.cabinCamera.updateProjectionMatrix();
-    this.renderer.render(this.cabinScene, this.cabinCamera);
+    this.renderer.render(this.cabinScene!, this.cabinCamera);
+    return true;
   }
 
   drawColossalInterior(g: Game) {
