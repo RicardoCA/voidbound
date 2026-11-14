@@ -1,3 +1,4 @@
+import { flight3D } from "../game/rendering/flight3D";
 import {
   regrowTerrain,
   TERRAIN_REGROWTH_SECONDS,
@@ -1472,6 +1473,7 @@ export const useGame = defineStore("game", () => {
           system.value.stars,
           state.value.ship,
           state.value.upgrades,
+          flight3D.enabled ? flight3D.altitude : undefined,
         )
       : [],
   );

@@ -1,3 +1,4 @@
+import { shallowReactive } from "vue";
 import { hash } from "../procedural/random";
 import type { Bolt } from "../../combat/flight";
 
@@ -9,7 +10,7 @@ export function spaceAltitude(
   return (hash(kind + ":" + id) % (spread * 2 + 1)) - spread;
 }
 
-export const flight3D = {
+export const flight3D = shallowReactive({
   enabled: false,
   colossalBoarding: undefined as
     { x: number; y: number; altitude: number; elapsed: number } | undefined,
@@ -42,4 +43,4 @@ export const flight3D = {
     this.thrust = false;
     this.touchPitch = 0;
   },
-};
+});

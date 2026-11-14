@@ -21,7 +21,7 @@ import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
 import type { useGame } from "../../stores/game";
 import { planetPosition } from "../../universe/generator";
-import { starClasses } from "../../universe/stars";
+import { spatialStar, starClasses, type StarKind } from "../../universe/stars";
 import { hash, random } from "../procedural/random";
 
 const asteroidModels = [
@@ -557,6 +557,29 @@ export class Space3D {
     variant.add(...body.children);
     variant.scale.copy(body.scale);
     return variant;
+  }
+
+  private stellarModel(kind: StarKind) {
+    const group = new T.Group();
+    const color = Number.parseInt(starClasses[kind].color.slice(1), 16);
+    const fallback = this.part(
+      group,
+      this.sphere,
+      this.material(color, "star"),
+      0,
+      0,
+      0,
+    );
+    void this.loadEnvironmentAsset("estrela-" + kind)
+      .then((model) => {
+        if (this.disposed || !group.parent) return;
+        group.remove(fallback);
+        group.add(model.clone());
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo estelar indisponível.", error),
+      );
+    return group;
   }
 
   private asteroidModel(id: string) {
@@ -1992,20 +2015,17 @@ export class Space3D {
       mesh.scale.setScalar(radius);
       mesh.position.set(pos.x, spaceAltitude("planet", planet.id), pos.y);
     });
-    for (const star of g.system.stars) {
-      const data = starClasses[star.kind];
-      const mesh = this.object(
+    g.system.stars.forEach((star, index) => {
+      const { x, y, altitude, radius } = spatialStar(star, index);
+      const model = this.object(
         star.id,
-        () =>
-          new T.Mesh(
-            this.sphere,
-            this.material(Number.parseInt(data.color.slice(1), 16), "star"),
-          ),
+        () => this.stellarModel(star.kind),
         seen,
       );
-      mesh.scale.setScalar(data.radius);
-      mesh.position.set(star.x, spaceAltitude("star", star.id), star.y);
-    }
+      model.scale.setScalar(radius);
+      model.position.set(x, altitude, y);
+      model.rotation.y = now / 200000;
+    });
     for (const asteroid of g.asteroids) {
       const mesh = this.object(
         asteroid.id,
@@ -2121,8 +2141,10 @@ export class Space3D {
         ? node.material
         : [node.material];
       for (const material of materials)
-        if (material instanceof T.MeshStandardMaterial && material.map)
-          textures.add(material.map);
+        if (material instanceof T.MeshStandardMaterial) {
+          if (material.map) textures.add(material.map);
+          if (material.emissiveMap) textures.add(material.emissiveMap);
+        }
     });
     this.disposeMap(model);
     for (const texture of textures) texture.dispose();

@@ -1250,20 +1250,16 @@ export class WorldScene extends Phaser.Scene {
         .filter((candidate) => candidate.distance < range)
         .sort((a, b) => a.distance - b.distance)[0];
       const target = g.cyberTarget;
-      const starAltitude = target ? spaceAltitude("star", target.star.id) : 0;
-      if (
-        target &&
-        distanceTo(target.star, starAltitude) <= target.data.danger
-      ) {
+      if (target) {
         this.mineTime = 0.8;
         if (g.mineCyberCrystal()) {
           s.energy -= 2;
           this.beam = {
             x: s.x,
             y: s.y,
-            tx: target.star.x,
-            ty: target.star.y,
-            targetAltitude: starAltitude,
+            tx: target.position.x,
+            ty: target.position.y,
+            targetAltitude: target.position.altitude,
             life: 0.2,
           };
         }
