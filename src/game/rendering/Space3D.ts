@@ -20,10 +20,18 @@ import { flight3D, spaceAltitude } from "./flight3D";
 import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
 import type { useGame } from "../../stores/game";
-import { planetPosition } from "../../universe/generator";
+import { spatialPlanet } from "../../universe/generator";
 import { spatialStar, starClasses, type StarKind } from "../../universe/stars";
 import { hash, random } from "../procedural/random";
 
+const planetModels = [
+  "rochoso",
+  "desertico",
+  "gelado",
+  "florestal",
+  "vulcanico",
+  "oceanico",
+] as const;
 const asteroidModels = [
   "basalto",
   "agulha",
@@ -47,7 +55,8 @@ export class Space3D {
       outfit: string;
     }
   >();
-  private landingPlanet?: T.Mesh;
+  private landingPlanet?: T.Group;
+  private landingPlanetKey?: string;
   private surfaceCinematic?: {
     key: string;
     scene: T.Scene;
@@ -557,6 +566,29 @@ export class Space3D {
     variant.add(...body.children);
     variant.scale.copy(body.scale);
     return variant;
+  }
+
+  private planetModel(planet: Planet) {
+    const group = new T.Group();
+    const fallback = this.part(
+      group,
+      this.sphere,
+      this.material(0xe6d9cf, "planet", 17 + (planet.seed % 4), planet.kind),
+      0,
+      0,
+      0,
+    );
+    const file = planetModels[planet.kind] ?? planetModels[0];
+    void this.loadEnvironmentAsset("planeta-" + file)
+      .then((model) => {
+        if (this.disposed || !group.parent) return;
+        group.remove(fallback);
+        group.add(model.clone());
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo planetário indisponível.", error),
+      );
+    return group;
   }
 
   private stellarModel(kind: StarKind) {
@@ -1798,15 +1830,13 @@ export class Space3D {
     )!;
     trails.visible = !planet;
     if (planet) {
-      this.landingPlanet ??= new T.Mesh(this.sphere);
-      if (!this.landingPlanet.parent) this.jumpScene.add(this.landingPlanet);
+      if (!this.landingPlanet || this.landingPlanetKey !== planet.id) {
+        this.landingPlanet?.removeFromParent();
+        this.landingPlanet = this.planetModel(planet);
+        this.landingPlanetKey = planet.id;
+        this.jumpScene.add(this.landingPlanet);
+      }
       this.landingPlanet.visible = true;
-      this.landingPlanet.material = this.material(
-        0xe6d9cf,
-        "planet",
-        17 + (planet.seed % 4),
-        planet.kind,
-      );
       this.landingPlanet.position.set(0, 28, -155);
       this.landingPlanet.scale.setScalar(29);
       this.landingPlanet.rotation.y = performance.now() / 38000;
@@ -1996,24 +2026,15 @@ export class Space3D {
     }
 
     g.system.planets.forEach((planet, index) => {
-      const pos = planetPosition(index);
-      const mesh = this.object(
+      const { x, y, altitude, radius } = spatialPlanet(index, planet.id);
+      const model = this.object(
         planet.id,
-        () =>
-          new T.Mesh(
-            this.sphere,
-            this.material(
-              0xe6d9cf,
-              "planet",
-              17 + (planet.seed % 4),
-              planet.kind,
-            ),
-          ),
+        () => this.planetModel(planet),
         seen,
       );
-      const radius = 57 + (index % 3) * 8;
-      mesh.scale.setScalar(radius);
-      mesh.position.set(pos.x, spaceAltitude("planet", planet.id), pos.y);
+      model.scale.setScalar(radius);
+      model.position.set(x, altitude, y);
+      model.rotation.y = (hash(planet.id) % 628) / 100;
     });
     g.system.stars.forEach((star, index) => {
       const { x, y, altitude, radius } = spatialStar(star, index);

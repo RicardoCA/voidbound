@@ -63,7 +63,7 @@ import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import type { Item, Save, Settlement } from "../game/types";
 import { biomes, items } from "../game/types";
-import { systemAt, planetPosition } from "../universe/generator";
+import { systemAt, planetPosition, spatialPlanet } from "../universe/generator";
 import { add, consume, inventoryEntries, slots } from "../inventory/inventory";
 import { craft, recipes } from "../crafting/recipes";
 import { queueCloudSave } from "../persistence/cloudSaves";
@@ -287,10 +287,18 @@ export const useGame = defineStore("game", () => {
     if (!id) return undefined;
     const index = system.value.planets.findIndex((planet) => planet.id === id);
     if (index >= 0) {
+      const planet = system.value.planets[index]!;
+      const position = flight3D.enabled
+        ? spatialPlanet(index, planet.id)
+        : undefined;
+      const separation = position ? flight3D.altitude - position.altitude : 0;
+      const stopDistance = position
+        ? Math.sqrt(Math.max(0, (position.radius + 135) ** 2 - separation ** 2))
+        : 135;
       return {
-        ...planetPosition(index),
-        name: system.value.planets[index]!.name,
-        stopDistance: 135,
+        ...(position ?? planetPosition(index)),
+        name: planet.name,
+        stopDistance,
       };
     }
     const asteroid =
@@ -1053,8 +1061,12 @@ export const useGame = defineStore("game", () => {
   function takeoff() {
     if (!canTakeOff()) return;
     state.value.ship.fuel -= 5;
-    const pos = planetPosition(state.value.planetIndex);
-    state.value.ship.x = pos.x - 210;
+    const index = state.value.planetIndex;
+    const spatial = flight3D.selected
+      ? spatialPlanet(index, planet.value.id)
+      : undefined;
+    const pos = spatial ?? planetPosition(index);
+    state.value.ship.x = pos.x - (spatial ? spatial.radius + 135 : 210);
     state.value.ship.y = pos.y;
     state.value.ship.vx = -25;
     state.value.ship.vy = 0;
@@ -1266,14 +1278,29 @@ export const useGame = defineStore("game", () => {
     notify(`Salto concluído. Sistema ${system.value.name}.`);
     await save();
   }
+  function distanceToPlanet(index: number) {
+    const ship = state.value.ship;
+    if (flight3D.enabled) {
+      const { x, y, altitude, radius } = spatialPlanet(
+        index,
+        system.value.planets[index]!.id,
+      );
+      return Math.max(
+        0,
+        Math.hypot(ship.x - x, ship.y - y, flight3D.altitude - altitude) -
+          radius,
+      );
+    }
+    const pos = planetPosition(index);
+    return Math.hypot(pos.x - ship.x, pos.y - ship.y);
+  }
   const flightTarget = computed(() => {
     const s = state.value;
     const planets = system.value.planets;
     let index = 0;
     let distance = Infinity;
     for (const [i] of planets.entries()) {
-      const pos = planetPosition(i);
-      const d = Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y);
+      const d = distanceToPlanet(i);
       if (d < distance) {
         index = i;
         distance = d;
@@ -1325,8 +1352,10 @@ export const useGame = defineStore("game", () => {
         ["orbit", "interior", "surface"].includes(s.mode) &&
         s.planetIndex === index
       );
-    const pos = planetPosition(index);
-    return Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s);
+    return (
+      !!system.value.planets[index] &&
+      distanceToPlanet(index) <= scannerRange(s)
+    );
   }
   function scanPlanet(index: number) {
     const target = system.value.planets[index];
@@ -1797,6 +1826,7 @@ export const useGame = defineStore("game", () => {
     switchWeapon,
     uninstallWeapon,
     flightTarget,
+    distanceToPlanet,
     interactFlightTarget,
     stationContact,
     cabinContact,

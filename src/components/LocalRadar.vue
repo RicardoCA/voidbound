@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { starClasses } from "../universe/stars";
+import { spatialStar, starClasses } from "../universe/stars";
 import { useGame } from "../stores/game";
-import { planetPosition } from "../universe/generator";
+import { flight3D } from "../game/rendering/flight3D";
+import { planetPosition, spatialPlanet } from "../universe/generator";
 
 const g = useGame();
 
@@ -24,10 +25,10 @@ function position(target: { x: number; y: number }) {
     <circle cx="45" cy="45" r="24" />
     <path d="M45 5V85M5 45H85" />
     <circle
-      v-for="star in g.system.stars"
+      v-for="(star, i) in g.system.stars"
       :key="star.id"
-      :cx="position(star).x"
-      :cy="position(star).y"
+      :cx="position(flight3D.enabled ? spatialStar(star, i) : star).x"
+      :cy="position(flight3D.enabled ? spatialStar(star, i) : star).y"
       r="3"
       :style="{ fill: starClasses[star.kind].color, stroke: 'none' }"
     >
@@ -36,8 +37,16 @@ function position(target: { x: number; y: number }) {
     <circle
       v-for="(planet, i) in g.system.planets"
       :key="planet.id"
-      :cx="position(planetPosition(i)).x"
-      :cy="position(planetPosition(i)).y"
+      :cx="
+        position(
+          flight3D.enabled ? spatialPlanet(i, planet.id) : planetPosition(i),
+        ).x
+      "
+      :cy="
+        position(
+          flight3D.enabled ? spatialPlanet(i, planet.id) : planetPosition(i),
+        ).y
+      "
       r="2"
       class="radar-planet"
     >

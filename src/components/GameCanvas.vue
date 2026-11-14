@@ -22,6 +22,13 @@ const host = ref<HTMLDivElement>();
 const spaceCanvas = ref<HTMLCanvasElement>();
 const use3D = ref(true);
 const gpuFailed = ref(false);
+watch(
+  [use3D, gpuFailed],
+  () => {
+    flight3D.selected = use3D.value && !gpuFailed.value;
+  },
+  { immediate: true },
+);
 const freeFlight = computed(
   () =>
     props.playing &&
@@ -157,6 +164,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   cancelAnimationFrame(frame);
+  flight3D.selected = false;
   flight3D.enabled = false;
   flight3D.stationView = false;
   flight3D.colossalView = false;

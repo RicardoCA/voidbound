@@ -95,7 +95,7 @@ import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
-import { planetPosition } from "../../universe/generator";
+import { planetPosition, spatialPlanet } from "../../universe/generator";
 import {
   controls,
   takePulse,
@@ -1143,6 +1143,8 @@ export class WorldScene extends Phaser.Scene {
       };
       for (const [index, star] of g.system.stars.entries())
         resolveStellarCollision(body, spatialStar(star, index));
+      for (const [index, planet] of g.system.planets.entries())
+        resolveStellarCollision(body, spatialPlanet(index, planet.id));
       s.x = body.x;
       s.y = body.y;
       s.vx = body.vx;

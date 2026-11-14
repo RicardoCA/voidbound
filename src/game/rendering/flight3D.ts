@@ -12,6 +12,7 @@ export function spaceAltitude(
 
 export const flight3D = shallowReactive({
   enabled: false,
+  selected: false,
   colossalBoarding: undefined as
     { x: number; y: number; altitude: number; elapsed: number } | undefined,
   colossal: {
