@@ -1,6 +1,11 @@
 import type { ParkedShip, PilotTrip, Save } from "../game/types";
 import { add, consume } from "../inventory/inventory";
-import { marketItems, marketPrice, marketStock } from "../economy/market";
+import {
+  marketItems,
+  marketPrice,
+  marketStock,
+  setMarketStock,
+} from "../economy/market";
 import { hash } from "../game/procedural/random";
 import { nearby, systemAt } from "../universe/generator";
 import { inLocalHangar, shipCapacity, shipFuelCapacity } from "./hangar";
@@ -104,7 +109,7 @@ function dispatch(state: Save, ship: ParkedShip, order: RouteOrder) {
   )
     return "A nave não tem espaço para este lote.";
   state.credits -= quote.cost;
-  (state.marketStocks[origin.id] ??= {})[order.item] = stock - order.quantity;
+  setMarketStock(state, origin.id, order.item, stock - order.quantity);
   ship.pilot!.trip = {
     ...order,
     destination: { ...order.destination },
@@ -150,7 +155,7 @@ export function advancePilotTrips(state: Save) {
       continue;
 
     state.credits = balance;
-    (state.marketStocks[station.id] ??= {})[trip.item] = stock;
+    setMarketStock(state, station.id, trip.item, stock);
     delete pilot.trip;
     pilot.message = `Entrega concluída. +${trip.payment} CR recebidos.`;
     if (trip.repeat) {

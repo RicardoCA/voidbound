@@ -2,6 +2,19 @@ import type { Inventory, Item, Save } from "../game/types";
 import { add, consume } from "../inventory/inventory";
 
 export const INITIAL_CREDITS = 500;
+export const TARGET_STOCK = 120;
+const DELIVERY_INTERVAL = 5 * 60;
+const DELIVERY_QUANTITY = 30;
+
+export function marketDeliveryCycle(state: Pick<Save, "activePlayTime">) {
+  return Math.floor((state.activePlayTime ?? 0) / DELIVERY_INTERVAL);
+}
+
+export function marketDeliverySeconds(state: Save) {
+  return Math.ceil(
+    DELIVERY_INTERVAL - ((state.activePlayTime ?? 0) % DELIVERY_INTERVAL),
+  );
+}
 
 const prices = {
   iron: 12,
@@ -25,7 +38,29 @@ export function marketPrice(item: MarketItem, side: TradeSide) {
 }
 
 export function marketStock(state: Save, station: string, item: MarketItem) {
-  return state.marketStocks[station]?.[item] ?? 120;
+  const stock = state.marketStocks[station]?.[item] ?? TARGET_STOCK;
+  if (stock >= TARGET_STOCK) return stock;
+  const cycle = marketDeliveryCycle(state);
+  const lastCycle = state.marketDeliveryCycles?.[station]?.[item] ?? cycle;
+  return Math.min(
+    TARGET_STOCK,
+    stock + Math.max(0, cycle - lastCycle) * DELIVERY_QUANTITY,
+  );
+}
+
+const SUPPLIER_APPROACH_SECONDS = 8;
+
+export function supplierApproach(state: Save, station: string) {
+  const remaining =
+    DELIVERY_INTERVAL - ((state.activePlayTime ?? 0) % DELIVERY_INTERVAL);
+  if (
+    remaining > SUPPLIER_APPROACH_SECONDS ||
+    !marketItems.some(
+      (item) => marketStock(state, station, item) < TARGET_STOCK,
+    )
+  )
+    return undefined;
+  return 1 - remaining / SUPPLIER_APPROACH_SECONDS;
 }
 
 // Mutate only after validating the complete transaction.
@@ -63,5 +98,16 @@ export function trade(
       : "Quantidade indisponível na sua carga.";
   state.inventory = cargo;
   state.credits = balance;
-  (state.marketStocks[station] ??= {})[item] = nextStock;
+  setMarketStock(state, station, item, nextStock);
+}
+
+export function setMarketStock(
+  state: Save,
+  station: string,
+  item: MarketItem,
+  stock: number,
+) {
+  (state.marketStocks[station] ??= {})[item] = stock;
+  ((state.marketDeliveryCycles ??= {})[station] ??= {})[item] =
+    marketDeliveryCycle(state);
 }

@@ -1,7 +1,7 @@
 import { systemAt } from "../universe/generator";
 import type { Save } from "../game/types";
 import { newProgression } from "../progression/careers";
-import { INITIAL_CREDITS } from "../economy/market";
+import { INITIAL_CREDITS, marketDeliveryCycle } from "../economy/market";
 
 type StoredPlayer = Omit<Save["player"], "hunger"> & { hunger?: number };
 type SaveWithoutRequiredHunger = Omit<
@@ -63,6 +63,23 @@ export function migrateSave(data: StoredGame): Save {
     case 4:
       return {
         ...data,
+        ...(Object.keys(data.marketStocks).length
+          ? {
+              marketDeliveryCycles:
+                data.marketDeliveryCycles ??
+                Object.fromEntries(
+                  Object.entries(data.marketStocks).map(([station, stock]) => [
+                    station,
+                    Object.fromEntries(
+                      Object.keys(stock).map((item) => [
+                        item,
+                        marketDeliveryCycle(data),
+                      ]),
+                    ),
+                  ]),
+                ),
+            }
+          : {}),
         backpack: data.backpack ?? {},
         progression: restoreProgression(data),
         player: { ...data.player, hunger: data.player.hunger ?? 100 },

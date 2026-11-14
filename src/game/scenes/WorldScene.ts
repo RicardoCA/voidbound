@@ -1,3 +1,4 @@
+import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
 import { representativePosition } from "../../diplomacy/representative";
@@ -1823,6 +1824,21 @@ export class WorldScene extends Phaser.Scene {
             departing ? 1 - t : t,
             scale,
           );
+        if (station.kind === "standard") {
+          const delivery = supplierApproach(g.state, station.id);
+          if (delivery !== undefined) {
+            const remaining = (1 - delivery) ** 1.5;
+            this.drawShip(
+              x + 270 * remaining,
+              y - 115 * remaining,
+              Math.atan2(115, -270),
+              delivery < 0.78,
+              "atlas",
+              f,
+              0.72 * Math.min(1, remaining * 12),
+            );
+          }
+        }
         const latch = departing ? 1 - t : t;
         if (docking && latch > 0.78) {
           const glow = (latch - 0.78) / 0.22;

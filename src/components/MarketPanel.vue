@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
 import { items } from "../game/types";
 import {
+  marketDeliverySeconds,
+  TARGET_STOCK,
   marketItems,
   marketPrice,
   marketStock,
@@ -16,6 +18,10 @@ const quantity = ref(1);
 const stock = computed(() =>
   marketStock(g.state, g.system.station!.id, item.value),
 );
+const deliveryETA = computed(() => {
+  const seconds = marketDeliverySeconds(g.state);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+});
 const valid = computed(
   () => Number.isSafeInteger(quantity.value) && quantity.value > 0,
 );
@@ -45,6 +51,9 @@ async function transact(side: TradeSide) {
       {{ g.state.inventory[item] ?? 0 }} · Slots {{ g.usedSlots }}/{{
         g.capacity
       }}
+    </p>
+    <p v-if="stock < TARGET_STOCK">
+      Próxima entrega de fornecedor em {{ deliveryETA }} de jogo ativo.
     </p>
     <label for="market-quantity">Quantidade</label>
     <input

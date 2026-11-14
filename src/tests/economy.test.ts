@@ -2,8 +2,8 @@ import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useGame } from "../stores/game";
-import { marketStock, trade } from "../economy/market";
-import type { SaveV3 } from "../persistence/migrations";
+import { marketStock, supplierApproach, trade } from "../economy/market";
+import { migrateSave, type SaveV3 } from "../persistence/migrations";
 import { systemAt } from "../universe/generator";
 import Dexie from "dexie";
 import {
@@ -30,6 +30,33 @@ describe("mercado galáctico", () => {
     expect(state.inventory.iron).toBe(6);
     expect(marketStock(state, "alpha", "iron")).toBe(114);
     expect(marketStock(state, "beta", "iron")).toBe(120);
+  });
+
+  it("repõe estoques antigos por entregas sem duplicar lotes após nova compra", () => {
+    setActivePinia(createPinia());
+    const { state: oldSave } = useGame();
+    oldSave.marketStocks.alpha = { iron: 0, copper: 145 };
+    oldSave.activePlayTime = 420;
+    const state = migrateSave(oldSave);
+    expect(marketStock(state, "alpha", "iron")).toBe(0);
+    state.activePlayTime = 592;
+    expect(supplierApproach(state, "alpha")).toBe(0);
+    expect(supplierApproach(state, "beta")).toBeUndefined();
+    state.activePlayTime = 596;
+    expect(supplierApproach(state, "alpha")).toBe(0.5);
+    state.activePlayTime = 600;
+    expect(supplierApproach(state, "alpha")).toBeUndefined();
+    expect(marketStock(state, "alpha", "iron")).toBe(30);
+    expect(trade(state, "alpha", "iron", "buy", 5, 24)).toBeUndefined();
+    expect(marketStock(state, "alpha", "iron")).toBe(25);
+    const restored = migrateSave(JSON.parse(JSON.stringify(state)));
+    expect(marketStock(restored, "alpha", "iron")).toBe(25);
+    restored.activePlayTime = 900;
+    expect(marketStock(restored, "alpha", "iron")).toBe(55);
+    restored.activePlayTime = 2100;
+    expect(marketStock(restored, "alpha", "iron")).toBe(120);
+    expect(marketStock(restored, "alpha", "copper")).toBe(145);
+    expect(marketStock(restored, "beta", "iron")).toBe(120);
   });
 
   it("não altera nada por falta de crédito, estoque, carga ou quantidade inválida", () => {
@@ -337,6 +364,7 @@ it("retoma um save v4 da economia anterior à frota sem perder o estado da super
     await db.saves.put({ id: "commander", data: earlySave, updated: 1 });
     expect(await db.read()).toEqual({
       ...earlySave,
+      marketDeliveryCycles: { [g.system.station!.id]: { copper: 0 } },
       activeShip: { id: "ship-1", model: "sparrow" },
       parkedShips: [],
       nextShipId: 2,
