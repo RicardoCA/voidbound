@@ -199,10 +199,17 @@ describe("Salto interestelar e controles de toque", () => {
     vi.useFakeTimers();
     try {
       const jump = g.jump(1, 0);
-      await vi.advanceTimersByTimeAsync(29_000);
-      expect(g.jumpCountdown).toBe(1);
-      await vi.advanceTimersByTimeAsync(6_000);
+      expect(g.busy).toBe(true);
+      expect(g.jumpCountdown).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(5_000);
       await jump;
+      expect(g.jumpCountdown).toBe(30);
+      await vi.advanceTimersByTimeAsync(29_000);
+      await g.jump(0, 0);
+      expect(g.state.systemX).toBe(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      g.refreshJumpCooldown();
+      expect(g.jumpCountdown).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }

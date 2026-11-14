@@ -428,9 +428,7 @@ describe("Retorno a bases planetárias", () => {
     vi.useFakeTimers();
     try {
       const jump = g.jump(1, 0);
-      await vi.advanceTimersByTimeAsync(29_000);
-      expect(g.jumpCountdown).toBe(1);
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(5_000);
       await jump;
     } finally {
       vi.useRealTimers();
@@ -444,10 +442,9 @@ describe("Retorno a bases planetárias", () => {
     g.takeoff();
     vi.useFakeTimers();
     try {
+      vi.setSystemTime(g.state.nextJumpAt!);
       const jump = g.jump(0, 0);
-      await vi.advanceTimersByTimeAsync(29_000);
-      expect(g.jumpCountdown).toBe(1);
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(5_000);
       await jump;
     } finally {
       vi.useRealTimers();

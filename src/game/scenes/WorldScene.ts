@@ -429,6 +429,7 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    if (g.started) g.refreshJumpCooldown();
     const piloting =
       g.started &&
       !g.aboardColossal &&

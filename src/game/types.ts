@@ -226,6 +226,7 @@ export interface Save {
   activePlayTime?: number;
   terrainRegrowth?: Record<string, Record<string, number>>;
   visited: string[];
+  nextJumpAt?: number;
   jumpDestination?: import("../universe/jumpRoute").JumpPoint;
   mission: number;
   flags: string[];
