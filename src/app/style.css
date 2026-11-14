@@ -1721,8 +1721,9 @@ kbd {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;
-    height: calc(100dvh - 102px);
-    min-height: 490px;
+    height: auto;
+    min-height: 0;
+    max-height: none;
   }
 
   .desktop-docks > .game-canvas {
@@ -1738,8 +1739,7 @@ kbd {
     align-items: flex-start;
     gap: 12px;
     padding: 5px 10px;
-    max-height: 66px;
-    overflow: auto;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--line);
     background: #0b1522;
   }
@@ -1789,11 +1789,27 @@ kbd {
   }
 
   .app-shell:has(.desktop-docks) {
+    display: grid;
+    grid-template-rows: auto minmax(200px, 1fr) auto auto;
+    min-height: 100dvh;
+    height: 100dvh;
     padding-inline: 8px;
   }
 
   .app-shell:has(.desktop-docks) .topbar {
     height: 42px;
+  }
+
+  .app-shell:has(.desktop-docks) > :is(.footer, .keyboard-help) {
+    min-height: 28px;
+    padding-block: 3px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .desktop-docks .desktop-habitat {
+    gap: 2px;
+    padding: 3px 8px;
   }
 
   .desktop-docks .location h2 {
@@ -1811,8 +1827,8 @@ kbd {
   }
 
   .desktop-docks .flight-info > :not(.location) {
-    flex: 0 0 auto;
-    max-width: 260px;
+    flex: 0 1 260px;
+    min-width: 0;
   }
 
   .desktop-docks .speed-display {
