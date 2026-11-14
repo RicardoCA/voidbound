@@ -90,7 +90,9 @@ function build() {
             ? "Estaleiro orbital"
             : g.panel === "colossal-bridge"
               ? "Ponte da colossal"
-              : "Hangar da colossal"
+              : g.panel === "colossal-reactor"
+                ? "Sala do reator"
+                : "Hangar da colossal"
         }}
       </h2>
       <button
@@ -145,11 +147,10 @@ function build() {
       </template>
     </template>
     <template v-else-if="carrier">
-      <p>
-        Hangar {{ carrier.ships.length + 1 }}/{{ carrier.slots }} · Refinado
-        {{ Math.floor(carrier.fuel) }} · Dobra {{ carrier.warp }}
-      </p>
-      <template v-if="g.panel === 'colossal-bridge'">
+      <template v-if="g.panel === 'colossal-reactor'">
+        <p>
+          Refinado {{ Math.floor(carrier.fuel) }} · Dobra {{ carrier.warp }}
+        </p>
         <div class="station-actions">
           <button
             class="secondary"
@@ -173,6 +174,10 @@ function build() {
           >
             Carregar dobra
           </button>
+        </div>
+      </template>
+      <template v-else-if="g.panel === 'colossal-bridge'">
+        <div class="station-actions">
           <button
             class="secondary"
             @click="
@@ -214,6 +219,7 @@ function build() {
         </button>
       </template>
       <template v-else>
+        <p>Vagas ocupadas {{ carrier.ships.length + 1 }}/{{ carrier.slots }}</p>
         <p>Nave selecionada · {{ g.model.name }}</p>
         <div
           v-for="ship in cargo.filter((entry) =>
