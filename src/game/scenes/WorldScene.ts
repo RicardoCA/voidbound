@@ -1,3 +1,4 @@
+import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
 import { flight3D, spaceAltitude } from "../rendering/flight3D";
 import {
@@ -15,6 +16,7 @@ import {
   saberSpriteUrl,
   starClasses,
   starKinds,
+  spatialStar,
 } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
@@ -1129,6 +1131,24 @@ export class WorldScene extends Phaser.Scene {
           121 * COLOSSAL_MODEL_SCALE,
           82 * COLOSSAL_MODEL_SCALE,
         );
+    }
+    if (spatial) {
+      const body = {
+        x: s.x,
+        y: s.y,
+        vx: s.vx,
+        vy: s.vy,
+        altitude: flight3D.altitude,
+        verticalSpeed: flight3D.velocity,
+      };
+      for (const [index, star] of g.system.stars.entries())
+        resolveStellarCollision(body, spatialStar(star, index));
+      s.x = body.x;
+      s.y = body.y;
+      s.vx = body.vx;
+      s.vy = body.vy;
+      flight3D.altitude = body.altitude;
+      flight3D.velocity = body.verticalSpeed;
     }
     if (g.captureBlackHole()) return;
     if (g.applyStellarHeat(dt)) {

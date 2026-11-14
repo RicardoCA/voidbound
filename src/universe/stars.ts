@@ -130,7 +130,11 @@ export function stellarExposure(
         altitude === undefined
           ? { ...star, altitude: 0, radius: data.radius }
           : spatialStar(star, index);
-      const danger = position.radius + data.danger - data.radius;
+      const thermalDepth =
+        altitude === undefined
+          ? data.danger - data.radius
+          : Math.max((data.danger - data.radius) * 3, position.radius * 0.36);
+      const danger = position.radius + thermalDepth;
       const distance = Math.hypot(
         ship.x - position.x,
         ship.y - position.y,
@@ -140,7 +144,7 @@ export function stellarExposure(
       const protectedByDeflector = upgrades.includes(deflectorFor(star.kind));
       const intensity = Math.min(
         1,
-        Math.max(0.2, (danger - distance) / (danger - position.radius)),
+        Math.max(0.2, (danger - distance) / thermalDepth),
       );
       return [
         {
