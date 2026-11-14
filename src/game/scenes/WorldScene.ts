@@ -1081,8 +1081,31 @@ export class WorldScene extends Phaser.Scene {
     s.y += s.vy * dt;
     if (spatial) {
       const station = g.system.station;
-      if (station && Math.abs(flight3D.altitude) < 43)
-        resolveSpaceHull(s, station, Math.PI / 2, 77, 113);
+      if (station) {
+        const height = Math.abs(flight3D.altitude);
+        if (height < 43) {
+          resolveSpaceHull(s, station, Math.PI / 2, 79, 113);
+        } else {
+          // The upper and lower arcs narrow as they approach the ring crest.
+          const radius = 93;
+          if (height < radius) {
+            const outerX = Math.sqrt(radius ** 2 - height ** 2);
+            const innerX = Math.sqrt(Math.max(0, 60 ** 2 - height ** 2));
+            for (const offset of [-29, 31])
+              for (const side of [-1, 1])
+                resolveSpaceHull(
+                  s,
+                  {
+                    x: station.x + (side * (outerX + innerX)) / 2,
+                    y: station.y + offset,
+                  },
+                  Math.PI / 2,
+                  17,
+                  (outerX - innerX) / 2,
+                );
+          }
+        }
+      }
       const carrier = g.localColossal;
       if (carrier && Math.abs(flight3D.altitude) < 31)
         resolveSpaceHull(s, carrier, carrier.angle ?? 0, 116, 87);
