@@ -3,11 +3,20 @@ import { computed } from "vue";
 import { items, type Item } from "../game/types";
 import { itemArt } from "../inventory/itemArt";
 
+import { isPhotonSaber, saberSpriteUrl } from "../universe/stars";
+
 const props = defineProps<{ item: Item }>();
 const art = computed(() => itemArt[props.item]);
 </script>
 <template>
+  <img
+    v-if="isPhotonSaber(item)"
+    class="item-art"
+    :src="saberSpriteUrl(item)"
+    alt=""
+  />
   <svg
+    v-else
     class="item-art"
     viewBox="0 0 24 24"
     aria-hidden="true"

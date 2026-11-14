@@ -52,6 +52,17 @@ export const deflectorFor = (kind: StarKind): HeatDeflector =>
 export const isHeatDeflector = (id: string) =>
   starKinds.some((kind) => deflectorFor(kind) === id);
 
+export type CyberCrystal = `cyberCrystal-${StarKind}`;
+export type PhotonSaber = `photonSaber-${StarKind}`;
+export const crystalFor = (kind: StarKind): CyberCrystal =>
+  `cyberCrystal-${kind}`;
+export const saberFor = (kind: StarKind): PhotonSaber => `photonSaber-${kind}`;
+export const isPhotonSaber = (id: string): id is PhotonSaber =>
+  starKinds.some((kind) => saberFor(kind) === id);
+
+export const saberSpriteUrl = (id: PhotonSaber) =>
+  `${import.meta.env.BASE_URL}sabers/${id.slice("photonSaber-".length)}.webp`;
+
 export interface StellarBody {
   id: string;
   kind: StarKind;

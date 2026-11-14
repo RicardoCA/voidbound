@@ -9,6 +9,10 @@ import {
 import { shipScanners, type ScannerEquipment } from "../combat/shipScanners";
 import type { BlackHole } from "../universe/blackHoles";
 import {
+  crystalFor,
+  saberFor,
+  type CyberCrystal,
+  type PhotonSaber,
   deflectorFor,
   starClasses,
   starKinds,
@@ -23,6 +27,8 @@ export type Item =
   | ScannerEquipment
   | WeaponModule
   | HeatDeflector
+  | CyberCrystal
+  | PhotonSaber
   | "stone"
   | "stick"
   | "iron"
@@ -208,7 +214,9 @@ export interface Save {
   systemY: number;
   planetIndex: number;
   ship: ShipState;
+  minedCyberCrystals?: Record<string, number>;
   player: {
+    photonSaber?: PhotonSaber;
     hunger: number;
     sickness?: number;
     x: number;
@@ -290,6 +298,30 @@ export const items: Record<Item, ItemDetails> = {
       },
     ]),
   ) as Record<HeatDeflector, ItemDetails>),
+  ...(Object.fromEntries(
+    starKinds.flatMap((kind) => [
+      [
+        crystalFor(kind),
+        {
+          name: `Cristal Cyber · ${starClasses[kind].name}`,
+          color: starClasses[kind].color,
+          icon: "◆",
+          rarity: "Material",
+          stack: 99,
+        },
+      ],
+      [
+        saberFor(kind),
+        {
+          name: `Sabre Fotônico · ${starClasses[kind].name}`,
+          color: starClasses[kind].color,
+          icon: "╱",
+          rarity: "Equipamento",
+          stack: 1,
+        },
+      ],
+    ]),
+  ) as Record<CyberCrystal | PhotonSaber, ItemDetails>),
   basaltBerry: {
     name: "Baga de basalto",
     color: "#cf93e7",

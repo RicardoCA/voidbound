@@ -1,6 +1,11 @@
 import { scannerIds, shipScanners } from "../combat/shipScanners";
 import { weaponModules, type WeaponModule } from "../combat/weapons";
-import { deflectorFor, starKinds } from "../universe/stars";
+import {
+  crystalFor,
+  deflectorFor,
+  saberFor,
+  starKinds,
+} from "../universe/stars";
 import type { Item, Inventory } from "../game/types";
 import { add, consume } from "../inventory/inventory";
 export interface Recipe {
@@ -34,6 +39,12 @@ export const recipes: Recipe[] = [
   ...scannerIds.map((id): Recipe => ({
     id,
     cost: shipScanners[id].cost,
+    unlock: 0,
+    station: "ship",
+  })),
+  ...starKinds.map((kind): Recipe => ({
+    id: saberFor(kind),
+    cost: { [crystalFor(kind)]: 1, circuit: 1, titanium: 10 },
     unlock: 0,
     station: "ship",
   })),

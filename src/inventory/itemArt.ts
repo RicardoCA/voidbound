@@ -1,4 +1,8 @@
 import {
+  crystalFor,
+  saberFor,
+  type CyberCrystal,
+  type PhotonSaber,
   deflectorFor,
   starClasses,
   starKinds,
@@ -16,6 +20,30 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  ...(Object.fromEntries(
+    starKinds.flatMap((kind) => [
+      [
+        crystalFor(kind),
+        {
+          body: "M10 3h5l6 7-4 9-5 3-8-6V9z",
+          shade: "M14 4l7 6-4 9-5 3 1-9z",
+          light: "M10 5l3 1-2 7-5 2V10z",
+          detail: "M9 9h2v3H9z",
+          accent: "#fff",
+        },
+      ],
+      [
+        saberFor(kind),
+        {
+          body: "M18 2h4v4L10 18l-4-4z",
+          shade: "M2 19l6-6 4 4-6 6H2z",
+          light: "M18 4h2L9 16l-1-1z",
+          detail: "M3 19l5-5 2 2-5 5H3z",
+          accent: "#8298ac",
+        },
+      ],
+    ]),
+  ) as Record<CyberCrystal | PhotonSaber, ItemArt>),
   asteroidRadar: {
     body: "M3 5h18v13H3zM9 18h6v3H9z",
     shade: "M3 14h18v4H3z",
