@@ -1,3 +1,4 @@
+import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { landingTerrain } from "./planetTerrain3D";
@@ -1834,6 +1835,8 @@ export class Space3D {
         seen,
       );
       const heading = carrier.angle ?? 0;
+      const scale = COLOSSAL_MODEL_SCALE;
+      model.scale.setScalar(scale);
       model.position.set(carrier.x, 0, carrier.y);
       model.rotation.y = -Math.PI / 2 - heading;
       const boarding = flight3D.colossalBoarding;
@@ -1841,12 +1844,12 @@ export class Space3D {
         const forward = new T.Vector3(Math.cos(heading), 0, Math.sin(heading));
         const flank = new T.Vector3(-forward.z, 0, forward.x);
         const center = model.position;
-        const entry = center.clone().addScaledVector(flank, 77);
-        entry.y = 7;
-        const approach = entry.clone().addScaledVector(flank, 45);
+        const entry = center.clone().addScaledVector(flank, 77 * scale);
+        entry.y = 7 * scale;
+        const approach = entry.clone().addScaledVector(flank, 45 * scale);
         const path = new T.CubicBezierCurve3(
           new T.Vector3(boarding.x, boarding.altitude, boarding.y),
-          approach.clone().addScaledVector(forward, -70),
+          approach.clone().addScaledVector(forward, -70 * scale),
           approach,
           entry,
         );
@@ -1859,28 +1862,26 @@ export class Space3D {
         const baseScale = (player.userData.baseScale ??= player.scale.clone());
         player.scale
           .copy(baseScale)
-          .multiplyScalar(
-            T.MathUtils.lerp(1, 0.25, Math.max(0, (t - 0.75) * 4)),
-          );
+          .multiplyScalar(1 - 0.3 * T.MathUtils.smoothstep(t, 0.9, 1));
         this.camera.position
           .copy(center)
-          .addScaledVector(flank, 235)
-          .addScaledVector(forward, -150);
-        this.camera.position.y = 90;
+          .addScaledVector(flank, 235 * scale)
+          .addScaledVector(forward, -150 * scale);
+        this.camera.position.y = 90 * scale;
         this.camera.lookAt(center.clone().lerp(player.position, 0.4));
       }
       if (pilotedCarrier) {
         const forwardX = Math.cos(heading);
         const forwardZ = Math.sin(heading);
         this.camera.position.set(
-          carrier.x - forwardX * 285,
-          112,
-          carrier.y - forwardZ * 285,
+          carrier.x - forwardX * 285 * scale,
+          112 * scale,
+          carrier.y - forwardZ * 285 * scale,
         );
         this.camera.lookAt(
-          carrier.x + forwardX * 120,
+          carrier.x + forwardX * 120 * scale,
           0,
-          carrier.y + forwardZ * 120,
+          carrier.y + forwardZ * 120 * scale,
         );
       }
       for (const part of model.children) {

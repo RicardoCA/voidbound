@@ -1,6 +1,10 @@
 import { resolveSpaceHull } from "../physics/spaceHull";
 import { flight3D, spaceAltitude } from "../rendering/flight3D";
-import { COLOSSAL_SPEED, steerColossal } from "../../fleet/colossal";
+import {
+  COLOSSAL_MODEL_SCALE,
+  COLOSSAL_SPEED,
+  steerColossal,
+} from "../../fleet/colossal";
 import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
@@ -654,7 +658,13 @@ export class WorldScene extends Phaser.Scene {
                 vx: carrier.vx ?? 0,
                 vy: carrier.vy ?? 0,
               };
-              resolveSpaceHull(body, station, Math.PI / 2, 156, 169);
+              resolveSpaceHull(
+                body,
+                station,
+                Math.PI / 2,
+                77 + 79 * COLOSSAL_MODEL_SCALE,
+                113 + 56 * COLOSSAL_MODEL_SCALE,
+              );
               Object.assign(carrier, body);
             }
           }
@@ -1107,8 +1117,18 @@ export class WorldScene extends Phaser.Scene {
         }
       }
       const carrier = g.localColossal;
-      if (carrier && Math.abs(flight3D.altitude) < 31)
-        resolveSpaceHull(s, carrier, carrier.angle ?? 0, 116, 87);
+      if (
+        carrier &&
+        flight3D.altitude > -43 * COLOSSAL_MODEL_SCALE &&
+        flight3D.altitude < 66 * COLOSSAL_MODEL_SCALE
+      )
+        resolveSpaceHull(
+          s,
+          carrier,
+          carrier.angle ?? 0,
+          121 * COLOSSAL_MODEL_SCALE,
+          82 * COLOSSAL_MODEL_SCALE,
+        );
     }
     if (g.captureBlackHole()) return;
     if (g.applyStellarHeat(dt)) {

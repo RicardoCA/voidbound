@@ -32,7 +32,9 @@ export const colossalStages: { name: string; cost: Inventory }[] = [
 ];
 export const bayCost = { plate: 250, titanium: 100, circuit: 60 };
 export const COLOSSAL_RANGE = 40;
-export const COLOSSAL_EXIT = 210;
+export const COLOSSAL_MODEL_SCALE = 3;
+export const COLOSSAL_BOARD_RANGE = 190 * COLOSSAL_MODEL_SCALE;
+export const COLOSSAL_EXIT = 210 * COLOSSAL_MODEL_SCALE;
 
 export const COLOSSAL_SPEED = 68;
 
@@ -97,7 +99,8 @@ export function parkColossal(state: Save) {
     state.mode !== "space" ||
     !ship ||
     ship.stage < 3 ||
-    Math.hypot(ship.x - state.ship.x, ship.y - state.ship.y) > 190 ||
+    Math.hypot(ship.x - state.ship.x, ship.y - state.ship.y) >
+      COLOSSAL_BOARD_RANGE ||
     Math.hypot(state.ship.vx, state.ship.vy) > 35
   )
     return "Aproxime-se da colossal e freie até 35 km/s.";

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { COLOSSAL_BOARD_RANGE } from "../fleet/colossal";
 import LocalRadar from "./LocalRadar.vue";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
@@ -219,9 +220,16 @@ const colossalDistance = computed(() => {
     <template v-else-if="surface && g.civilization"
       >{{ g.civilization.name }} · A leste do pouso</template
     >
-    <template v-else-if="colossalDistance !== undefined && colossalDistance <= 190">
+    <template
+      v-else-if="
+        colossalDistance !== undefined &&
+        colossalDistance <= COLOSSAL_BOARD_RANGE
+      "
+    >
       Colossal · {{ Math.round(colossalDistance) }} km
-      <b v-if="g.localColossal?.stage === 3"> · Interagir para embarcar até 35 km/s</b>
+      <b v-if="g.localColossal?.stage === 3">
+        · Interagir para embarcar até 35 km/s</b
+      >
       <template v-else> · Construção {{ g.localColossal?.stage }}/3</template>
     </template>
     <template v-else-if="g.routeDestination"

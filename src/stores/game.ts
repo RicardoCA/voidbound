@@ -7,6 +7,7 @@ import {
   parkColossal,
   COLOSSAL_RANGE,
   COLOSSAL_EXIT,
+  COLOSSAL_BOARD_RANGE,
 } from "../fleet/colossal";
 import { systemExists } from "../universe/generator";
 import { jumpFuel } from "../universe/jumpRoute";
@@ -1134,7 +1135,7 @@ export const useGame = defineStore("game", () => {
     if (
       !carrier ||
       carrier.stage < 3 ||
-      Math.hypot(ship.x - carrier.x, ship.y - carrier.y) > 190
+      Math.hypot(ship.x - carrier.x, ship.y - carrier.y) > COLOSSAL_BOARD_RANGE
     )
       return false;
     const error = parkColossal(state.value);
