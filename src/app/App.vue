@@ -228,7 +228,10 @@ function minutes() {
           g.started && (piloting || surface) && !orbitConsole && !routeConsole,
       }"
     >
-      <GameCanvas :playing="g.started" />
+      <GameCanvas
+        :playing="g.started"
+        :expanded="(piloting || surface) && !orbitConsole && !routeConsole"
+      />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
       <div

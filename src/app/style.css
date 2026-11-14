@@ -1719,13 +1719,14 @@ kbd {
 @media (pointer: fine) and (min-width: 761px) {
   .desktop-docks {
     display: grid;
-    grid-template-columns: clamp(178px, 17vw, 252px) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: calc(100dvh - 102px);
     min-height: 490px;
   }
 
   .desktop-docks > .game-canvas {
-    grid-area: 1 / 2;
+    grid-area: 2 / 1;
     position: relative;
     min-width: 0;
     min-height: 0;
@@ -1734,11 +1735,12 @@ kbd {
   .desktop-docks .flight-info {
     grid-area: 1 / 1;
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
     gap: 12px;
-    padding: 16px 12px;
+    padding: 5px 10px;
+    max-height: 66px;
     overflow: auto;
-    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
     background: #0b1522;
   }
 
@@ -1774,16 +1776,73 @@ kbd {
   }
 
   .desktop-docks .bottom-hud {
-    grid-area: 2 / 1 / 3 / -1;
+    grid-area: 3 / 1;
     position: relative;
     inset: auto;
     flex-wrap: wrap;
     gap: 10px 16px;
     min-height: 0;
-    padding: 8px 14px;
+    padding: 4px 12px;
     border-width: 1px 0 0;
     background: #0b1522;
     backdrop-filter: none;
+  }
+
+  .app-shell:has(.desktop-docks) {
+    padding-inline: 8px;
+  }
+
+  .app-shell:has(.desktop-docks) .topbar {
+    height: 42px;
+  }
+
+  .desktop-docks .location h2 {
+    font-size: 16px;
+    margin: 0;
+  }
+
+  .desktop-docks .location {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 3px 10px;
+    flex: 1 1 320px;
+    min-width: min(200px, 28%);
+  }
+
+  .desktop-docks .flight-info > :not(.location) {
+    flex: 0 0 auto;
+    max-width: 260px;
+  }
+
+  .desktop-docks .speed-display {
+    gap: 2px;
+  }
+
+  .desktop-docks .speed-display b {
+    font-size: 23px;
+  }
+
+  .desktop-docks .speed-ticks {
+    display: none;
+  }
+
+  .desktop-docks .radar svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .desktop-docks .status-heading {
+    margin-bottom: 4px;
+  }
+
+  .desktop-docks .meters {
+    gap: 3px;
+  }
+
+  .desktop-docks .bottom-hud nav button {
+    min-height: 34px;
+    padding: 6px 9px;
   }
 
   .desktop-docks .bottom-hud nav {
