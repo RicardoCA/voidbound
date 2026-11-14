@@ -1,4 +1,8 @@
 import {
+  regrowTerrain,
+  TERRAIN_REGROWTH_SECONDS,
+} from "../game/procedural/terrainRegrowth";
+import {
   colossalHere,
   parkColossal,
   COLOSSAL_RANGE,
@@ -672,6 +676,9 @@ export const useGame = defineStore("game", () => {
     const resource = tileItems[tile] ?? "iron";
     if (!collect(resource)) return false;
     terrain.remove(x, y);
+    const deadlines = (s.terrainRegrowth ??= {});
+    (deadlines[terrain.planet.id] ??= {})[`${x},${y}`] =
+      (s.activePlayTime ?? 0) + TERRAIN_REGROWTH_SECONDS;
     worldChanged();
     if (resource !== "wood" && resource !== "fiber")
       recordMining(s.progression, 1, s.time);
@@ -1527,7 +1534,18 @@ export const useGame = defineStore("game", () => {
       state.value.mode === "orbit"
     )
       return;
-    state.value.activePlayTime = (state.value.activePlayTime ?? 0) + dt;
+    const previous = state.value.activePlayTime ?? 0;
+    state.value.activePlayTime = previous + dt;
+    if (
+      Math.floor(previous) !== Math.floor(previous + dt) &&
+      regrowTerrain(
+        state.value,
+        state.value.mode === "surface" ? planet.value.id : undefined,
+      )
+    ) {
+      worldChanged();
+      void save();
+    }
     const notices = tickEscorts(state.value, dt);
     if (notices.length) {
       notify(notices.join(" "));

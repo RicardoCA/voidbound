@@ -224,6 +224,7 @@ export interface Save {
   depleted: string[];
   asteroidRespawns?: Record<string, AsteroidRespawn>;
   activePlayTime?: number;
+  terrainRegrowth?: Record<string, Record<string, number>>;
   visited: string[];
   jumpDestination?: import("../universe/jumpRoute").JumpPoint;
   mission: number;
