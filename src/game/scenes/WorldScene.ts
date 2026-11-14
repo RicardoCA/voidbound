@@ -22,6 +22,7 @@ import {
   type Wreck,
 } from "../../combat/traffic";
 import type { Save, ShipModelId } from "../types";
+import { items } from "../types";
 import { drawScienceSite } from "../rendering/scienceArt";
 import { anomalyAt, type ScienceSite } from "../../progression/exploration";
 import { settlementFor } from "../../construction/building";
@@ -1069,7 +1070,20 @@ export class WorldScene extends Phaser.Scene {
           (a, b) =>
             Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
         )[0];
-      if (rock) {
+      if (g.cyberTarget) {
+        const target = g.cyberTarget;
+        this.mineTime = 0.8;
+        if (g.mineCyberCrystal()) {
+          s.energy -= 2;
+          this.beam = {
+            x: s.x,
+            y: s.y,
+            tx: target.star.x,
+            ty: target.star.y,
+            life: 0.2,
+          };
+        }
+      } else if (rock) {
         this.mineTime = g.state.upgrades.includes("laser") ? 0.15 : 0.35;
         s.energy -= 2 * (1 - g.extractionEfficiency);
         this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
@@ -1169,6 +1183,57 @@ export class WorldScene extends Phaser.Scene {
       Math.hypot(x - p.x, y - p.y) <= reach &&
       clearPath(this.terrain!, this.building.settlement, p.x, p.y, x, y)
     );
+  }
+  private swingSaber(
+    wx: number,
+    wy: number,
+    trees: ReturnType<typeof treesInRange>,
+  ) {
+    const g = this.store;
+    const p = g.state.player;
+    const terrain = this.terrain!;
+    const saber = g.equippedSaber;
+    if (!saber || Math.hypot(wx - p.x, wy - p.y) > 77) return;
+    if (wx !== p.x) this.facing = Math.sign(wx - p.x);
+    const color = Number.parseInt(items[saber].color.slice(1), 16);
+    this.mineTime = 0.45;
+    p.energy -= 1;
+    this.burst(wx, wy, color);
+    audio.play(225);
+    const inArc = (x: number, y: number) => Math.hypot(x - wx, y - wy) <= 29;
+    for (const animal of this.wildlife.animals.values()) {
+      if (!inArc(animal.x, animal.y) || !this.canReachFood(animal.x, animal.y))
+        continue;
+      if (!g.collect("rawMeat", animal.hostile ? 3 : 2)) continue;
+      const data = settlementFor(g.state, g.planet.id);
+      (data.hunted ??= {})[animal.id] = g.state.time + FAUNA_RETURN;
+      this.wildlife.animals.delete(animal.id);
+    }
+    const protectedRoots = new Set<string>();
+    for (const tree of trees) {
+      const x = tree.x * 16 + 8;
+      const y = tree.ground * 16 - 12;
+      if (
+        (!inArc(x, y) && !treeContains(tree, wx, wy)) ||
+        !this.canReachFood(x, y, 96) ||
+        !this.building.harvest(tree)
+      )
+        protectedRoots.add(`${tree.x},${tree.ground}`);
+    }
+    const center = terrainTargetAt(terrain, wx, wy);
+    for (let y = center.y - 2; y <= center.y + 2 && y < 63; y++) {
+      for (let x = center.x - 2; x <= center.x + 2; x++) {
+        const tileX = x * 16 + 8;
+        const tileY = y * 16 + 8;
+        if (
+          (inArc(tileX, tileY) || (x === center.x && y === center.y)) &&
+          Math.hypot(tileX - p.x, tileY - p.y) < 77 &&
+          !protectedRoots.has(`${x},${y}`)
+        )
+          g.mineTerrain(terrain, x, y);
+      }
+    }
+    void g.save();
   }
   private representativePosition() {
     if (!this.store.civilization || !this.terrain) return;
@@ -1324,6 +1389,10 @@ export class WorldScene extends Phaser.Scene {
       );
       const wx = aim?.wx ?? p.x,
         wy = aim?.wy ?? p.y;
+      if (g.equippedSaber) {
+        this.swingSaber(wx, wy, trees);
+        return;
+      }
       const animal = [...this.wildlife.animals.values()]
         .filter(
           (target) =>
@@ -2549,6 +2618,19 @@ export class WorldScene extends Phaser.Scene {
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
     f.fillStyle(0xffda9a, light * 0.1);
     f.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    if (!sequence && g.equippedSaber && g.state.mode === "surface") {
+      const x = Math.round(p.x + offsetX) + this.facing * 8;
+      const y = Math.round(p.y + offsetY);
+      const color = Number.parseInt(items[g.equippedSaber].color.slice(1), 16);
+      for (let radius = 14; radius <= 54; radius += 8)
+        f.fillStyle(color, 0.036).fillCircle(x, y - 8, radius);
+      const swinging = this.mineTime > 0.23;
+      const tipX = x + this.facing * (swinging ? 23 : 10);
+      const tipY = y - (swinging ? 5 : 21);
+      f.lineStyle(6, color, 0.32).lineBetween(x, y, tipX, tipY);
+      f.lineStyle(3, color, 1).lineBetween(x, y, tipX, tipY);
+      f.lineStyle(1, 0xffffff, 0.9).lineBetween(x, y, tipX, tipY);
+    }
     const cursor = this.building.cursor;
     if (this.building.enabled && cursor && !g.panel && !sequence) {
       const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),

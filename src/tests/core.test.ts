@@ -7,7 +7,12 @@ import {
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { setActivePinia, createPinia } from "pinia";
-import { deflectorFor, starKinds } from "../universe/stars";
+import {
+  crystalFor,
+  deflectorFor,
+  saberFor,
+  starKinds,
+} from "../universe/stars";
 import { systemAt, nearby } from "../universe/generator";
 import { Terrain } from "../game/procedural/terrain";
 import { LRU, random } from "../game/procedural/random";
@@ -270,6 +275,32 @@ describe("estrelas e defletores térmicos", () => {
     g.applyStellarHeat(1);
     expect(g.state.ship.hull).toBe(88);
     expect(g.stellarWarning?.protectedByDeflector).toBe(true);
+  });
+
+  it("extrai e regenera cristais com o defletor certo e equipa o sabre pela mochila", () => {
+    const g = useGame();
+    g.newGame("cyber");
+    const star = g.system.stars[0]!;
+    const crystal = crystalFor(star.kind);
+    const saber = saberFor(star.kind);
+    Object.assign(g.state.ship, { x: star.x, y: star.y });
+    g.state.inventory = { circuit: 1, titanium: 10 };
+    g.state.upgrades = ["deflector-neutron"];
+    expect(g.mineCyberCrystal()).toBe(false);
+    g.state.upgrades.push(deflectorFor(star.kind));
+    expect(g.mineCyberCrystal()).toBe(true);
+    expect(g.mineCyberCrystal()).toBe(false);
+    g.state.activePlayTime = 300;
+    expect(g.mineCyberCrystal()).toBe(true);
+    g.state.mode = "interior";
+    g.make(saber);
+    expect(g.state.inventory[crystal]).toBe(1);
+    expect(g.state.inventory[saber]).toBe(1);
+    expect(g.moveCargo(false, saber, 1)).toBe(true);
+    g.use(saber, true);
+    expect(g.equippedSaber).toBe(saber);
+    g.use(saber, true);
+    expect(g.equippedSaber).toBeUndefined();
   });
 
   it("usa o resgate de sobrevivência e afasta a Sparrow da estrela", () => {

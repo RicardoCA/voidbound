@@ -39,7 +39,12 @@ import {
   isScannerEquipment,
   type ScannerContact,
 } from "../combat/shipScanners";
-import { isHeatDeflector, stellarExposure } from "../universe/stars";
+import {
+  crystalFor,
+  isHeatDeflector,
+  isPhotonSaber,
+  stellarExposure,
+} from "../universe/stars";
 import type { CabinEquipment } from "../game/cabin/CabinInterior";
 import { wantedStatus } from "../combat/law";
 import type { FlightContact, SpaceNpc } from "../combat/traffic";
@@ -844,6 +849,20 @@ export const useGame = defineStore("game", () => {
       upgrades.push(id);
     if (trading.value || (onSurface.value && !fromBackpack)) return;
     const inventory = fromBackpack ? s.backpack : s.inventory;
+    if (isPhotonSaber(id)) {
+      if (!fromBackpack || !inventory[id]) {
+        notify("Transfira o sabre para a mochila antes de equipar.");
+        return;
+      }
+      s.player.photonSaber = s.player.photonSaber === id ? undefined : id;
+      notify(
+        s.player.photonSaber
+          ? `${items[id].name} equipado.`
+          : "Sabre guardado.",
+      );
+      void save();
+      return;
+    }
     if (id === "rawMeat") refreshFood();
     const nutrition = foodValue(id);
     if (nutrition) {
@@ -1453,6 +1472,34 @@ export const useGame = defineStore("game", () => {
         )
       : [],
   );
+  const equippedSaber = computed(() => {
+    const id = state.value.player.photonSaber;
+    return id && isPhotonSaber(id) && state.value.backpack[id] ? id : undefined;
+  });
+  const cyberTarget = computed(
+    () =>
+      stellarZones.value
+        .filter((zone) => zone.protectedByDeflector)
+        .sort((a, b) => a.distance - b.distance)[0],
+  );
+  function mineCyberCrystal() {
+    const target = cyberTarget.value;
+    if (!target || state.value.mode !== "space") return false;
+    const s = state.value;
+    if (
+      (s.minedCyberCrystals?.[target.star.id] ?? 0) > (s.activePlayTime ?? 0)
+    ) {
+      notify("O depósito de cristais desta estrela está se regenerando.");
+      return false;
+    }
+    const item = crystalFor(target.star.kind);
+    if (!collect(item)) return false;
+    (s.minedCyberCrystals ??= {})[target.star.id] =
+      (s.activePlayTime ?? 0) + 300;
+    notify(`${items[item].name} extraído.`);
+    void save();
+    return true;
+  }
   const stellarWarning = computed(() => stellarZones.value[0]);
   function applyStellarHeat(dt: number) {
     const s = state.value;
@@ -1778,6 +1825,9 @@ export const useGame = defineStore("game", () => {
     advanceBlackHole,
     blackHoleTransit,
     stellarWarning,
+    equippedSaber,
+    cyberTarget,
+    mineCyberCrystal,
     resolvePlayerDeath,
     surfaceBackpacks,
     recoverBackpack,

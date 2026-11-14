@@ -498,6 +498,9 @@ function minutes() {
               ? "Defletor térmico ativo"
               : "Calor estelar · dano no casco"
           }}
+          <template v-if="piloting && g.cyberTarget">
+            · Espaço / Laser para extrair Cristal Cyber
+          </template>
         </div>
         <div v-if="piloting && g.flightContact" class="surface-tip">
           {{ g.flightContact.bearing }}
@@ -512,7 +515,12 @@ function minutes() {
           >
         </div>
         <div v-if="surface && !b.enabled" class="surface-tip">
-          MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
+          <template v-if="g.equippedSaber">
+            SABRE FOTÔNICO <span>◆</span> Toque ou clique para cortar em área
+          </template>
+          <template v-else>
+            MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
+          </template>
           <kbd>E</kbd>
           {{
             g.nearbyUnscannedRuin

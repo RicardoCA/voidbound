@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isWeaponModule } from "../combat/weapons";
 import { isScannerEquipment } from "../combat/shipScanners";
-import { isHeatDeflector } from "../universe/stars";
+import { isHeatDeflector, isPhotonSaber } from "../universe/stars";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
@@ -123,15 +123,21 @@ function canUse(id: Item) {
         <b>{{ n }}</b
         ><span>{{ items[id].name }}</span
         ><small>{{
-          foodValue(id)
-            ? `COMER · +${foodValue(id)} SACIEDADE`
-            : isWeaponModule(id)
-              ? "INSTALAR ARMA"
-              : isBuildItem(id)
-                ? "EQUIPAR CONSTRUÇÃO"
-                : canUse(id)
-                  ? "USAR / INSTALAR"
-                  : items[id].rarity
+          isPhotonSaber(id)
+            ? !fromBackpack
+              ? "TRANSFIRA PARA A MOCHILA"
+              : g.equippedSaber === id
+                ? "GUARDAR SABRE"
+                : "EQUIPAR SABRE"
+            : foodValue(id)
+              ? `COMER · +${foodValue(id)} SACIEDADE`
+              : isWeaponModule(id)
+                ? "INSTALAR ARMA"
+                : isBuildItem(id)
+                  ? "EQUIPAR CONSTRUÇÃO"
+                  : canUse(id)
+                    ? "USAR / INSTALAR"
+                    : items[id].rarity
         }}</small>
         <MeatShelfLife
           v-if="id === 'rawMeat'"

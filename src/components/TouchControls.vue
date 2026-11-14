@@ -130,7 +130,7 @@ onBeforeUnmount(reset);
       <button
         v-if="!walking"
         class="touch-mine"
-        aria-label="Minerar asteroides"
+        aria-label="Minerar asteroides ou extrair cristal estelar"
         @pointerdown="action('mine', $event)"
         @pointerup="stop('mine', $event)"
         @pointercancel="stop('mine', $event)"
