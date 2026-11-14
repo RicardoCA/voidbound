@@ -99,7 +99,9 @@ onBeforeUnmount(reset);
           :style="{ transform: `translate(${x}px, ${y}px)` }"
         />
       </div>
-      <span v-if="!walking" class="touch-hint">GIRAR / ACELERAR</span>
+      <span v-if="!walking || g.colossalHelm" class="touch-hint"
+        >GIRAR / ACELERAR</span
+      >
     </div>
     <div
       class="touch-actions"

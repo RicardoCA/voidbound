@@ -239,7 +239,7 @@ function minutes() {
         <template v-if="g.aboardColossal">
           {{
             g.colossalHelm
-              ? "Manobrar · E / Interagir para voltar à ponte"
+              ? "W acelera · A/D gira · S freia · E / Interagir volta à ponte"
               : ({
                   "colossal-hangar": "Console do hangar",
                   "colossal-bridge": "Console de pilotagem",

@@ -1,3 +1,4 @@
+import { COLOSSAL_SPEED, steerColossal } from "../../fleet/colossal";
 import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
@@ -459,10 +460,29 @@ export class WorldScene extends Phaser.Scene {
       !g.inSequence &&
       !document.hidden;
     const ship = g.state.ship;
-    const speed = Math.hypot(ship.vx, ship.vy);
-    const braking = piloting && speed > 1 && (this.down("S") || controls.down);
+    const carrierHelm =
+      g.started &&
+      g.aboardColossal &&
+      g.colossalHelm &&
+      !g.paused &&
+      !g.panel &&
+      !g.busy &&
+      !g.inSequence &&
+      !document.hidden
+        ? g.localColossal
+        : undefined;
+    const speed = carrierHelm
+      ? Math.hypot(carrierHelm.vx ?? 0, carrierHelm.vy ?? 0)
+      : Math.hypot(ship.vx, ship.vy);
+    const braking =
+      (piloting || carrierHelm) &&
+      speed > 1 &&
+      (this.down("S") || controls.down || (!!carrierHelm && this.down("DOWN")));
     const thrusting =
-      piloting && ship.fuel > 0 && (this.down("W") || controls.up);
+      (piloting || carrierHelm) &&
+      (carrierHelm?.fuel ?? ship.fuel) > 0 &&
+      (this.down("W") || controls.up || (!!carrierHelm && this.down("UP"))) &&
+      !(carrierHelm && (this.down("S") || this.down("DOWN") || controls.down));
     const autopilot =
       g.started &&
       g.state.mode === "space" &&
@@ -480,7 +500,7 @@ export class WorldScene extends Phaser.Scene {
         : thrusting || autopilot
           ? "thrust"
           : "idle",
-      speed / g.model.speed,
+      speed / (carrierHelm ? COLOSSAL_SPEED : g.model.speed),
     );
     if (activeDt > 0) g.tickActiveTime(activeDt);
     g.advanceBlackHole(this.game.loop.rawDelta / 1000);
@@ -586,16 +606,15 @@ export class WorldScene extends Phaser.Scene {
           if (interact) {
             g.colossalHelm = false;
             void g.save();
-          }
-          if (carrier.fuel > 0 && (direction.x || direction.y)) {
-            const distance = Math.min(carrier.fuel * 100, dt * 68);
-            carrier.x +=
-              (direction.x * distance) /
-              Math.max(1, Math.hypot(direction.x, direction.y));
-            carrier.y +=
-              (direction.y * distance) /
-              Math.max(1, Math.hypot(direction.x, direction.y));
-            carrier.fuel -= distance / 100;
+          } else if (carrierHelm) {
+            steerColossal(
+              carrier,
+              dt,
+              Number(this.down("D") || this.down("RIGHT") || controls.right) -
+                Number(this.down("A") || this.down("LEFT") || controls.left),
+              !!thrusting,
+              this.down("S") || this.down("DOWN") || controls.down,
+            );
           }
         } else {
           this.colossalInterior.walk(
@@ -1787,6 +1806,7 @@ export class WorldScene extends Phaser.Scene {
         this.colossalSprite
           .setTexture(`colossal:${carrier.stage}`)
           .setPosition(x, y)
+          .setRotation(carrier.angle ?? 0)
           .setDisplaySize(350, 117)
           .setVisible(true);
     }

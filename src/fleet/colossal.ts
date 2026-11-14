@@ -6,6 +6,9 @@ export interface Colossal {
   sector: { x: number; y: number };
   x: number;
   y: number;
+  angle?: number;
+  vx?: number;
+  vy?: number;
   slots: number;
   ships: string[];
   aboard?: ShipIdentity["id"];
@@ -30,6 +33,35 @@ export const colossalStages: { name: string; cost: Inventory }[] = [
 export const bayCost = { plate: 250, titanium: 100, circuit: 60 };
 export const COLOSSAL_RANGE = 40;
 export const COLOSSAL_EXIT = 210;
+
+export const COLOSSAL_SPEED = 68;
+
+export function steerColossal(
+  carrier: Colossal,
+  dt: number,
+  rotation: number,
+  thrust: boolean,
+  brake: boolean,
+) {
+  const angle = (carrier.angle ?? 0) + rotation * 1.35 * dt;
+  let vx = carrier.vx ?? 0;
+  let vy = carrier.vy ?? 0;
+  if (thrust && !brake && carrier.fuel > 0) {
+    const burnTime = Math.min(dt, carrier.fuel / 0.68);
+    vx += Math.cos(angle) * 42 * burnTime;
+    vy += Math.sin(angle) * 42 * burnTime;
+    carrier.fuel = Math.max(0, carrier.fuel - burnTime * 0.68);
+  }
+  const speed = Math.hypot(vx, vy);
+  const factor =
+    Math.min(1, COLOSSAL_SPEED / (speed || 1)) *
+    (brake ? Math.exp(-2 * dt) : 1);
+  carrier.angle = angle;
+  carrier.vx = vx * factor;
+  carrier.vy = vy * factor;
+  carrier.x += carrier.vx * dt;
+  carrier.y += carrier.vy * dt;
+}
 
 export function colossalHere(state: Save) {
   const ship = state.colossal;

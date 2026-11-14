@@ -1218,6 +1218,8 @@ export const useGame = defineStore("game", () => {
     carrier.sector = { x, y };
     carrier.x = -350;
     carrier.y = 330;
+    carrier.vx = 0;
+    carrier.vy = 0;
     for (const ship of s.parkedShips)
       if (carrier.ships.includes(ship.id)) ship.location = { x, y };
     arriveInSystem(x, y);
