@@ -4,7 +4,7 @@ import {
   blackHoleDestination,
   blackHolePull,
 } from "../universe/blackHoles";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { setActivePinia, createPinia } from "pinia";
 import { deflectorFor, starKinds } from "../universe/stars";
@@ -195,7 +195,17 @@ describe("Salto interestelar e controles de toque", () => {
     g.state.upgrades = ["jump"];
     await g.jump(3, 0);
     expect(g.state.systemX).toBe(0);
-    await g.jump(1, 0);
+    g.autosaveEnabled = false;
+    vi.useFakeTimers();
+    try {
+      const jump = g.jump(1, 0);
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(g.jumpCountdown).toBe(1);
+      await vi.advanceTimersByTimeAsync(6_000);
+      await jump;
+    } finally {
+      vi.useRealTimers();
+    }
     expect(g.state.systemX).toBe(1);
     expect(g.state.ship.fuel).toBe(fuel - 8);
     expect(g.state.inventory).toEqual({ iron: 9 });

@@ -973,8 +973,25 @@ function minutes() {
                 : "Desembarcando"
         }}
       </div>
+      <div v-if="g.jumpCountdown !== undefined" class="overlay">
+        <section
+          class="dialog narrow"
+          role="status"
+          aria-label="Contagem regressiva do salto"
+        >
+          <h2>Preparando salto</h2>
+          <p>
+            Velocidade da luz em <strong>{{ g.jumpCountdown }} s</strong>
+          </p>
+          <progress
+            :value="30 - g.jumpCountdown"
+            max="30"
+            aria-label="Preparação do salto"
+          />
+        </section>
+      </div>
       <JumpSequence
-        v-if="g.busy"
+        v-else-if="g.busy"
         :black-hole-elapsed="g.blackHoleTransit?.elapsed"
         :duration="g.colossalJumpMs"
       />

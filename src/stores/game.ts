@@ -95,6 +95,7 @@ import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
 export const BACKPACK_SLOTS = 24;
 export const PLANET_SCAN_SECONDS = 10;
+export const JUMP_COUNTDOWN_MS = 30_000;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
 export const STATION_EXIT_DISTANCE = 145;
@@ -232,6 +233,7 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     policeContact = ref<import("../combat/flight").PoliceContact>(),
+    jumpCountdown = ref<number>(),
     colossalJumpMs = ref<number>(),
     colossalHelm = ref(false),
     colossalContact = ref(""),
@@ -252,7 +254,11 @@ export const useGame = defineStore("game", () => {
       if (!playing) {
         surfaceSequence.value = undefined;
         dockingSequence.value = undefined;
-        if (colossalJumpMs.value !== undefined) {
+        if (
+          jumpCountdown.value !== undefined ||
+          colossalJumpMs.value !== undefined
+        ) {
+          jumpCountdown.value = undefined;
           colossalJumpMs.value = undefined;
           busy.value = false;
         }
@@ -1133,6 +1139,32 @@ export const useGame = defineStore("game", () => {
     notify("Nave liberada do hangar.");
     void save();
   }
+  async function prepareJump(s: Save) {
+    busy.value = true;
+    releaseControls();
+    const deadline = Date.now() + JUMP_COUNTDOWN_MS;
+    jumpCountdown.value = JUMP_COUNTDOWN_MS / 1000;
+    while (
+      state.value === s &&
+      started.value &&
+      jumpCountdown.value !== undefined
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (
+        state.value !== s ||
+        !started.value ||
+        jumpCountdown.value === undefined
+      )
+        return false;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        jumpCountdown.value = undefined;
+        return true;
+      }
+      jumpCountdown.value = Math.ceil(remaining / 1000);
+    }
+    return false;
+  }
   async function jumpColossal(x: number, y: number) {
     const carrier = localColossal.value;
     const s = state.value;
@@ -1158,9 +1190,8 @@ export const useGame = defineStore("game", () => {
       return;
     }
     const duration = Math.round(4000 + distance * 200);
+    if (!(await prepareJump(s))) return;
     colossalJumpMs.value = duration;
-    busy.value = true;
-    releaseControls();
     audio.playJump(duration / 1000);
     await new Promise((resolve) => setTimeout(resolve, duration));
     if (state.value !== s || !started.value) return;
@@ -1196,10 +1227,10 @@ export const useGame = defineStore("game", () => {
       notify("Destino fora de alcance ou combustível insuficiente.");
       return;
     }
-    busy.value = true;
-    releaseControls();
+    if (!(await prepareJump(s))) return;
     audio.playJump(JUMP_DURATION_MS / 1000);
     await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
+    if (state.value !== s || !started.value) return;
     s.ship.fuel -= cost;
     arriveInSystem(x, y);
     if (s.mission === 5) s.mission = 6;
@@ -1703,6 +1734,7 @@ export const useGame = defineStore("game", () => {
     colossalHelm,
     colossalContact,
     colossalJumpMs,
+    jumpCountdown,
     boardColossal,
     leaveColossal,
     jumpColossal,
