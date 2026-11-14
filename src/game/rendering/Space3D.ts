@@ -62,8 +62,8 @@ export class Space3D {
     };
   });
   private carrierRoom?: { key: string; scene: T.Scene; actor: T.Group };
-  private readonly stationAssets = new Map<string, Promise<T.Group>>();
-  private readonly stationTemplates = new Set<T.Group>();
+  private readonly environmentAssets = new Map<string, Promise<T.Group>>();
+  private readonly environmentTemplates = new Set<T.Group>();
   private importedCabin?: T.Group;
   private mapModel?: T.Group;
   private disposed = false;
@@ -444,6 +444,33 @@ export class Space3D {
         2,
       );
     }
+    void this.loadEnvironmentAsset("colossal-etapa-" + stage)
+      .then((model) => {
+        if (this.disposed || !group.parent) return;
+        group.clear();
+        group.add(model.clone());
+        if (stage !== 3) return;
+        for (const y of [-26, 0, 26]) {
+          const exhaust = this.part(
+            group,
+            this.flame,
+            this.lightMaterial(0x62ecfa),
+            0,
+            y,
+            91,
+            7,
+            1,
+            7,
+          );
+          exhaust.rotation.x = Math.PI / 2;
+          exhaust.name = "colossal-exhaust";
+          exhaust.userData.nozzleZ = 91;
+          exhaust.visible = false;
+        }
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo da colossal indisponível.", error),
+      );
     return group;
   }
 
@@ -610,7 +637,7 @@ export class Space3D {
       20,
       3,
     );
-    void this.loadStationAsset(
+    void this.loadEnvironmentAsset(
       clandestine ? "estacao-clandestina" : "estacao-galatica",
     )
       .then((scene) => {
@@ -624,17 +651,17 @@ export class Space3D {
     return group;
   }
 
-  private loadStationAsset(file: string) {
-    let asset = this.stationAssets.get(file);
+  private loadEnvironmentAsset(file: string) {
+    let asset = this.environmentAssets.get(file);
     if (!asset) {
       asset = new GLTFLoader()
         .loadAsync(import.meta.env.BASE_URL + "models/" + file + ".glb")
         .then(({ scene }) => {
-          if (this.disposed) this.disposeStation(scene);
-          else this.stationTemplates.add(scene);
+          if (this.disposed) this.disposeEnvironmentAsset(scene);
+          else this.environmentTemplates.add(scene);
           return scene;
         });
-      this.stationAssets.set(file, asset);
+      this.environmentAssets.set(file, asset);
     }
     return asset;
   }
@@ -1213,7 +1240,7 @@ export class Space3D {
     const asset = clandestine
       ? "estacao-clandestina-interior"
       : "estacao-galatica-interior";
-    void this.loadStationAsset(asset)
+    void this.loadEnvironmentAsset(asset)
       .then((model) => {
         if (this.disposed) return;
         scene.add(model.clone());
@@ -1858,10 +1885,11 @@ export class Space3D {
       }
       for (const part of model.children) {
         if (part.name !== "colossal-exhaust") continue;
-        const length = 83 + 12 * Math.sin(now / 37 + part.position.x);
+        const length =
+          83 + 12 * Math.sin(now / 37 + part.position.x + part.position.y);
         part.visible = !!pilotedCarrier && thrust && !g.paused && !g.panel;
         part.scale.y = length;
-        part.position.z = 82 + length / 2;
+        part.position.z = (part.userData.nozzleZ ?? 82) + length / 2;
       }
     }
 
@@ -2009,7 +2037,7 @@ export class Space3D {
     this.renderer.render(this.scene, this.camera);
   }
 
-  private disposeStation(model: T.Group) {
+  private disposeEnvironmentAsset(model: T.Group) {
     const textures = new Set<T.Texture>();
     model.traverse((node) => {
       if (!(node instanceof T.Mesh)) return;
@@ -2037,7 +2065,8 @@ export class Space3D {
 
   destroy() {
     this.disposed = true;
-    for (const station of this.stationTemplates) this.disposeStation(station);
+    for (const model of this.environmentTemplates)
+      this.disposeEnvironmentAsset(model);
     if (this.playerTemplate) this.disposeMap(this.playerTemplate);
     if (this.mapModel) this.disposeMap(this.mapModel);
     if (this.importedCabin) this.disposeMap(this.importedCabin);
