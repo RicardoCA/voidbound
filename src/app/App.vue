@@ -416,6 +416,10 @@ function minutes() {
               }}{{ g.weather.kind === "acid" ? " · Procure abrigo" : "" }}
             </span>
           </p>
+          <p v-if="g.landedShipContact" class="station-target">
+            {{ g.landedShipContact.bearing }} Nave ·
+            {{ g.landedShipContact.distance }} m
+          </p>
           <p
             v-if="g.state.mode === 'space' && g.system.station"
             class="station-target"

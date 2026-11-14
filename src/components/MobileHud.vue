@@ -94,6 +94,10 @@ function pause() {
                 : `${g.model.name} · ${g.speed} km/s`
         }}</small
       >
+      <small v-if="g.landedShipContact">
+        {{ g.landedShipContact.bearing }} Nave ·
+        {{ g.landedShipContact.distance }} m
+      </small>
     </div>
     <div
       class="mobile-meters"

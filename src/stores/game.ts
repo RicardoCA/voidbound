@@ -388,6 +388,18 @@ export const useGame = defineStore("game", () => {
       () =>
         new Terrain(planet.value, state.value.changes[planet.value.id] ?? {}),
     ),
+    landedShipContact = computed(() => {
+      const { mode, landingX, player } = state.value;
+      if (mode !== "surface") return;
+      const dx = landingX * 16 - player.x;
+      const dy = planetTerrain.value.height(landingX) * 16 - 13 - player.y;
+      const distance = Math.round(Math.hypot(dx, dy));
+      const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+      const bearing = distance
+        ? ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]
+        : "•";
+      return { bearing, distance };
+    }),
     surfaceRuin = computed(() =>
       state.value.mode === "surface" || surfaceSequence.value
         ? ruinAt(
@@ -1748,6 +1760,7 @@ export const useGame = defineStore("game", () => {
     stationDistance,
     wanted,
     stationBearing,
+    landedShipContact,
     trading,
     stationTransaction,
     dock,
