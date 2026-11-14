@@ -1,3 +1,4 @@
+import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { landingTerrain } from "./planetTerrain3D";
 import { biomes } from "../types";
@@ -64,6 +65,14 @@ export class Space3D {
   private importedCabin?: T.Group;
   private mapModel?: T.Group;
   private disposed = false;
+  private playerAsset?: Promise<T.Group>;
+  private playerTemplate?: T.Group;
+  private readonly playerRigs = new WeakMap<
+    T.Group,
+    { bone: T.Bone; rest: T.Quaternion; phase: number; amplitude: number }[]
+  >();
+  private readonly walkAxis = new T.Vector3(1, 0, 0);
+  private readonly walkRotation = new T.Quaternion();
   private cabinScene?: T.Scene;
   private outfitKey = "";
   private cabinActor?: T.Group;
@@ -884,6 +893,80 @@ export class Space3D {
     return scene;
   }
 
+  private attachBlenderPilot(actor: T.Group, outfit: Outfit) {
+    this.playerAsset ??= new GLTFLoader()
+      .loadAsync(import.meta.env.BASE_URL + "models/jogador-voidbound.glb")
+      .then(({ scene }) => {
+        if (this.disposed) this.disposeMap(scene);
+        else this.playerTemplate = scene;
+        return scene;
+      });
+    void this.playerAsset
+      .then((template) => {
+        if (this.disposed || !actor.parent) return;
+        const model = cloneRig(template);
+        const equipped = new Set([
+          outfit.shirt ?? "_default_shirt",
+          outfit.pants ?? "_default_pants",
+          outfit.helmet ?? "_default_helmet",
+          outfit.visor ?? "_default_visor",
+          outfit.hat,
+        ]);
+        const bones: {
+          bone: T.Bone;
+          rest: T.Quaternion;
+          phase: number;
+          amplitude: number;
+        }[] = [];
+        model.traverse((node) => {
+          const piece = node.userData.outfitPart;
+          if (typeof piece === "string" && piece)
+            node.visible = equipped.has(piece);
+          if (!(node instanceof T.Bone)) return;
+          const name = node.name.replace(/\./g, "");
+          if (!/^(thigh|shin|upper_arm)[LR]$/.test(name)) return;
+          const side = name.endsWith("L") ? 1 : -1;
+          bones.push({
+            bone: node,
+            rest: node.quaternion.clone(),
+            phase: name.startsWith("upper_arm") ? -side : side,
+            amplitude: name.startsWith("thigh") ? 0.42 : 0.22,
+          });
+        });
+        model.rotation.y = Math.PI;
+        const bounds = new T.Box3().setFromObject(model);
+        const scale = 21 / (bounds.max.y - bounds.min.y);
+        model.scale.setScalar(scale);
+        model.position.y = -bounds.min.y * scale;
+        actor.clear();
+        actor.add(model);
+        this.playerRigs.set(actor, bones);
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo do jogador indisponível.", error),
+      );
+  }
+
+  private animatePilot(actor: T.Group, stride: number) {
+    const swing = Math.sin(stride);
+    const bones = this.playerRigs.get(actor);
+    if (bones) {
+      for (const { bone, rest, phase, amplitude } of bones)
+        bone.quaternion
+          .copy(rest)
+          .multiply(
+            this.walkRotation.setFromAxisAngle(
+              this.walkAxis,
+              swing * phase * amplitude,
+            ),
+          );
+      return;
+    }
+    for (const leg of actor.children)
+      if (leg.name === "leg")
+        leg.rotation.x = swing * Math.sign(leg.position.x) * 0.5;
+  }
+
   private dressedPilot(outfit: Outfit = {}) {
     const actor = new T.Group();
     const shirt = outfit.shirt ? clothing[outfit.shirt] : undefined;
@@ -1022,6 +1105,7 @@ export class Space3D {
       );
       actor.add(leg);
     }
+    this.attachBlenderPilot(actor, outfit);
     return actor;
   }
 
@@ -1126,9 +1210,7 @@ export class Space3D {
         Math.sin(heading - room.actor.rotation.y),
         Math.cos(heading - room.actor.rotation.y),
       ) * 0.24;
-    for (const leg of room.actor.children)
-      if (leg.name === "leg")
-        leg.rotation.x = Math.sin(stride) * Math.sign(leg.position.x) * 0.5;
+    this.animatePilot(room.actor, stride);
     const aspect = this.width / this.height;
     this.cabinCamera.aspect = aspect;
     this.cabinCamera.position.set(x * 0.85, 190, z * 0.7 + 210);
@@ -1176,9 +1258,7 @@ export class Space3D {
     const rotation = this.cabinActor!.rotation;
     const delta = heading - rotation.y;
     rotation.y += Math.atan2(Math.sin(delta), Math.cos(delta)) * 0.24;
-    for (const leg of this.cabinActor!.children)
-      if (leg.name === "leg")
-        leg.rotation.x = Math.sin(stride) * Math.sign(leg.position.x) * 0.5;
+    this.animatePilot(this.cabinActor!, stride);
     this.cabinHatch!.visible = !inFlight;
     const aspect = this.width / this.height;
     const distance = aspect < 1.5 ? 125 / Math.max(aspect, 0.5) + 70 : 146;
@@ -1315,9 +1395,7 @@ export class Space3D {
     actor.position.set(x * 1.45, 0, z * 1.55);
     const turn = heading - actor.rotation.y;
     actor.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * 0.24;
-    for (const leg of actor.children)
-      if (leg.name === "leg")
-        leg.rotation.x = Math.sin(stride) * Math.sign(leg.position.x) * 0.5;
+    this.animatePilot(actor, stride);
     this.cabinCamera.aspect = this.width / this.height;
     this.cabinCamera.position.set(actor.position.x, 88, actor.position.z + 143);
     this.cabinCamera.lookAt(actor.position.x, 17, actor.position.z - 36);
@@ -1402,10 +1480,7 @@ export class Space3D {
       const walk = T.MathUtils.smoothstep(progress, 0.22, 1);
       astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
       astronaut.rotation.y = -Math.PI / 2;
-      for (const leg of astronaut.children)
-        if (leg.name === "leg")
-          leg.rotation.x =
-            Math.sin(walk * Math.PI * 6) * Math.sign(leg.position.x) * 0.55;
+      this.animatePilot(astronaut, walk * Math.PI * 6);
       sky.setHex(biome.daySky);
       fog.color.copy(sky);
       this.cabinCamera.aspect = this.width / this.height;
@@ -1907,6 +1982,7 @@ export class Space3D {
 
   destroy() {
     this.disposed = true;
+    if (this.playerTemplate) this.disposeMap(this.playerTemplate);
     if (this.mapModel) this.disposeMap(this.mapModel);
     if (this.importedCabin) this.disposeMap(this.importedCabin);
     for (const geometry of [
