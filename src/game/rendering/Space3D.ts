@@ -24,6 +24,14 @@ import { planetPosition } from "../../universe/generator";
 import { starClasses } from "../../universe/stars";
 import { hash, random } from "../procedural/random";
 
+const asteroidModels = [
+  "basalto",
+  "agulha",
+  "cratera",
+  "fragmento",
+  "duplo",
+] as const;
+
 type Game = ReturnType<typeof useGame>;
 
 export class Space3D {
@@ -549,6 +557,29 @@ export class Space3D {
     variant.add(...body.children);
     variant.scale.copy(body.scale);
     return variant;
+  }
+
+  private asteroidModel(id: string) {
+    const group = new T.Group();
+    const index = hash(id) % asteroidModels.length;
+    this.part(
+      group,
+      this.rock,
+      this.material(0xb2a399, "rock", index),
+      0,
+      0,
+      0,
+    );
+    void this.loadEnvironmentAsset("asteroide-" + asteroidModels[index])
+      .then((model) => {
+        if (this.disposed || !group.parent) return;
+        group.clear();
+        group.add(model.clone());
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo de asteroide indisponível.", error),
+      );
+    return group;
   }
 
   private station(clandestine: boolean) {
@@ -1978,11 +2009,7 @@ export class Space3D {
     for (const asteroid of g.asteroids) {
       const mesh = this.object(
         asteroid.id,
-        () =>
-          new T.Mesh(
-            this.rock,
-            this.material(0xb2a399, "rock", Math.floor(asteroid.x) % 4),
-          ),
+        () => this.asteroidModel(asteroid.id),
         seen,
       );
       mesh.position.set(
@@ -1990,7 +2017,8 @@ export class Space3D {
         spaceAltitude("asteroid", asteroid.id),
         asteroid.y,
       );
-      mesh.scale.set(asteroid.r, asteroid.r * 0.78, asteroid.r * 1.13);
+      mesh.scale.setScalar(asteroid.r);
+      mesh.rotation.x = (hash(asteroid.id) % 628) / 100;
       mesh.rotation.y = (asteroid.x % 6) + performance.now() / 13000;
     }
     const station = g.system.station;
