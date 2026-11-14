@@ -355,11 +355,6 @@ function minutes() {
               maxlength="48"
               aria-label="Seed do universo"
           /></label>
-          <div class="menu-bottom">
-            <span>01 / EXPLORAÇÃO PROCEDURAL</span
-            ><span>02 / SOBREVIVÊNCIA</span
-            ><span>03 / SEU PRÓPRIO CAMINHO</span>
-          </div>
           <p v-if="confirmNew" class="warning">
             A nova partida substituirá o salvamento existente.
           </p>
