@@ -66,6 +66,12 @@ function pause() {
   releaseControls();
   g.paused = true;
 }
+const colossalDistance = computed(() => {
+  const carrier = g.localColossal;
+  const ship = g.state.ship;
+  if (!carrier || g.aboardColossal || g.state.mode !== "space") return;
+  return Math.hypot(ship.x - carrier.x, ship.y - carrier.y);
+});
 </script>
 <template>
   <div class="mobile-hud">
@@ -213,6 +219,11 @@ function pause() {
     <template v-else-if="surface && g.civilization"
       >{{ g.civilization.name }} · A leste do pouso</template
     >
+    <template v-else-if="colossalDistance !== undefined && colossalDistance <= 190">
+      Colossal · {{ Math.round(colossalDistance) }} km
+      <b v-if="g.localColossal?.stage === 3"> · Interagir para embarcar até 35 km/s</b>
+      <template v-else> · Construção {{ g.localColossal?.stage }}/3</template>
+    </template>
     <template v-else-if="g.routeDestination"
       >Rota ativa · {{ g.routeDestination.name }}</template
     >
@@ -238,6 +249,9 @@ function pause() {
     <template v-else-if="g.state.mode === 'space' && g.flightContact">
       {{ g.flightContact.bearing }} {{ g.flightContact.name }} ·
       {{ g.flightContact.distance }} km · Casco {{ g.flightContact.hull }}
+    </template>
+    <template v-else-if="colossalDistance !== undefined">
+      Colossal · {{ Math.round(colossalDistance) }} km
     </template>
     <template v-else-if="g.state.mode === 'space'"
       >⌖ {{ target.name }} · {{ Math.round(target.distance) }} km
