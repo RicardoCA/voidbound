@@ -61,6 +61,7 @@ export class Space3D {
     };
   });
   private carrierRoom?: { key: string; scene: T.Scene; actor: T.Group };
+  private importedCabin?: T.Group;
   private mapModel?: T.Group;
   private disposed = false;
   private cabinScene?: T.Scene;
@@ -816,6 +817,26 @@ export class Space3D {
       room.add(prop);
     }
     scene.add(room);
+    void new GLTFLoader()
+      .loadAsync(import.meta.env.BASE_URL + "models/specter-x8-interior.glb")
+      .then(({ scene: model }) => {
+        if (this.disposed) {
+          this.disposeMap(model);
+          return;
+        }
+        // Fit the authored deck to the cabin's existing walk and equipment coordinates.
+        const widthScale = 145 / 6.94;
+        const depthScale = 58 / (2.49 + 1.5);
+        model.scale.set(widthScale, widthScale, depthScale);
+        model.position.set(0, -0.065 * widthScale, -24 + 2.49 * depthScale);
+        room.visible = false;
+        vista.visible = false;
+        scene.add(model);
+        this.importedCabin = model;
+      })
+      .catch((error: unknown) =>
+        console.warn("Interior do Blender indisponível.", error),
+      );
     return scene;
   }
 
@@ -1843,6 +1864,7 @@ export class Space3D {
   destroy() {
     this.disposed = true;
     if (this.mapModel) this.disposeMap(this.mapModel);
+    if (this.importedCabin) this.disposeMap(this.importedCabin);
     for (const geometry of [
       this.sphere,
       this.rock,
