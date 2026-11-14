@@ -8,6 +8,7 @@ import {
   colossalStages,
   loadColossalFuel,
   selectColossalShip,
+  steerColossal,
   transferColossalShip,
 } from "../fleet/colossal";
 import { inLocalHangar, registerShip } from "../fleet/hangar";
@@ -69,4 +70,30 @@ it("constrói a colossal, expande o hangar e transporta as naves em um salto lon
   expect(migrateSave(JSON.parse(JSON.stringify(s))).colossal).toEqual(
     s.colossal,
   );
+});
+
+it("gira, acelera, conserva o embalo sem combustível e freia a colossal", () => {
+  const carrier = {
+    stage: 3,
+    sector: { x: 0, y: 0 },
+    x: 0,
+    y: 0,
+    fuel: 0.34,
+    warp: 3,
+    slots: 1,
+    ships: [],
+    vx: 0,
+    vy: 0,
+    angle: 0,
+  };
+  steerColossal(carrier, 1, 1, true, false);
+  expect(carrier.angle).toBe(1.35);
+  expect(carrier.fuel).toBe(0);
+  const { x, y, vx, vy } = carrier;
+  steerColossal(carrier, 1, -1, true, false);
+  expect(carrier.x).toBeCloseTo(x + vx);
+  expect(carrier.y).toBeCloseTo(y + vy);
+  steerColossal(carrier, 1, 0, false, true);
+  expect(Math.hypot(carrier.vx, carrier.vy)).toBeCloseTo(21 * Math.exp(-2));
+  expect(carrier.warp).toBe(3);
 });

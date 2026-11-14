@@ -239,7 +239,7 @@ function minutes() {
         <template v-if="g.aboardColossal">
           {{
             g.colossalHelm
-              ? "Manobrar · E / Interagir para voltar à ponte"
+              ? "W acelera · A/D gira · S freia · E / Interagir volta à ponte"
               : ({
                   "colossal-hangar": "Console do hangar",
                   "colossal-bridge": "Console de pilotagem",
@@ -248,7 +248,6 @@ function minutes() {
                   "colossal-enter-bridge": "Entrar na ponte",
                   "colossal-return-hangar": "Voltar ao hangar",
                   "colossal-enter-reactor": "Acessar sala do reator",
-                  "colossal-return-bridge": "Voltar à ponte",
                 }[g.colossalContact] ??
                   "Aproxime-se de um equipamento ou acesso") +
                 (g.colossalContact ? " · E / Interagir" : "")

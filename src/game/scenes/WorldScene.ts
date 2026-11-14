@@ -1,3 +1,4 @@
+import { COLOSSAL_SPEED, steerColossal } from "../../fleet/colossal";
 import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
@@ -115,6 +116,8 @@ export class WorldScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
   private colossalInterior = new ColossalInterior();
   private wasAboardColossal = false;
+  private colossalExhaust!: Phaser.GameObjects.Graphics;
+  private colossalThrust = 0;
   private colossalSprite!: Phaser.GameObjects.Image;
   private scienceSprite!: Phaser.GameObjects.Image;
   private surfaceSky!: Phaser.GameObjects.Graphics;
@@ -262,6 +265,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(-0.1)
       .setVisible(false);
     this.gfx = this.add.graphics();
+    this.colossalExhaust = this.add.graphics().setDepth(-0.09);
     this.colossalSprite = this.add
       .image(0, 0, "colossal:1")
       .setDepth(-0.08)
@@ -459,10 +463,29 @@ export class WorldScene extends Phaser.Scene {
       !g.inSequence &&
       !document.hidden;
     const ship = g.state.ship;
-    const speed = Math.hypot(ship.vx, ship.vy);
-    const braking = piloting && speed > 1 && (this.down("S") || controls.down);
+    const carrierHelm =
+      g.started &&
+      g.aboardColossal &&
+      g.colossalHelm &&
+      !g.paused &&
+      !g.panel &&
+      !g.busy &&
+      !g.inSequence &&
+      !document.hidden
+        ? g.localColossal
+        : undefined;
+    const speed = carrierHelm
+      ? Math.hypot(carrierHelm.vx ?? 0, carrierHelm.vy ?? 0)
+      : Math.hypot(ship.vx, ship.vy);
+    const braking =
+      (piloting || carrierHelm) &&
+      speed > 1 &&
+      (this.down("S") || controls.down || (!!carrierHelm && this.down("DOWN")));
     const thrusting =
-      piloting && ship.fuel > 0 && (this.down("W") || controls.up);
+      (piloting || carrierHelm) &&
+      (carrierHelm?.fuel ?? ship.fuel) > 0 &&
+      (this.down("W") || controls.up || (!!carrierHelm && this.down("UP"))) &&
+      !(carrierHelm && (this.down("S") || this.down("DOWN") || controls.down));
     const autopilot =
       g.started &&
       g.state.mode === "space" &&
@@ -480,7 +503,7 @@ export class WorldScene extends Phaser.Scene {
         : thrusting || autopilot
           ? "thrust"
           : "idle",
-      speed / g.model.speed,
+      speed / (carrierHelm ? COLOSSAL_SPEED : g.model.speed),
     );
     if (activeDt > 0) g.tickActiveTime(activeDt);
     g.advanceBlackHole(this.game.loop.rawDelta / 1000);
@@ -502,6 +525,12 @@ export class WorldScene extends Phaser.Scene {
     this.clandestineStation.setVisible(false);
     this.scienceSprite.setVisible(false);
     this.colossalSprite.setVisible(false);
+    this.colossalExhaust.clear();
+    this.colossalThrust = Phaser.Math.Linear(
+      this.colossalThrust,
+      carrierHelm && thrusting ? 1 : 0,
+      1 - Math.exp(-dt * 13),
+    );
     const s = g.state;
     if (g.started && s.mode === "docked" && !g.dockingSequence) {
       if (!this.wasAtStation) {
@@ -586,16 +615,15 @@ export class WorldScene extends Phaser.Scene {
           if (interact) {
             g.colossalHelm = false;
             void g.save();
-          }
-          if (carrier.fuel > 0 && (direction.x || direction.y)) {
-            const distance = Math.min(carrier.fuel * 100, dt * 68);
-            carrier.x +=
-              (direction.x * distance) /
-              Math.max(1, Math.hypot(direction.x, direction.y));
-            carrier.y +=
-              (direction.y * distance) /
-              Math.max(1, Math.hypot(direction.x, direction.y));
-            carrier.fuel -= distance / 100;
+          } else if (carrierHelm) {
+            steerColossal(
+              carrier,
+              dt,
+              Number(this.down("D") || this.down("RIGHT") || controls.right) -
+                Number(this.down("A") || this.down("LEFT") || controls.left),
+              !!thrusting,
+              this.down("S") || this.down("DOWN") || controls.down,
+            );
           }
         } else {
           this.colossalInterior.walk(
@@ -635,7 +663,10 @@ export class WorldScene extends Phaser.Scene {
           ],
           carrier.slots,
           (x, y, step, facing) => this.drawAstronaut(x, y, step, facing),
-          (model, x, y) => this.drawShip(x, y, 0, false, model, this.gfx, 0.6),
+          (model, x, y) => {
+            const { width } = this.shipVisualSize(model);
+            this.drawShip(x, y, 0, false, model, this.gfx, 64 / width);
+          },
         );
       }
       return;
@@ -1703,6 +1734,51 @@ export class WorldScene extends Phaser.Scene {
       );
     }
   }
+  private drawColossalExhaust(x: number, y: number, angle: number) {
+    const flame = this.colossalExhaust;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const throttle = this.colossalThrust;
+    for (const [index, nozzleY] of [-25, 5, 35].entries()) {
+      const nozzleX = -162;
+      const originX = x + nozzleX * cos - nozzleY * sin;
+      const originY = y + nozzleX * sin + nozzleY * cos;
+      const length =
+        (66 + Math.sin(this.elapsed * 46 + index * 2) * 9) * throttle;
+      const spread = 6 * Math.sqrt(throttle);
+      flame
+        .fillStyle(0x35a9ff, 0.28 * throttle)
+        .fillTriangle(
+          originX - sin * spread * 1.5,
+          originY + cos * spread * 1.5,
+          originX + sin * spread * 1.5,
+          originY - cos * spread * 1.5,
+          originX - cos * length * 1.23,
+          originY - sin * length * 1.23,
+        );
+      flame
+        .fillStyle(0x42edeb, 0.85 * throttle)
+        .fillTriangle(
+          originX - sin * spread,
+          originY + cos * spread,
+          originX + sin * spread,
+          originY - cos * spread,
+          originX - cos * length,
+          originY - sin * length,
+        );
+      flame
+        .fillStyle(0xe7ffff, throttle)
+        .fillTriangle(
+          originX - sin * spread * 0.55,
+          originY + cos * spread * 0.55,
+          originX + sin * spread * 0.55,
+          originY - cos * spread * 0.55,
+          originX - cos * length * 0.58,
+          originY - sin * length * 0.58,
+        );
+    }
+  }
+
   private drawSpace(launch?: number) {
     const f = this.gfx,
       g = this.store,
@@ -1780,12 +1856,16 @@ export class WorldScene extends Phaser.Scene {
         x < this.viewWidth + 190 &&
         y > -80 &&
         y < this.viewHeight + 80
-      )
+      ) {
         this.colossalSprite
           .setTexture(`colossal:${carrier.stage}`)
           .setPosition(x, y)
+          .setRotation(carrier.angle ?? 0)
           .setDisplaySize(350, 117)
           .setVisible(true);
+        if (g.colossalHelm && this.colossalThrust > 0.02)
+          this.drawColossalExhaust(x, y, carrier.angle ?? 0);
+      }
     }
     const station = inOrbit ? undefined : g.system.station;
     const docking = g.dockingSequence;
