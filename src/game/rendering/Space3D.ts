@@ -1363,6 +1363,9 @@ export class Space3D {
       const deck = new T.Group();
       scene.add(deck);
       deck.scale.set(1.45, 1.24, 1.55);
+      const parked = new T.Group();
+      parked.scale.copy(deck.scale);
+      scene.add(parked);
       const steel = this.material(0x91a5bd);
       const dark = this.material(0x344357);
       const amber = this.lightMaterial(0xe2aa57);
@@ -1411,7 +1414,7 @@ export class Space3D {
           berthed.position.set(bx, 6, -32);
           berthed.rotation.y = Math.PI * 0.5;
           berthed.scale.multiplyScalar(0.8);
-          deck.add(berthed);
+          parked.add(berthed);
         }
         door(hangarDoor(carrier.slots), cyan);
         door(reactorDoor(carrier.slots), amber);
@@ -1454,6 +1457,50 @@ export class Space3D {
           box(dark, 240 + offset, 7, -42, 14, 14, 21);
         }
         box(this.lightMaterial(0xb58af5), 250, 18, -7, 7, 1, 5);
+      }
+      const modules =
+        room === "hangar"
+          ? [
+              { file: "colossal-hangar-console", x: 0 },
+              ...Array.from({ length: carrier.slots }, (_, index) => ({
+                file: "colossal-hangar-baia",
+                x: CONSOLE_WIDTH + index * BAY_WIDTH,
+              })),
+              {
+                file: "colossal-hangar-portas",
+                x: CONSOLE_WIDTH + carrier.slots * BAY_WIDTH,
+              },
+            ]
+          : [
+              {
+                file: room === "bridge" ? "colossal-ponte" : "colossal-reator",
+                x: 0,
+              },
+            ];
+      void Promise.all(
+        modules.map(({ file }) => this.loadEnvironmentAsset(file)),
+      )
+        .then((models) => {
+          if (this.disposed || this.carrierRoom?.scene !== scene) return;
+          const interior = new T.Group();
+          interior.scale.copy(deck.scale);
+          models.forEach((model, index) => {
+            const section = new T.Group();
+            section.position.x = modules[index]!.x;
+            section.add(model.clone());
+            interior.add(section);
+          });
+          scene.add(interior);
+          deck.visible = false;
+        })
+        .catch((error: unknown) =>
+          console.warn("Interior da colossal indisponível.", error),
+        );
+      if (room === "bridge") {
+        const stars = this.scene.children.find(
+          (object) => object instanceof T.Points,
+        );
+        if (stars) scene.add(stars.clone());
       }
       const actor = this.dressedPilot(g.state.wardrobe?.equipped);
       scene.add(actor);
