@@ -1762,6 +1762,13 @@ kbd {
     overflow-wrap: anywhere;
   }
 
+  /* Habitat and interaction hints change as the player crosses the surface. */
+  .desktop-docks .surface-info {
+    block-size: 88px;
+    overflow: auto;
+    scrollbar-gutter: stable;
+  }
+
   .desktop-docks .target-label {
     align-self: flex-start;
     white-space: normal;

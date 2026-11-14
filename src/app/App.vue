@@ -370,7 +370,7 @@ function minutes() {
         </div>
       </template>
       <template v-else-if="!orbitConsole && !routeConsole">
-        <div class="flight-info">
+        <div class="flight-info" :class="{ 'surface-info': surface }">
           <div class="location">
             <div class="eyebrow">
               <span class="little-line" />
