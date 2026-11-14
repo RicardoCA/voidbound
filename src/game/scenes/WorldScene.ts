@@ -167,6 +167,7 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    this.colossalInterior.preload(this);
     for (const kind of starKinds) {
       const id = saberFor(kind);
       this.load.image(id, saberSpriteUrl(id));
@@ -492,6 +493,7 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceSky.clear();
     this.surfaceBase.clear();
     this.surfaceArt.reset();
+    this.colossalInterior.hide();
     this.saberSprite.setVisible(false);
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
@@ -605,9 +607,10 @@ export class WorldScene extends Phaser.Scene {
           const contact = this.colossalInterior.contact(carrier.slots);
           if (contact && interact) {
             releaseControls();
-            g.panel = contact;
+            if (!this.colossalInterior.enter(contact, carrier.slots))
+              g.panel = contact;
           }
-          g.colossalContact = contact;
+          g.colossalContact = this.colossalInterior.contact(carrier.slots);
         }
       }
       this.interactHeld = held;
@@ -621,7 +624,7 @@ export class WorldScene extends Phaser.Scene {
         this.draw(dt);
       } else {
         this.colossalInterior.draw(
-          this.gfx,
+          this,
           this.viewWidth,
           this.viewHeight,
           [
@@ -632,7 +635,7 @@ export class WorldScene extends Phaser.Scene {
           ],
           carrier.slots,
           (x, y, step, facing) => this.drawAstronaut(x, y, step, facing),
-          (model, x, y) => this.drawShip(x, y, 0, false, model, this.gfx, 0.75),
+          (model, x, y) => this.drawShip(x, y, 0, false, model, this.gfx, 0.6),
         );
       }
       return;

@@ -240,11 +240,18 @@ function minutes() {
           {{
             g.colossalHelm
               ? "Manobrar · E / Interagir para voltar à ponte"
-              : g.colossalContact === "colossal-hangar"
-                ? "Hangar · E / Interagir"
-                : g.colossalContact === "colossal-bridge"
-                  ? "Ponte · E / Interagir"
-                  : "Hangar à esquerda · Ponte à direita"
+              : ({
+                  "colossal-hangar": "Console do hangar",
+                  "colossal-bridge": "Console de pilotagem",
+                  "colossal-map": "Mesa de navegação",
+                  "colossal-reactor": "Painel de abastecimento",
+                  "colossal-enter-bridge": "Entrar na ponte",
+                  "colossal-return-hangar": "Voltar ao hangar",
+                  "colossal-enter-reactor": "Acessar sala do reator",
+                  "colossal-return-bridge": "Voltar à ponte",
+                }[g.colossalContact] ??
+                  "Aproxime-se de um equipamento ou acesso") +
+                (g.colossalContact ? " · E / Interagir" : "")
           }}
         </template>
         <template v-else>
@@ -923,7 +930,9 @@ function minutes() {
         <ColossalPanel
           v-else-if="
             g.aboardColossal &&
-            (g.panel === 'colossal-bridge' || g.panel === 'colossal-hangar')
+            ['colossal-bridge', 'colossal-hangar', 'colossal-reactor'].includes(
+              g.panel,
+            )
           "
         />
         <GalaxyMap
