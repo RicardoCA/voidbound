@@ -219,6 +219,13 @@ export interface Save {
   };
   inventory: Inventory;
   backpack: Inventory;
+  droppedBackpacks?: {
+    planetId: string;
+    x: number;
+    y: number;
+    expiresAt: number;
+    inventory: Inventory;
+  }[];
   upgrades: Item[];
   changes: Record<string, Record<string, number>>;
   depleted: string[];

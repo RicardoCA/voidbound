@@ -787,7 +787,7 @@ export class WorldScene extends Phaser.Scene {
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
-          if (this.talkToRepresentative()) return;
+          if (g.recoverBackpack() || this.talkToRepresentative()) return;
           if (g.nearbyUnscannedRuin && !this.building.enabled) {
             g.scanSignal();
           } else if (
@@ -1291,7 +1291,9 @@ export class WorldScene extends Phaser.Scene {
     }
     if (
       tap &&
-      (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))
+      (g.recoverBackpack(tap) ||
+        this.talkToRepresentative(tap) ||
+        this.building.interactAt(tap.x, tap.y))
     )
       return;
     if (tap) {
@@ -2326,6 +2328,22 @@ export class WorldScene extends Phaser.Scene {
       material,
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
+    for (const drop of g.surfaceBackpacks()) {
+      const x = Math.round(drop.x + offsetX);
+      const y = Math.round(drop.y + offsetY);
+      if (
+        x < -20 ||
+        x > this.viewWidth + 20 ||
+        y < -20 ||
+        y > this.viewHeight + 20
+      )
+        continue;
+      f.fillStyle(0xffca75, 0.22).fillCircle(x, y + 7, 13);
+      f.fillStyle(0x3f2f24).fillRoundedRect(x - 7, y + 1, 14, 12, 2);
+      f.fillStyle(0xd59854).fillRect(x - 6, y + 2, 12, 5);
+      f.fillStyle(0xffdd9a).fillRect(x - 1, y + 6, 2, 3);
+      f.fillStyle(0xffca75).fillTriangle(x - 4, y - 9, x + 4, y - 9, x, y - 4);
+    }
     const ruin = g.surfaceRuin;
     if (ruin) this.drawScienceSignal(ruin);
     for (const fruit of this.fruit) {

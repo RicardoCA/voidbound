@@ -57,7 +57,7 @@ import { computed, ref, watch } from "vue";
 import type { Item, Save, Settlement } from "../game/types";
 import { biomes, items } from "../game/types";
 import { systemAt, planetPosition } from "../universe/generator";
-import { add, consume, slots } from "../inventory/inventory";
+import { add, consume, inventoryEntries, slots } from "../inventory/inventory";
 import { craft, recipes } from "../crafting/recipes";
 import { queueCloudSave } from "../persistence/cloudSaves";
 import { database } from "../persistence/database";
@@ -1527,27 +1527,81 @@ export const useGame = defineStore("game", () => {
     void save();
     return true;
   }
+  function surfaceBackpacks() {
+    const now = Date.now();
+    return (state.value.droppedBackpacks ?? []).filter(
+      (drop) => drop.planetId === planet.value.id && drop.expiresAt > now,
+    );
+  }
+  function recoverBackpack(target?: { wx: number; wy: number }) {
+    const s = state.value;
+    if (s.mode !== "surface") return false;
+    const nearby = surfaceBackpacks()
+      .filter(
+        (drop) =>
+          Math.hypot(drop.x - s.player.x, drop.y - s.player.y) <= 44 &&
+          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy) <= 16),
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(a.x - s.player.x, a.y - s.player.y) -
+          Math.hypot(b.x - s.player.x, b.y - s.player.y),
+      )[0];
+    if (!nearby) return false;
+    const source = { ...nearby.inventory };
+    const destination = { ...s.backpack };
+    if (
+      !inventoryEntries(source).every(([item, amount]) =>
+        transfer(source, destination, item, amount, BACKPACK_SLOTS),
+      )
+    ) {
+      notify("Libere espaço na mochila para recuperar os itens.");
+      return true;
+    }
+    s.backpack = destination;
+    s.droppedBackpacks = s.droppedBackpacks?.filter((drop) => drop !== nearby);
+    notify("Mochila recuperada.");
+    void save();
+    return true;
+  }
   function resolvePlayerDeath() {
     const s = state.value;
     if (s.player.health > 0) return false;
+    const deathPosition = { x: s.player.x, y: s.player.y };
     restorePlayer();
     s.ship.hull = Math.max(15, s.ship.hull - 10);
-    const lostBackpack = s.mode === "surface" && survivorEnabled.value;
+    const lostBackpack =
+      s.mode === "surface" &&
+      survivorEnabled.value &&
+      inventoryEntries(s.backpack).length > 0;
     if (s.mode === "surface") {
-      if (lostBackpack) s.backpack = {};
+      if (lostBackpack) {
+        (s.droppedBackpacks ??= []).push({
+          ...deathPosition,
+          planetId: planet.value.id,
+          expiresAt: Date.now() + 15 * 60 * 1000,
+          inventory: s.backpack,
+        });
+        s.backpack = {};
+      }
       s.mode = "interior";
       panel.value = "";
       releaseControls();
     }
     notify(
       lostBackpack
-        ? "Resgate de emergência. Você perdeu os itens da mochila e voltou à nave."
+        ? "Resgate de emergência. Voltou à nave. Recupere a mochila no local da morte em até 15 minutos."
         : "Resgate de emergência. Penalidade: 10 pontos de casco.",
     );
     void save();
     return true;
   }
   function tickActiveTime(dt: number) {
+    const drops = state.value.droppedBackpacks;
+    if (drops?.some((drop) => drop.expiresAt <= Date.now()))
+      state.value.droppedBackpacks = drops.filter(
+        (drop) => drop.expiresAt > Date.now(),
+      );
     if (
       !started.value ||
       paused.value ||
@@ -1712,6 +1766,8 @@ export const useGame = defineStore("game", () => {
     blackHoleTransit,
     stellarWarning,
     resolvePlayerDeath,
+    surfaceBackpacks,
+    recoverBackpack,
     extractionEfficiency,
     model,
     hullPercent,
