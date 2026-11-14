@@ -186,6 +186,9 @@ function build() {
             Abrir mapa galáctico
           </button>
         </div>
+        <p v-if="g.jumpCountdown" role="status">
+          Próximo salto em {{ g.jumpCountdown }} s
+        </p>
         <p>Alcance de dobra {{ COLOSSAL_RANGE }} a.l.</p>
         <div class="station-actions">
           <label
@@ -204,7 +207,7 @@ function build() {
         <p v-else>Escolha um sistema existente dentro do alcance.</p>
         <button
           class="primary"
-          :disabled="!target || carrier.warp < warpCost"
+          :disabled="!!g.jumpCountdown || !target || carrier.warp < warpCost"
           @click="g.jumpColossal(destinationX, destinationY)"
         >
           Iniciar salto de dobra

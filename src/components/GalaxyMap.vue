@@ -216,6 +216,9 @@ function stationType(system: StarSystem) {
       role="tabpanel"
       aria-labelledby="map-navigation-tab"
     >
+      <p v-if="g.jumpCountdown" role="status">
+        Próximo salto em {{ g.jumpCountdown }} s
+      </p>
       <div class="map-toolbar">
         <span
           >SETORES {{ g.state.systemX + mapX }},
@@ -360,6 +363,7 @@ function stationType(system: StarSystem) {
           <button
             class="primary"
             :disabled="
+              !!g.jumpCountdown ||
               g.busy ||
               g.state.mode !== 'space' ||
               !g.state.upgrades.includes('jump') ||
@@ -464,6 +468,7 @@ function stationType(system: StarSystem) {
           v-if="colossal"
           class="primary"
           :disabled="
+            !!g.jumpCountdown ||
             !destination ||
             g.busy ||
             distance <= 0 ||
@@ -478,6 +483,7 @@ function stationType(system: StarSystem) {
           v-else
           class="primary"
           :disabled="
+            !!g.jumpCountdown ||
             !destination ||
             g.busy ||
             distance === 0 ||

@@ -53,9 +53,11 @@ it("constrói a colossal, expande o hangar e transporta as naves em um salto lon
   vi.useFakeTimers();
   try {
     const jumping = g.jumpColossal(x, 0);
+    expect(g.jumpCountdown).toBeUndefined();
     expect(g.colossalJumpMs).toBe(4000 + x * 200);
     await vi.advanceTimersByTimeAsync(4000 + x * 200);
     await jumping;
+    expect(g.jumpCountdown).toBe(30);
   } finally {
     vi.useRealTimers();
   }

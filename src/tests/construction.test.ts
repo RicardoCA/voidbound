@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
 import Dexie from "dexie";
 import { createPinia, setActivePinia } from "pinia";
@@ -424,7 +424,15 @@ describe("Retorno a bases planetárias", () => {
     g.state.upgrades = ["jump"];
     g.enter();
     g.takeoff();
-    await g.jump(1, 0);
+    g.autosaveEnabled = false;
+    vi.useFakeTimers();
+    try {
+      const jump = g.jump(1, 0);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await jump;
+    } finally {
+      vi.useRealTimers();
+    }
     g.orbit(0);
     g.land(0);
     g.exit();
@@ -432,7 +440,15 @@ describe("Retorno a bases planetárias", () => {
     expect(b.settlement.cabinets["4,28"]).toBeUndefined();
     g.enter();
     g.takeoff();
-    await g.jump(0, 0);
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(g.state.nextJumpAt!);
+      const jump = g.jump(0, 0);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await jump;
+    } finally {
+      vi.useRealTimers();
+    }
     g.orbit(0);
     g.land(0);
     g.exit();

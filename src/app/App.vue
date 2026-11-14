@@ -973,6 +973,13 @@ function minutes() {
                 : "Desembarcando"
         }}
       </div>
+      <div
+        v-if="g.started && g.jumpCountdown && !g.panel && !g.paused"
+        class="surface-sequence-caption"
+        role="status"
+      >
+        Próximo salto em {{ g.jumpCountdown }} s
+      </div>
       <JumpSequence
         v-if="g.busy"
         :black-hole-elapsed="g.blackHoleTransit?.elapsed"

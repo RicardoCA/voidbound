@@ -95,6 +95,7 @@ import { addMeatBatches, spoilMeat } from "../survival/perishables";
 import { INITIAL_CREDITS } from "../economy/market";
 export const BACKPACK_SLOTS = 24;
 export const PLANET_SCAN_SECONDS = 10;
+export const JUMP_COOLDOWN_MS = 30_000;
 export const JUMP_DURATION_MS = 5000;
 export const DOCKING_DURATION = 1.8;
 export const STATION_EXIT_DISTANCE = 145;
@@ -232,6 +233,7 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     policeContact = ref<import("../combat/flight").PoliceContact>(),
+    jumpCountdown = ref<number>(),
     colossalJumpMs = ref<number>(),
     colossalHelm = ref(false),
     colossalContact = ref(""),
@@ -1133,6 +1135,22 @@ export const useGame = defineStore("game", () => {
     notify("Nave liberada do hangar.");
     void save();
   }
+  function canStartJump() {
+    const remaining = (state.value.nextJumpAt ?? 0) - Date.now();
+    if (remaining <= 0) return true;
+    notify(`Próximo salto em ${Math.ceil(remaining / 1000)} s.`);
+    return false;
+  }
+  function startJumpCooldown() {
+    state.value.nextJumpAt = Date.now() + JUMP_COOLDOWN_MS;
+    jumpCountdown.value = JUMP_COOLDOWN_MS / 1000;
+  }
+  function refreshJumpCooldown() {
+    const remaining = Math.ceil(
+      ((state.value.nextJumpAt ?? 0) - Date.now()) / 1000,
+    );
+    jumpCountdown.value = remaining > 0 ? remaining : undefined;
+  }
   async function jumpColossal(x: number, y: number) {
     const carrier = localColossal.value;
     const s = state.value;
@@ -1158,9 +1176,10 @@ export const useGame = defineStore("game", () => {
       return;
     }
     const duration = Math.round(4000 + distance * 200);
-    colossalJumpMs.value = duration;
+    if (!canStartJump()) return;
     busy.value = true;
     releaseControls();
+    colossalJumpMs.value = duration;
     audio.playJump(duration / 1000);
     await new Promise((resolve) => setTimeout(resolve, duration));
     if (state.value !== s || !started.value) return;
@@ -1171,6 +1190,7 @@ export const useGame = defineStore("game", () => {
     for (const ship of s.parkedShips)
       if (carrier.ships.includes(ship.id)) ship.location = { x, y };
     arriveInSystem(x, y);
+    startJumpCooldown();
     s.ship.x = carrier.x;
     s.ship.y = carrier.y;
     panel.value = "";
@@ -1196,12 +1216,15 @@ export const useGame = defineStore("game", () => {
       notify("Destino fora de alcance ou combustível insuficiente.");
       return;
     }
+    if (!canStartJump()) return;
     busy.value = true;
     releaseControls();
     audio.playJump(JUMP_DURATION_MS / 1000);
     await new Promise((resolve) => setTimeout(resolve, JUMP_DURATION_MS));
+    if (state.value !== s || !started.value) return;
     s.ship.fuel -= cost;
     arriveInSystem(x, y);
+    startJumpCooldown();
     if (s.mission === 5) s.mission = 6;
     panel.value = "";
     busy.value = false;
@@ -1703,6 +1726,8 @@ export const useGame = defineStore("game", () => {
     colossalHelm,
     colossalContact,
     colossalJumpMs,
+    jumpCountdown,
+    refreshJumpCooldown,
     boardColossal,
     leaveColossal,
     jumpColossal,
