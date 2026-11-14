@@ -52,6 +52,7 @@ const surface = computed(() => g.state.mode === "surface"),
   inShip = computed(
     () => g.state.mode === "interior" || g.flightCabin || g.aboardColossal,
   );
+const cinematic = computed(() => g.started && (g.inSequence || g.busy));
 const piloting = computed(
   () => g.state.mode === "space" && !g.flightCabin && !g.aboardColossal,
 );
@@ -224,13 +225,20 @@ function minutes() {
     <section
       class="flight-deck"
       :class="{
+        'desktop-cinematic': cinematic,
         'desktop-docks':
-          g.started && (piloting || surface) && !orbitConsole && !routeConsole,
+          cinematic ||
+          (g.started &&
+            (piloting || surface) &&
+            !orbitConsole &&
+            !routeConsole),
       }"
     >
       <GameCanvas
         :playing="g.started"
-        :expanded="(piloting || surface) && !orbitConsole && !routeConsole"
+        :expanded="
+          cinematic || ((piloting || surface) && !orbitConsole && !routeConsole)
+        "
       />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />

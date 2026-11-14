@@ -1906,3 +1906,17 @@ kbd {
   align-items: center;
   padding-block: 10px;
 }
+
+@media (pointer: fine) and (min-width: 761px) {
+  .desktop-docks.desktop-cinematic {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .desktop-cinematic > .game-canvas {
+    grid-area: 1 / 1;
+  }
+
+  .desktop-cinematic > :is(.flight-info, .bottom-hud) {
+    display: none;
+  }
+}
