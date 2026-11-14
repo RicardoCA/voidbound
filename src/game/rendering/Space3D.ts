@@ -617,6 +617,27 @@ export class Space3D {
     return group;
   }
 
+  private planetCatalogLabel(planet: Planet) {
+    const biome = biomes[planet.kind]!;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d")!;
+    const lines = [planet.name, `✓ Catalogado · ${biome.name}`, biome.resources];
+    const font = "24px monospace";
+    context.font = font;
+    canvas.width = Math.ceil(Math.max(...lines.map((line) => context.measureText(line).width))) + 28;
+    canvas.height = 100;
+    context.fillStyle = "#101d2e";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#b8e4db";
+    context.font = font;
+    lines.forEach((line, index) => context.fillText(line, 14, 27 + index * 29));
+    const map = new T.CanvasTexture(canvas);
+    map.colorSpace = T.SRGBColorSpace;
+    const label = new T.Sprite(new T.SpriteMaterial({ map, sizeAttenuation: false, toneMapped: false }));
+    label.userData.catalogLabel = true;
+    return label;
+  }
+
   private salvageCapsule() {
     const group = new T.Group();
     void this.loadEnvironmentAsset("capsula-de-saque")
@@ -2055,6 +2076,7 @@ export class Space3D {
       }
     }
 
+    this.camera.updateMatrixWorld();
     g.system.planets.forEach((planet, index) => {
       const { x, y, altitude, radius } = spatialPlanet(index, planet.id);
       const model = this.object(
@@ -2065,6 +2087,26 @@ export class Space3D {
       model.scale.setScalar(radius);
       model.position.set(x, altitude, y);
       model.rotation.y = (hash(planet.id) % 628) / 100;
+      if (!g.state.progression.cataloguedPlanets[planet.id]) return;
+      const label = this.object(
+        "planet-catalog:" + planet.id,
+        () => this.planetCatalogLabel(planet),
+        seen,
+      ) as T.Sprite;
+      const center = model.position.clone().applyMatrix4(this.camera.matrixWorldInverse);
+      const depth = -center.z;
+      label.visible = depth > radius;
+      if (!label.visible) return;
+      const image = label.material.map!.image as HTMLCanvasElement;
+      const pixelsToView = 1 / (this.height * this.camera.projectionMatrix.elements[5]!);
+      const width = image.width * pixelsToView;
+      label.scale.set(width, image.height * pixelsToView, 1);
+      const side = center.x > 0 ? -1 : 1;
+      label.position.copy(model.position).addScaledVector(
+        new T.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0),
+        side * (radius + depth * (width / 2 + 8 * pixelsToView)),
+      );
+
     });
     g.system.stars.forEach((star, index) => {
       const { x, y, altitude, radius } = spatialStar(star, index);
@@ -2184,6 +2226,7 @@ export class Space3D {
     for (const [id, object] of this.objects)
       if (!seen.has(id)) {
         this.scene.remove(object);
+        this.disposeCatalogLabel(object);
         this.objects.delete(id);
       }
     this.renderer.render(this.scene, this.camera);
@@ -2217,8 +2260,15 @@ export class Space3D {
     });
   }
 
+  private disposeCatalogLabel(object: T.Object3D) {
+    if (!(object instanceof T.Sprite) || !object.userData.catalogLabel) return;
+    object.material.map?.dispose();
+    object.material.dispose();
+  }
+
   destroy() {
     this.disposed = true;
+    for (const object of this.objects.values()) this.disposeCatalogLabel(object);
     for (const model of this.environmentTemplates)
       this.disposeEnvironmentAsset(model);
     if (this.playerTemplate) this.disposeMap(this.playerTemplate);
