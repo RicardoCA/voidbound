@@ -614,3 +614,9 @@
     sans-serif;
   white-space: nowrap;
 }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .colossal-flight-caption {
+    display: none;
+  }
+}

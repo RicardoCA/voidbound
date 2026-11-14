@@ -252,6 +252,7 @@ function minutes() {
           !g.paused
         "
         class="surface-sequence-caption"
+        :class="{ 'colossal-flight-caption': !g.aboardColossal }"
       >
         <template v-if="g.aboardColossal">
           {{
