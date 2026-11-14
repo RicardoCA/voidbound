@@ -48,6 +48,21 @@ export function marketStock(state: Save, station: string, item: MarketItem) {
   );
 }
 
+const SUPPLIER_APPROACH_SECONDS = 8;
+
+export function supplierApproach(state: Save, station: string) {
+  const remaining =
+    DELIVERY_INTERVAL - ((state.activePlayTime ?? 0) % DELIVERY_INTERVAL);
+  if (
+    remaining > SUPPLIER_APPROACH_SECONDS ||
+    !marketItems.some(
+      (item) => marketStock(state, station, item) < TARGET_STOCK,
+    )
+  )
+    return undefined;
+  return 1 - remaining / SUPPLIER_APPROACH_SECONDS;
+}
+
 // Mutate only after validating the complete transaction.
 export function trade(
   state: Save,
