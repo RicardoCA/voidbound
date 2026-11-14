@@ -62,7 +62,7 @@ export class Space3D {
     };
   });
   private carrierRoom?: { key: string; scene: T.Scene; actor: T.Group };
-  private readonly stationAssets = new Map<boolean, Promise<T.Group>>();
+  private readonly stationAssets = new Map<string, Promise<T.Group>>();
   private readonly stationTemplates = new Set<T.Group>();
   private importedCabin?: T.Group;
   private mapModel?: T.Group;
@@ -610,19 +610,9 @@ export class Space3D {
       20,
       3,
     );
-    let asset = this.stationAssets.get(clandestine);
-    if (!asset) {
-      const file = clandestine ? "estacao-clandestina" : "estacao-galatica";
-      asset = new GLTFLoader()
-        .loadAsync(import.meta.env.BASE_URL + "models/" + file + ".glb")
-        .then(({ scene }) => {
-          if (this.disposed) this.disposeStation(scene);
-          else this.stationTemplates.add(scene);
-          return scene;
-        });
-      this.stationAssets.set(clandestine, asset);
-    }
-    void asset
+    void this.loadStationAsset(
+      clandestine ? "estacao-clandestina" : "estacao-galatica",
+    )
       .then((scene) => {
         if (this.disposed || !group.parent) return;
         group.clear();
@@ -632,6 +622,21 @@ export class Space3D {
         console.warn("Modelo da estação indisponível.", error),
       );
     return group;
+  }
+
+  private loadStationAsset(file: string) {
+    let asset = this.stationAssets.get(file);
+    if (!asset) {
+      asset = new GLTFLoader()
+        .loadAsync(import.meta.env.BASE_URL + "models/" + file + ".glb")
+        .then(({ scene }) => {
+          if (this.disposed) this.disposeStation(scene);
+          else this.stationTemplates.add(scene);
+          return scene;
+        });
+      this.stationAssets.set(file, asset);
+    }
+    return asset;
   }
 
   private resize() {
@@ -1177,7 +1182,7 @@ export class Space3D {
       this.part(kiosk, this.box, trim, 14, 17, -2, 10, 6, 7);
       this.part(kiosk, this.box, accent, 14, 18, 2, 7, 3, 0.8);
       const attendant = new T.Group();
-      attendant.position.set(-6, 0, -13);
+      attendant.position.set(x - 6, 0, y - 36);
       this.part(
         attendant,
         this.box,
@@ -1201,10 +1206,22 @@ export class Space3D {
         4,
       );
       this.part(attendant, this.box, trim, 0, 4, 0, 7, 8, 5);
-      kiosk.add(attendant);
+      scene.add(attendant);
       room.add(kiosk);
       counters.set(npc.id, kiosk);
     }
+    const asset = clandestine
+      ? "estacao-clandestina-interior"
+      : "estacao-galatica-interior";
+    void this.loadStationAsset(asset)
+      .then((model) => {
+        if (this.disposed) return;
+        scene.add(model.clone());
+        room.visible = false;
+      })
+      .catch((error: unknown) =>
+        console.warn("Interior da estação indisponível.", error),
+      );
     const actor = this.dressedPilot();
     scene.add(actor);
     return { scene, counters, actor, outfit: "" };
