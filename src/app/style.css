@@ -1711,3 +1711,82 @@ kbd {
 .map-catalogue strong {
   color: #a1e5d0;
 }
+
+.flight-info {
+  display: contents;
+}
+
+@media (pointer: fine) and (min-width: 761px) {
+  .desktop-docks {
+    display: grid;
+    grid-template-columns: clamp(178px, 17vw, 252px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 490px;
+  }
+
+  .desktop-docks > .game-canvas {
+    grid-area: 1 / 2;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .desktop-docks .flight-info {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 12px;
+    overflow: auto;
+    border-right: 1px solid var(--line);
+    background: #0b1522;
+  }
+
+  .desktop-docks
+    :is(
+      .location,
+      .mission-card,
+      .desktop-habitat,
+      .target-label,
+      .surface-tip,
+      .flight-warning
+    ) {
+    position: static;
+    inset: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    transform: none;
+    overflow-wrap: anywhere;
+  }
+
+  .desktop-docks .target-label {
+    align-self: flex-start;
+    white-space: normal;
+  }
+
+  .desktop-docks .mission-card {
+    padding: 12px;
+  }
+
+  .desktop-docks .surface-tip {
+    line-height: 1.65;
+  }
+
+  .desktop-docks .bottom-hud {
+    grid-area: 2 / 1 / 3 / -1;
+    position: relative;
+    inset: auto;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    min-height: 0;
+    padding: 8px 14px;
+    border-width: 1px 0 0;
+    background: #0b1522;
+    backdrop-filter: none;
+  }
+
+  .desktop-docks .bottom-hud nav {
+    flex-wrap: wrap;
+  }
+}
