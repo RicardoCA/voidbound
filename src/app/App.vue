@@ -221,8 +221,17 @@ function minutes() {
         </a>
       </div>
     </header>
-    <section class="flight-deck">
-      <GameCanvas :playing="g.started" />
+    <section
+      class="flight-deck"
+      :class="{
+        'desktop-docks':
+          g.started && (piloting || surface) && !orbitConsole && !routeConsole,
+      }"
+    >
+      <GameCanvas
+        :playing="g.started"
+        :expanded="(piloting || surface) && !orbitConsole && !routeConsole"
+      />
       <MobileHud v-if="g.started && !orbitConsole && !routeConsole" />
       <BuildToolbar v-if="g.started" />
       <div
@@ -361,179 +370,182 @@ function minutes() {
         </div>
       </template>
       <template v-else-if="!orbitConsole && !routeConsole">
-        <div class="location">
-          <div class="eyebrow">
-            <span class="little-line" />
-            {{
-              surface
-                ? "EXPLORAÇÃO PLANETÁRIA"
-                : inShip
-                  ? "CABINE PRESSURIZADA"
-                  : atStation
-                    ? "INTERIOR DA ESTAÇÃO"
-                    : "ESPAÇO PROFUNDO"
-            }}
-          </div>
-          <h2>
-            {{
-              atStation
-                ? g.system.station?.name
-                : inShip
-                  ? g.model.name
-                  : surface
-                    ? g.planet.name
-                    : g.system.name
-            }}
-            <span>↗</span>
-          </h2>
-          <p>
-            {{
-              surface || inShip
-                ? `${g.biome.name} · ${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
-                : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
-            }}
-          </p>
-          <p v-if="surface && g.civilization">
-            {{ g.civilization.name }} · Conselho a leste do pouso
-          </p>
-          <p v-if="g.routeDestination">
-            Rota ativa · {{ g.routeDestination.name }}
-          </p>
-          <p v-if="inShip">
-            O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
-            {{ Math.ceil(g.state.player.oxygen) }}%
-          </p>
-          <p class="station-credits">
-            {{ g.state.credits.toLocaleString("pt-BR") }} CR
-            <span
-              v-if="g.wanted.level && g.state.mode === 'space'"
-              class="warning"
-            >
-              · Procurado {{ g.wanted.level }}/5</span
-            >
-          </p>
-          <p v-if="surface || inShip">
-            Hora local · <time :datetime="localTime">{{ localTime }}</time>
-            <span
-              v-if="surface && g.weather"
-              :class="{ warning: g.weather.kind === 'acid' }"
-            >
-              · {{ weatherLabels[g.weather.kind]
-              }}{{ g.weather.kind === "acid" ? " · Procure abrigo" : "" }}
-            </span>
-          </p>
-          <p v-if="g.landedShipContact" class="station-target">
-            {{ g.landedShipContact.bearing }} Nave ·
-            {{ g.landedShipContact.distance }} m
-          </p>
-          <p
-            v-if="g.state.mode === 'space' && g.system.station"
-            class="station-target"
-          >
-            {{ g.stationBearing }} {{ g.system.station.name }} ·
-            {{ Math.round(g.stationDistance) }} km
-            <span v-if="g.stationDistance <= 115">
-              · [E] ACOPLAR ATÉ 35 km/s</span
-            >
-          </p>
-        </div>
-        <HabitatStatus v-if="surface" class="desktop-habitat" />
-        <aside
-          v-if="g.showMission && !atStation && !inShip"
-          class="mission-card"
-        >
-          <div class="eyebrow">
-            <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
-            <span class="muted"
-              >0{{ Math.min(6, g.state.mission + 1) }} / 06</span
-            >
-          </div>
-          <h3>{{ g.mission.title }}</h3>
-          <p>{{ g.mission.text }}</p>
-          <div class="mission-track">
-            <i
-              v-for="n in 6"
-              :key="n"
-              :class="{
-                done: n <= g.state.mission,
-                active: n === g.state.mission + 1,
-              }"
-            />
-          </div>
-        </aside>
-        <div v-if="piloting" class="target-label">
-          <span class="target-bracket">⌖</span>
-          <div>
-            <span>{{
-              g.flightTarget.action === "anomaly"
-                ? "SINAL DETECTADO"
-                : "PLANETA MAIS PRÓXIMO"
-            }}</span
-            ><b>{{ g.flightTarget.name }}</b
-            ><small
-              >{{ Math.round(g.flightTarget.distance) }} km
+        <div class="flight-info" :class="{ 'surface-info': surface }">
+          <div class="location">
+            <div class="eyebrow">
+              <span class="little-line" />
+              {{
+                surface
+                  ? "EXPLORAÇÃO PLANETÁRIA"
+                  : inShip
+                    ? "CABINE PRESSURIZADA"
+                    : atStation
+                      ? "INTERIOR DA ESTAÇÃO"
+                      : "ESPAÇO PROFUNDO"
+              }}
+            </div>
+            <h2>
+              {{
+                atStation
+                  ? g.system.station?.name
+                  : inShip
+                    ? g.model.name
+                    : surface
+                      ? g.planet.name
+                      : g.system.name
+              }}
+              <span>↗</span>
+            </h2>
+            <p>
+              {{
+                surface || inShip
+                  ? `${g.biome.name} · ${g.planet.temperature} °C · ${g.planet.gravity.toFixed(2)} g`
+                  : `${g.system.star} · Setor ${g.state.systemX}, ${g.state.systemY}`
+              }}
+            </p>
+            <p v-if="surface && g.civilization">
+              {{ g.civilization.name }} · Conselho a leste do pouso
+            </p>
+            <p v-if="g.routeDestination">
+              Rota ativa · {{ g.routeDestination.name }}
+            </p>
+            <p v-if="inShip">
+              O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
+              {{ Math.ceil(g.state.player.oxygen) }}%
+            </p>
+            <p class="station-credits">
+              {{ g.state.credits.toLocaleString("pt-BR") }} CR
               <span
-                v-if="
-                  g.flightTarget.action &&
-                  g.stationDistance > 115 &&
-                  !(g.flightContact?.wreck && g.flightContact.distance <= 95)
-                "
-                >· [E]
-                {{
-                  g.flightTarget.action === "orbit"
-                    ? "ENTRAR EM ÓRBITA"
-                    : "ESCANEAR"
-                }}</span
-              ></small
+                v-if="g.wanted.level && g.state.mode === 'space'"
+                class="warning"
+              >
+                · Procurado {{ g.wanted.level }}/5</span
+              >
+            </p>
+            <p v-if="surface || inShip">
+              Hora local · <time :datetime="localTime">{{ localTime }}</time>
+              <span
+                v-if="surface && g.weather"
+                :class="{ warning: g.weather.kind === 'acid' }"
+              >
+                · {{ weatherLabels[g.weather.kind]
+                }}{{ g.weather.kind === "acid" ? " · Procure abrigo" : "" }}
+              </span>
+            </p>
+            <p v-if="g.landedShipContact" class="station-target">
+              {{ g.landedShipContact.bearing }} Nave ·
+              {{ g.landedShipContact.distance }} m
+            </p>
+            <p
+              v-if="g.state.mode === 'space' && g.system.station"
+              class="station-target"
+            >
+              {{ g.stationBearing }} {{ g.system.station.name }} ·
+              {{ Math.round(g.stationDistance) }} km
+              <span v-if="g.stationDistance <= 115">
+                · [E] ACOPLAR ATÉ 35 km/s</span
+              >
+            </p>
+          </div>
+          <HabitatStatus v-if="surface" class="desktop-habitat" />
+          <aside
+            v-if="g.showMission && !atStation && !inShip"
+            class="mission-card"
+          >
+            <div class="eyebrow">
+              <span class="gold-dot" /> DIÁRIO DE EXPEDIÇÃO
+              <span class="muted"
+                >0{{ Math.min(6, g.state.mission + 1) }} / 06</span
+              >
+            </div>
+            <h3>{{ g.mission.title }}</h3>
+            <p>{{ g.mission.text }}</p>
+            <div class="mission-track">
+              <i
+                v-for="n in 6"
+                :key="n"
+                :class="{
+                  done: n <= g.state.mission,
+                  active: n === g.state.mission + 1,
+                }"
+              />
+            </div>
+          </aside>
+          <div v-if="piloting" class="target-label">
+            <span class="target-bracket">⌖</span>
+            <div>
+              <span>{{
+                g.flightTarget.action === "anomaly"
+                  ? "SINAL DETECTADO"
+                  : "PLANETA MAIS PRÓXIMO"
+              }}</span
+              ><b>{{ g.flightTarget.name }}</b
+              ><small
+                >{{ Math.round(g.flightTarget.distance) }} km
+                <span
+                  v-if="
+                    g.flightTarget.action &&
+                    g.stationDistance > 115 &&
+                    !(g.flightContact?.wreck && g.flightContact.distance <= 95)
+                  "
+                  >· [E]
+                  {{
+                    g.flightTarget.action === "orbit"
+                      ? "ENTRAR EM ÓRBITA"
+                      : "ESCANEAR"
+                  }}</span
+                ></small
+              >
+            </div>
+          </div>
+          <div
+            v-if="g.gravityWell && !g.panel && !g.paused"
+            class="surface-sequence-caption flight-warning"
+          >
+            ⚠ Gravidade extrema · Buraco negro próximo
+          </div>
+          <div
+            v-if="g.stellarWarning && !g.panel && !g.paused"
+            class="surface-sequence-caption flight-warning"
+          >
+            {{ g.stellarWarning.data.name }} ·
+            {{
+              g.stellarWarning.protectedByDeflector
+                ? "Defletor térmico ativo"
+                : "Calor estelar · dano no casco"
+            }}
+            <template v-if="piloting && g.cyberTarget">
+              · Espaço / Laser para extrair Cristal Cyber
+            </template>
+          </div>
+          <div v-if="piloting && g.flightContact" class="surface-tip">
+            {{ g.flightContact.bearing }}
+            {{ g.flightContact.wreck ? "Destroço" : g.flightContact.name }} ·
+            {{ g.flightContact.distance }} km
+            <template v-if="g.flightContact.wreck">
+              · <kbd>E</kbd> Saquear até 95 km</template
+            >
+            <template v-else>
+              · Casco {{ g.flightContact.hull }} · Escudo
+              {{ g.flightContact.shield }} · <kbd>F</kbd> Atirar</template
             >
           </div>
-        </div>
-        <div
-          v-if="g.gravityWell && !g.panel && !g.paused"
-          class="surface-sequence-caption"
-        >
-          ⚠ Gravidade extrema · Buraco negro próximo
-        </div>
-        <div
-          v-if="g.stellarWarning && !g.panel && !g.paused"
-          class="surface-sequence-caption"
-        >
-          {{ g.stellarWarning.data.name }} ·
-          {{
-            g.stellarWarning.protectedByDeflector
-              ? "Defletor térmico ativo"
-              : "Calor estelar · dano no casco"
-          }}
-          <template v-if="piloting && g.cyberTarget">
-            · Espaço / Laser para extrair Cristal Cyber
-          </template>
-        </div>
-        <div v-if="piloting && g.flightContact" class="surface-tip">
-          {{ g.flightContact.bearing }}
-          {{ g.flightContact.wreck ? "Destroço" : g.flightContact.name }} ·
-          {{ g.flightContact.distance }} km
-          <template v-if="g.flightContact.wreck">
-            · <kbd>E</kbd> Saquear até 95 km</template
-          >
-          <template v-else>
-            · Casco {{ g.flightContact.hull }} · Escudo
-            {{ g.flightContact.shield }} · <kbd>F</kbd> Atirar</template
-          >
-        </div>
-        <div v-if="surface && !b.enabled" class="surface-tip">
-          <template v-if="g.equippedSaber">
-            SABRE FOTÔNICO <span>◆</span> Toque ou clique para cortar em área
-          </template>
-          <template v-else>
-            MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher frutas
-          </template>
-          <kbd>E</kbd>
-          {{
-            g.nearbyUnscannedRuin
-              ? "Escanear ruína"
-              : "Nave / fogueira / armário"
-          }}
-          <kbd>B</kbd> Construir
+          <div v-if="surface && !b.enabled" class="surface-tip">
+            <template v-if="g.equippedSaber">
+              SABRE FOTÔNICO <span>◆</span> Toque ou clique para cortar em área
+            </template>
+            <template v-else>
+              MULTITOOL <span>◆</span> Clique para minerar, caçar ou colher
+              frutas
+            </template>
+            <kbd>E</kbd>
+            {{
+              g.nearbyUnscannedRuin
+                ? "Escanear ruína"
+                : "Nave / fogueira / armário"
+            }}
+            <kbd>B</kbd> Construir
+          </div>
         </div>
         <TouchControls
           v-if="

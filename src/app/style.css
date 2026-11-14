@@ -1711,3 +1711,164 @@ kbd {
 .map-catalogue strong {
   color: #a1e5d0;
 }
+
+.flight-info {
+  display: contents;
+}
+
+@media (pointer: fine) and (min-width: 761px) {
+  .desktop-docks {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .desktop-docks > .game-canvas {
+    grid-area: 2 / 1;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .desktop-docks .flight-info {
+    grid-area: 1 / 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 5px 10px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    background: #0b1522;
+  }
+
+  .desktop-docks
+    :is(
+      .location,
+      .mission-card,
+      .desktop-habitat,
+      .target-label,
+      .surface-tip,
+      .flight-warning
+    ) {
+    position: static;
+    inset: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    transform: none;
+    overflow-wrap: anywhere;
+  }
+
+  /* Habitat and interaction hints change as the player crosses the surface. */
+  .desktop-docks .surface-info {
+    block-size: 88px;
+    overflow: auto;
+    scrollbar-gutter: stable;
+  }
+
+  .desktop-docks .target-label {
+    align-self: flex-start;
+    white-space: normal;
+  }
+
+  .desktop-docks .mission-card {
+    padding: 12px;
+  }
+
+  .desktop-docks .surface-tip {
+    line-height: 1.65;
+  }
+
+  .desktop-docks .bottom-hud {
+    grid-area: 3 / 1;
+    position: relative;
+    inset: auto;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    min-height: 0;
+    padding: 4px 12px;
+    border-width: 1px 0 0;
+    background: #0b1522;
+    backdrop-filter: none;
+  }
+
+  .app-shell:has(.desktop-docks) {
+    display: grid;
+    grid-template-rows: auto minmax(200px, 1fr) auto auto;
+    min-height: 100dvh;
+    height: 100dvh;
+    padding-inline: 8px;
+  }
+
+  .app-shell:has(.desktop-docks) .topbar {
+    height: 42px;
+  }
+
+  .app-shell:has(.desktop-docks) > :is(.footer, .keyboard-help) {
+    min-height: 28px;
+    padding-block: 3px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .desktop-docks .desktop-habitat {
+    gap: 2px;
+    padding: 3px 8px;
+  }
+
+  .desktop-docks .location h2 {
+    font-size: 16px;
+    margin: 0;
+  }
+
+  .desktop-docks .location {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 3px 10px;
+    flex: 1 1 320px;
+    min-width: min(200px, 28%);
+  }
+
+  .desktop-docks .flight-info > :not(.location) {
+    flex: 0 1 260px;
+    min-width: 0;
+  }
+
+  .desktop-docks .speed-display {
+    gap: 2px;
+  }
+
+  .desktop-docks .speed-display b {
+    font-size: 23px;
+  }
+
+  .desktop-docks .speed-ticks {
+    display: none;
+  }
+
+  .desktop-docks .radar svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .desktop-docks .status-heading {
+    margin-bottom: 4px;
+  }
+
+  .desktop-docks .meters {
+    gap: 3px;
+  }
+
+  .desktop-docks .bottom-hud nav button {
+    min-height: 34px;
+    padding: 6px 9px;
+  }
+
+  .desktop-docks .bottom-hud nav {
+    flex-wrap: wrap;
+  }
+}

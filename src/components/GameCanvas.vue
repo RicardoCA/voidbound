@@ -15,7 +15,7 @@ const stationNpc = computed(() =>
 );
 import { WorldScene } from "../game/scenes/WorldScene";
 import { MOBILE_LAYOUT, logicalViewport } from "../game/rendering/viewport";
-const props = defineProps<{ playing: boolean }>();
+const props = defineProps<{ playing: boolean; expanded?: boolean }>();
 const host = ref<HTMLDivElement>();
 let game: Phaser.Game | undefined,
   observer: ResizeObserver | undefined,
@@ -26,14 +26,14 @@ function resize() {
   const size = logicalViewport(
     box.width,
     box.height,
-    !!media?.matches && props.playing,
+    props.playing && (!!media?.matches || props.expanded === true),
   );
   if (game.scale.width !== size.width || game.scale.height !== size.height)
     game.scale.setGameSize(size.width, size.height);
   game.scale.setParentSize(box.width, box.height);
 }
 watch(
-  () => props.playing,
+  () => [props.playing, props.expanded],
   () => requestAnimationFrame(resize),
   { flush: "post" },
 );
