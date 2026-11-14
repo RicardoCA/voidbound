@@ -1,3 +1,5 @@
+import { resolveSpaceHull } from "../physics/spaceHull";
+import { flight3D, spaceAltitude } from "../rendering/flight3D";
 import { COLOSSAL_SPEED, steerColossal } from "../../fleet/colossal";
 import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
@@ -157,7 +159,15 @@ export class WorldScene extends Phaser.Scene {
     color: number;
   }[] = [];
   private beam:
-    { x: number; y: number; tx: number; ty: number; life: number } | undefined;
+    | {
+        x: number;
+        y: number;
+        tx: number;
+        ty: number;
+        life: number;
+        targetAltitude?: number;
+      }
+    | undefined;
   private cabin = new CabinInterior();
   private wasInCabin = false;
   private station = new StationInterior();
@@ -562,6 +572,11 @@ export class WorldScene extends Phaser.Scene {
       }
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
+      flight3D.station = this.station.pose;
+      if (flight3D.stationView) {
+        this.station.hide();
+        return;
+      }
       const dialoguePosition = this.station.draw(
         this,
         this.gfx,
@@ -604,11 +619,17 @@ export class WorldScene extends Phaser.Scene {
       const carrier = g.localColossal;
       if (!this.wasAboardColossal) {
         this.colossalInterior.reset();
+        if (flight3D.colossalBoarding) audio.playStation(2.4, false);
         this.combat.clearPoliceContact();
         this.wasAboardColossal = true;
       }
+      if (flight3D.colossalBoarding) {
+        if (!g.paused) flight3D.colossalBoarding.elapsed += dt;
+        if (flight3D.colossalBoarding.elapsed >= 2.4)
+          flight3D.colossalBoarding = undefined;
+      }
       const held = this.down("E") || controls.interact;
-      if (!g.paused && !g.panel && !g.busy) {
+      if (!g.paused && !g.panel && !g.busy && !flight3D.colossalBoarding) {
         const direction = this.walkingDirection();
         const interact = takePulse("interact") || (held && !this.interactHeld);
         if (g.colossalHelm) {
@@ -616,6 +637,7 @@ export class WorldScene extends Phaser.Scene {
             g.colossalHelm = false;
             void g.save();
           } else if (carrierHelm) {
+            flight3D.thrust = !!thrusting;
             steerColossal(
               carrier,
               dt,
@@ -624,6 +646,17 @@ export class WorldScene extends Phaser.Scene {
               !!thrusting,
               this.down("S") || this.down("DOWN") || controls.down,
             );
+            const station = g.system.station;
+            if (flight3D.enabled && station) {
+              const body = {
+                x: carrier.x,
+                y: carrier.y,
+                vx: carrier.vx ?? 0,
+                vy: carrier.vy ?? 0,
+              };
+              resolveSpaceHull(body, station, Math.PI / 2, 156, 169);
+              Object.assign(carrier, body);
+            }
           }
         } else {
           this.colossalInterior.walk(
@@ -631,6 +664,7 @@ export class WorldScene extends Phaser.Scene {
             direction.y,
             dt,
             carrier.slots,
+            flight3D.colossalView,
           );
           const contact = this.colossalInterior.contact(carrier.slots);
           if (contact && interact) {
@@ -642,6 +676,7 @@ export class WorldScene extends Phaser.Scene {
         }
       }
       this.interactHeld = held;
+      flight3D.colossal = this.colossalInterior.pose;
       s.ship.x = carrier.x;
       s.ship.y = carrier.y;
       for (const label of this.planetLabels.values()) label.setVisible(false);
@@ -672,6 +707,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.wasAboardColossal = false;
+    flight3D.colossalBoarding = undefined;
     if (
       g.started &&
       (s.mode === "interior" || g.flightCabin) &&
@@ -697,6 +733,7 @@ export class WorldScene extends Phaser.Scene {
       this.interactHeld = held;
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
+      flight3D.cabin = this.cabin.pose;
       this.cabin.draw(this, this.gfx, (x, y, step, facing) =>
         this.drawAstronaut(x, y, step, facing),
       );
@@ -835,7 +872,16 @@ export class WorldScene extends Phaser.Scene {
         s.mode === "surface" && Phaser.Input.Keyboard.JustDown(this.keys.E!);
       if (pressed || surfacePress || (held && !this.interactHeld)) {
         if (s.mode === "space") {
-          if (!g.boardColossal() && !this.recoverWreck() && !g.dock())
+          const origin = {
+            x: s.ship.x,
+            y: s.ship.y,
+            altitude: flight3D.altitude,
+            elapsed: 0,
+          };
+          const animate = flight3D.enabled;
+          if (g.boardColossal()) {
+            if (animate && g.aboardColossal) flight3D.colossalBoarding = origin;
+          } else if (!this.recoverWreck() && !g.dock())
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
@@ -970,7 +1016,23 @@ export class WorldScene extends Phaser.Scene {
       : 0;
     const thrust = piloting && (this.down("W") || controls.up);
     const brake = piloting && (this.down("S") || controls.down);
-    if (g.routeDestination && (rotate || thrust || brake)) {
+    const spatial = piloting && flight3D.enabled;
+    const pitchInput = spatial
+      ? Number(this.down("UP")) -
+        Number(this.down("DOWN")) +
+        flight3D.touchPitch
+      : 0;
+    if (spatial)
+      flight3D.pitch = Phaser.Math.Clamp(
+        flight3D.pitch + pitchInput * dt,
+        -1.2,
+        1.2,
+      );
+    flight3D.thrust =
+      spatial &&
+      ((thrust && s.fuel > 0) ||
+        (!!g.routeDestination && s.fuel > 0 && !this.routeBraking));
+    if (g.routeDestination && (rotate || thrust || brake || pitchInput)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
     if (g.routeDestination) this.followRoute(dt, g.routeDestination);
@@ -979,8 +1041,11 @@ export class WorldScene extends Phaser.Scene {
       const acceleration =
         g.model.acceleration *
         (g.state.upgrades.includes("engine") ? 105 / 65 : 1);
-      s.vx += Math.cos(s.angle) * acceleration * dt;
-      s.vy += Math.sin(s.angle) * acceleration * dt;
+      const pitch = spatial ? flight3D.pitch : 0;
+      const forward = acceleration * Math.cos(pitch) * dt;
+      s.vx += Math.cos(s.angle) * forward;
+      s.vy += Math.sin(s.angle) * forward;
+      if (spatial) flight3D.velocity += Math.sin(pitch) * acceleration * dt;
       s.fuel = Math.max(0, s.fuel - dt * g.model.consumption);
       if (Math.random() < 0.7)
         this.particles.push({
@@ -1001,14 +1066,27 @@ export class WorldScene extends Phaser.Scene {
       s.vx += pull.x * dt;
       s.vy += pull.y * dt;
     }
-    const speed = Math.hypot(s.vx, s.vy),
+    const speed = Math.hypot(s.vx, s.vy, spatial ? flight3D.velocity : 0),
       max = g.model.speed * (g.state.upgrades.includes("engine") ? 1.5 : 1);
     if (speed > max) {
       s.vx = (s.vx / speed) * max;
       s.vy = (s.vy / speed) * max;
+      if (spatial) flight3D.velocity *= max / speed;
+    }
+    if (spatial) {
+      if (brake) flight3D.velocity *= Math.exp(-dt * 2);
+      flight3D.altitude += flight3D.velocity * dt;
     }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
+    if (spatial) {
+      const station = g.system.station;
+      if (station && Math.abs(flight3D.altitude) < 43)
+        resolveSpaceHull(s, station, Math.PI / 2, 77, 113);
+      const carrier = g.localColossal;
+      if (carrier && Math.abs(flight3D.altitude) < 31)
+        resolveSpaceHull(s, carrier, carrier.angle ?? 0, 116, 87);
+    }
     if (g.captureBlackHole()) return;
     if (g.applyStellarHeat(dt)) {
       this.camX = g.state.ship.x;
@@ -1115,14 +1193,25 @@ export class WorldScene extends Phaser.Scene {
       s.energy >= 2
     ) {
       const range = g.state.upgrades.includes("laser") ? 200 : 130;
+      const distanceTo = (target: { x: number; y: number }, height: number) =>
+        Math.hypot(
+          target.x - s.x,
+          target.y - s.y,
+          spatial ? height - flight3D.altitude : 0,
+        );
       const rock = g.asteroids
-        .filter((r) => Math.hypot(r.x - s.x, r.y - s.y) < range)
-        .sort(
-          (a, b) =>
-            Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
-        )[0];
-      if (g.cyberTarget) {
-        const target = g.cyberTarget;
+        .map((body) => {
+          const altitude = spaceAltitude("asteroid", body.id);
+          return { body, altitude, distance: distanceTo(body, altitude) };
+        })
+        .filter((candidate) => candidate.distance < range)
+        .sort((a, b) => a.distance - b.distance)[0];
+      const target = g.cyberTarget;
+      const starAltitude = target ? spaceAltitude("star", target.star.id) : 0;
+      if (
+        target &&
+        distanceTo(target.star, starAltitude) <= target.data.danger
+      ) {
         this.mineTime = 0.8;
         if (g.mineCyberCrystal()) {
           s.energy -= 2;
@@ -1131,19 +1220,28 @@ export class WorldScene extends Phaser.Scene {
             y: s.y,
             tx: target.star.x,
             ty: target.star.y,
+            targetAltitude: starAltitude,
             life: 0.2,
           };
         }
       } else if (rock) {
+        const { body, altitude } = rock;
         this.mineTime = g.state.upgrades.includes("laser") ? 0.15 : 0.35;
         s.energy -= 2 * (1 - g.extractionEfficiency);
-        this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
-        this.burst(rock.x, rock.y, 0xd8b48b);
+        this.beam = {
+          x: s.x,
+          y: s.y,
+          tx: body.x,
+          ty: body.y,
+          life: 0.15,
+          targetAltitude: altitude,
+        };
+        this.burst(body.x, body.y, 0xd8b48b);
         audio.play(170);
-        const hits = (this.asteroidHits.get(rock.id) ?? 0) + 1;
-        if (hits >= 3 && g.mineAsteroid(rock.id))
-          this.asteroidHits.delete(rock.id);
-        else this.asteroidHits.set(rock.id, Math.min(2, hits));
+        const hits = (this.asteroidHits.get(body.id) ?? 0) + 1;
+        if (hits >= 3 && g.mineAsteroid(body.id))
+          this.asteroidHits.delete(body.id);
+        else this.asteroidHits.set(body.id, Math.min(2, hits));
       }
     }
   }
@@ -1690,7 +1788,13 @@ export class WorldScene extends Phaser.Scene {
       }
       this.drawSurface(light);
       if (storm) this.drawWeather(storm);
-    } else this.drawSpace(launch);
+    } else {
+      if (flight3D.enabled) {
+        flight3D.bolts = this.combat.bolts;
+        flight3D.beam = this.beam;
+      }
+      this.drawSpace(launch);
+    }
     if (launch !== undefined) {
       const fade = Math.max(0, 1 - Math.abs(launch - ATMOSPHERE_EXIT) / 0.48);
       if (fade > 0) {

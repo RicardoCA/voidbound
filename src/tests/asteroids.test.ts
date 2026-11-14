@@ -89,7 +89,7 @@ describe("reposição de asteroides", () => {
     g.state.depleted = g.asteroids.map(({ id }) => id);
     expect(g.asteroids).toHaveLength(0);
     g.state.activePlayTime = ASTEROID_RESPAWN_SECONDS;
-    expect(g.asteroids).toHaveLength(70);
+    expect(g.asteroids).toHaveLength(140);
     expect(g.asteroids[0]?.x).not.toBe(original.x);
   });
 });

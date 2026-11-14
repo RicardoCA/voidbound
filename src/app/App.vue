@@ -247,6 +247,7 @@ function minutes() {
           g.started &&
           g.state.mode === 'space' &&
           g.localColossal &&
+          !g.flightCabin &&
           !g.panel &&
           !g.busy &&
           !g.paused

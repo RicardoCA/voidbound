@@ -21,7 +21,7 @@ export interface Asteroid {
 
 export function asteroidsIn(systemId: string): Asteroid[] {
   const r = random(hash(systemId + ":asteroids"));
-  return Array.from({ length: 70 }, (_, i) => ({
+  return Array.from({ length: 140 }, (_, i) => ({
     id: `${systemId}:a${i}`,
     name: `Asteroide ${String(i + 1).padStart(2, "0")}`,
     x: 80 + r() * 6400,

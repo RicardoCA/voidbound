@@ -1920,3 +1920,24 @@ kbd {
     display: none;
   }
 }
+
+.flight-deck:has(.light-jump-3d) .jump-overlay {
+  background: transparent;
+  pointer-events: none;
+}
+
+.flight-deck:has(.light-jump-3d) .jump-overlay > :not(.jump-caption) {
+  display: none;
+}
+
+.flight-deck:has(.landing-computer-3d) .orbit-canopy {
+  display: none;
+}
+
+.flight-deck:has(.landing-computer-3d) .game-canvas {
+  inset: 0;
+}
+
+.flight-deck:has(.landing-computer-3d) .dialog.orbit-console {
+  max-height: 57%;
+}
