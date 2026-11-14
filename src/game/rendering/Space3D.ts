@@ -616,6 +616,49 @@ export class Space3D {
     return true;
   }
 
+  private textureImportedCabin(model: T.Group) {
+    // Blender's procedural nodes are not included in the glTF material export.
+    const finishes = new Map<string, [number, SurfaceFinish, number]>([
+      ["Polímero grafite", [0x384551, "metal", 0]],
+      ["Liga azul anodizada", [0x55788f, "metal", 0]],
+      ["Aço escovado", [0x98aab6, "metal", 0]],
+      ["Latão escurecido", [0xa67d49, "metal", 0]],
+      ["Borracha moldada", [0x252933, "rock", 0]],
+      ["Chapa de convés 00", [0x62778b, "metal", 0]],
+      ["Chapa de convés 01", [0x708595, "metal", 0]],
+      ["Chapa de convés 02", [0x697e90, "metal", 0]],
+      ["Chapa de convés 03", [0x586d81, "metal", 0]],
+      ["Chapa de convés 04", [0x748b9b, "metal", 0]],
+      ["Gelo e rocha", [0xa1c5d9, "planet", 2]],
+      ["Basalto e óxido", [0xc48462, "planet", 1]],
+    ]);
+    const applied = new Set<T.Material>();
+    model.traverse((node) => {
+      if (!(node instanceof T.Mesh)) return;
+      const materials = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
+      for (const material of materials) {
+        if (
+          !(material instanceof T.MeshStandardMaterial) ||
+          applied.has(material)
+        )
+          continue;
+        const finish = finishes.get(material.name.replace(/\.\d+$/, ""));
+        if (!finish || material.map) continue;
+        applied.add(material);
+        const [color, surface, biome] = finish;
+        material.color.setHex(color);
+        material.map = this.texture(surface, 17, biome);
+        material.bumpMap = material.map;
+        material.bumpScale = surface === "planet" ? 1.1 : 0.25;
+        material.metalness = surface === "metal" ? 0.25 : 0;
+        material.roughness = surface === "metal" ? 0.63 : 0.92;
+        material.needsUpdate = true;
+      }
+    });
+  }
+
   private buildCabin() {
     const scene = new T.Scene();
     scene.background = new T.Color(0x080e1b);
@@ -824,6 +867,7 @@ export class Space3D {
           this.disposeMap(model);
           return;
         }
+        this.textureImportedCabin(model);
         // Fit the authored deck to the cabin's existing walk and equipment coordinates.
         const widthScale = 145 / 6.94;
         const depthScale = 58 / (2.49 + 1.5);
