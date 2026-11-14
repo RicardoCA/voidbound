@@ -248,7 +248,6 @@ function minutes() {
                   "colossal-enter-bridge": "Entrar na ponte",
                   "colossal-return-hangar": "Voltar ao hangar",
                   "colossal-enter-reactor": "Acessar sala do reator",
-                  "colossal-return-bridge": "Voltar à ponte",
                 }[g.colossalContact] ??
                   "Aproxime-se de um equipamento ou acesso") +
                 (g.colossalContact ? " · E / Interagir" : "")

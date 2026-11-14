@@ -11,6 +11,8 @@ const ROOM_WIDTH = 480;
 const hangarDoor = (slots: number) =>
   CONSOLE_WIDTH + slots * BAY_WIDTH + BULKHEAD_WIDTH / 2;
 
+const reactorDoor = (slots: number) => hangarDoor(slots) + BULKHEAD_WIDTH;
+
 export class ColossalInterior {
   private room: Room = "hangar";
   private x = 48;
@@ -19,6 +21,7 @@ export class ColossalInterior {
   private stride = 0;
   private images: Phaser.GameObjects.Image[] = [];
   private visible = 0;
+  private doorSigns: Phaser.GameObjects.Text[] = [];
 
   preload(scene: Phaser.Scene) {
     for (const asset of assets)
@@ -38,12 +41,13 @@ export class ColossalInterior {
   hide() {
     for (let i = 0; i < this.visible; i++) this.images[i]!.setVisible(false);
     this.visible = 0;
+    for (const sign of this.doorSigns) sign.setVisible(false);
   }
 
   walk(x: number, y: number, dt: number, slots: number) {
     const step = (140 * dt) / Math.max(1, Math.hypot(x, y));
     const right =
-      this.room === "hangar" ? hangarDoor(slots) + 35 : ROOM_WIDTH - 18;
+      this.room === "hangar" ? reactorDoor(slots) + 35 : ROOM_WIDTH - 18;
     const nextX = Math.max(18, Math.min(right, this.x + x * step));
     const nextY = Math.max(4, Math.min(24, this.y + y * step));
     this.stride =
@@ -58,13 +62,13 @@ export class ColossalInterior {
     if (this.room === "hangar") {
       if (near(48)) return "colossal-hangar";
       if (near(hangarDoor(slots))) return "colossal-enter-bridge";
+      if (near(reactorDoor(slots))) return "colossal-enter-reactor";
     } else if (this.room === "bridge") {
       if (near(44)) return "colossal-return-hangar";
       if (near(210)) return "colossal-map";
       if (near(340)) return "colossal-bridge";
-      if (near(435)) return "colossal-enter-reactor";
     } else {
-      if (near(44)) return "colossal-return-bridge";
+      if (near(44)) return "colossal-return-hangar";
       if (near(240)) return "colossal-reactor";
     }
     return "";
@@ -77,16 +81,13 @@ export class ColossalInterior {
         this.x = 44;
         break;
       case "colossal-return-hangar":
+        this.x =
+          this.room === "reactor" ? reactorDoor(slots) : hangarDoor(slots);
         this.room = "hangar";
-        this.x = hangarDoor(slots);
         break;
       case "colossal-enter-reactor":
         this.room = "reactor";
         this.x = 44;
-        break;
-      case "colossal-return-bridge":
-        this.room = "bridge";
-        this.x = 435;
         break;
       default:
         return false;
@@ -128,17 +129,30 @@ export class ColossalInterior {
         image("bay", x, -112, BAY_WIDTH, 184);
         const model = ships[i];
         if (model && left + x + BAY_WIDTH > 0 && left + x < width)
-          drawShip(model, left + x + BAY_WIDTH / 2, floor - 10);
+          drawShip(model, left + x + BAY_WIDTH / 2, floor - 15);
       }
       image(
         "bulkhead",
-        CONSOLE_WIDTH + slots * BAY_WIDTH,
+        hangarDoor(slots) - BULKHEAD_WIDTH / 2,
         -112,
         BULKHEAD_WIDTH,
         184,
       );
+      this.drawDoor(scene, 0, left + hangarDoor(slots), floor, "PONTE");
+      image(
+        "bulkhead",
+        reactorDoor(slots) - BULKHEAD_WIDTH / 2,
+        -112,
+        BULKHEAD_WIDTH,
+        184,
+      );
+      this.drawDoor(scene, 1, left + reactorDoor(slots), floor, "REATOR");
     } else {
       image(this.room, 0, -91, ROOM_WIDTH, 126);
+      if (this.room === "reactor") {
+        image("bulkhead", 12, -79, 64, 116);
+        this.drawDoor(scene, 0, left + 44, floor, "HANGAR");
+      }
     }
     drawPlayer(
       width / 2,
@@ -146,5 +160,28 @@ export class ColossalInterior {
       Math.sin(this.stride) * 2,
       this.facing,
     );
+  }
+
+  private drawDoor(
+    scene: Phaser.Scene,
+    index: number,
+    x: number,
+    floor: number,
+    label: string,
+  ) {
+    const sign = (this.doorSigns[index] ??= scene.add
+      .text(0, 0, "", {
+        fontFamily: "monospace",
+        fontSize: "8px",
+        color: "#d7ffee",
+        backgroundColor: "#102735",
+        padding: { x: 3, y: 2 },
+      })
+      .setOrigin(0.5)
+      .setDepth(0.1));
+    sign
+      .setText(label)
+      .setPosition(Math.round(x), Math.round(floor - 54))
+      .setVisible(true);
   }
 }

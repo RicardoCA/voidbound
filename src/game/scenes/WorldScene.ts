@@ -635,7 +635,10 @@ export class WorldScene extends Phaser.Scene {
           ],
           carrier.slots,
           (x, y, step, facing) => this.drawAstronaut(x, y, step, facing),
-          (model, x, y) => this.drawShip(x, y, 0, false, model, this.gfx, 0.6),
+          (model, x, y) => {
+            const { width } = this.shipVisualSize(model);
+            this.drawShip(x, y, 0, false, model, this.gfx, 64 / width);
+          },
         );
       }
       return;
