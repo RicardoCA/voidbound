@@ -1,3 +1,4 @@
+import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
 import { representativePosition } from "../../diplomacy/representative";
 import { isShipScanner, scannerContacts } from "../../combat/shipScanners";
@@ -443,8 +444,23 @@ export class WorldScene extends Phaser.Scene {
     const braking = piloting && speed > 1 && (this.down("S") || controls.down);
     const thrusting =
       piloting && ship.fuel > 0 && (this.down("W") || controls.up);
+    const autopilot =
+      g.started &&
+      g.state.mode === "space" &&
+      !g.aboardColossal &&
+      !g.paused &&
+      !g.panel &&
+      !g.busy &&
+      !g.inSequence &&
+      !document.hidden &&
+      !!g.routeDestination &&
+      ship.fuel > 0;
     audio.flightEngine(
-      braking ? "brake" : thrusting ? "thrust" : "idle",
+      braking || (autopilot && this.routeBraking)
+        ? "brake"
+        : thrusting || autopilot
+          ? "thrust"
+          : "idle",
       speed / g.model.speed,
     );
     if (activeDt > 0) g.tickActiveTime(activeDt);
@@ -812,6 +828,8 @@ export class WorldScene extends Phaser.Scene {
     }
     this.draw(dt);
   }
+  private routeBraking = false;
+
   private followRoute(
     dt: number,
     target: { x: number; y: number; name: string; stopDistance: number },
@@ -841,16 +859,48 @@ export class WorldScene extends Phaser.Scene {
         1.5 * acceleration * Math.max(0, distance - target.stopDistance),
       ),
     );
-    const vx = (dx / Math.max(1, distance)) * cruise;
-    const vy = (dy / Math.max(1, distance)) * cruise;
-    const changeX = vx - ship.vx,
-      changeY = vy - ship.vy;
+    const velocity = avoidRouteObstacles(
+      ship,
+      {
+        x: (dx / Math.max(1, distance)) * cruise,
+        y: (dy / Math.max(1, distance)) * cruise,
+      },
+      acceleration,
+      [
+        ...g.asteroids.map((rock) => ({
+          x: rock.x,
+          y: rock.y,
+          vx: 0,
+          vy: 0,
+          radius: Math.min(
+            rock.r + 30,
+            rock.x === target.x && rock.y === target.y
+              ? target.stopDistance - 8
+              : Infinity,
+          ),
+        })),
+        ...this.combat.npcs
+          .filter((npc) => npc.hull > 0)
+          .map((npc) => ({
+            x: npc.x,
+            y: npc.y,
+            vx: npc.vx,
+            vy: npc.vy,
+            radius: 52,
+          })),
+      ],
+    );
+    this.routeBraking = Math.hypot(velocity.x, velocity.y) < speed - 2;
+    const changeX = velocity.x - ship.vx;
+    const changeY = velocity.y - ship.vy;
     const change = Math.hypot(changeX, changeY);
     const fraction = Math.min(1, (acceleration * dt) / Math.max(0.001, change));
     ship.vx += changeX * fraction;
     ship.vy += changeY * fraction;
-    if (distance > 1) {
-      const turn = Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - ship.angle);
+    if (Math.hypot(velocity.x, velocity.y) > 1) {
+      const turn = Phaser.Math.Angle.Wrap(
+        Math.atan2(velocity.y, velocity.x) - ship.angle,
+      );
       ship.angle += Phaser.Math.Clamp(turn, -2.5 * dt, 2.5 * dt);
     }
     ship.fuel = Math.max(
