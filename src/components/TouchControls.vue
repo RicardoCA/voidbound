@@ -12,7 +12,9 @@ const g = useGame(),
 const station = computed(() => g.state.mode === "docked");
 const cabin = computed(() => g.state.mode === "interior" || g.flightCabin);
 const indoors = computed(() => station.value || cabin.value);
-const walking = computed(() => surface.value || indoors.value);
+const walking = computed(
+  () => surface.value || indoors.value || g.aboardColossal,
+);
 const x = ref(0),
   y = ref(0),
   active = ref(false);
@@ -152,7 +154,7 @@ onBeforeUnmount(reset);
         :aria-label="
           station
             ? 'Conversar com atendente'
-            : cabin
+            : cabin || g.aboardColossal
               ? 'Usar equipamento da nave'
               : surface
                 ? 'Interagir na superfície'
@@ -176,7 +178,7 @@ onBeforeUnmount(reset);
         {{
           station
             ? "CONVERSAR"
-            : cabin || surface
+            : cabin || surface || g.aboardColossal
               ? "INTERAGIR"
               : g.flightContact?.wreck && g.flightContact.distance <= 95
                 ? "SAQUEAR"

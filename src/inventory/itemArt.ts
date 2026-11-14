@@ -232,6 +232,13 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M7 11h10v3H7z",
     accent: "#488c9f",
   },
+  warpFuel: {
+    body: "#436baf",
+    shade: "#283656",
+    light: "#a7e5ff",
+    detail: "#7387dc",
+    accent: "#89f3ef",
+  },
   fuel: {
     body: "M7 5h3V3h6v2h3l2 4v12H4V8z",
     shade: "M15 5h4l2 4v12h-6z",

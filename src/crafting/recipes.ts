@@ -16,6 +16,7 @@ export const recipes: Recipe[] = [
   { id: "cell", cost: { crystal: 2, copper: 1 }, unlock: 0 },
   { id: "repair", cost: { plate: 2, circuit: 1 }, unlock: 0 },
   { id: "oxygen", cost: { plate: 2, silicon: 1 }, unlock: 0 },
+  { id: "warpFuel", cost: { fuel: 2, silicon: 3 }, unlock: 0, amount: 4 },
   { id: "fuel", cost: { rawFuel: 3 }, unlock: 0 },
   { id: "engine", cost: { plate: 5, circuit: 3, cell: 2 }, unlock: 4 },
   { id: "laser", cost: { titanium: 3, circuit: 2, crystal: 2 }, unlock: 4 },

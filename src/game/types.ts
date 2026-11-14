@@ -19,6 +19,7 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | "warpFuel"
   | ScannerEquipment
   | WeaponModule
   | HeatDeflector
@@ -187,6 +188,7 @@ export interface ParkedShip extends ShipIdentity {
 }
 export interface Save {
   version: 4;
+  colossal?: import("../fleet/colossal").Colossal;
   escorts?: import("../fleet/escorts").EscortContract[];
   progression: Progression;
   credits: number;
@@ -458,6 +460,13 @@ export const items: Record<Item, ItemDetails> = {
     name: "Tanque de oxigênio",
     color: "#9de4e9",
     icon: "▥",
+    rarity: "Fabricado",
+    stack: 99,
+  },
+  warpFuel: {
+    name: "Combustível de dobra",
+    color: "#82d7ff",
+    icon: "✦",
     rarity: "Fabricado",
     stack: 99,
   },

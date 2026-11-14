@@ -4,6 +4,7 @@ import { starClasses, starKinds, starSystemLabel } from "../universe/stars";
 import { nearby, systemAt } from "../universe/generator";
 import { jumpFuel, plotJumpRoute, type JumpPoint } from "../universe/jumpRoute";
 import { explorationLevel, systemCatalogue } from "../progression/exploration";
+import { COLOSSAL_RANGE } from "../fleet/colossal";
 import CriminalRecord from "./CriminalRecord.vue";
 import { wantedBySystem } from "../combat/law";
 import { hasBlackMarket } from "../combat/traffic";
@@ -15,7 +16,7 @@ import type { BaseSummary } from "../construction/catalog";
 import { useGame } from "../stores/game";
 import type { StarSystem } from "../game/types";
 const props = withDefaults(
-  defineProps<{ initialTab?: "navigation" | "bases" }>(),
+  defineProps<{ initialTab?: "navigation" | "bases"; colossal?: boolean }>(),
   { initialTab: "navigation" },
 );
 const g = useGame(),
@@ -39,6 +40,7 @@ const wantedLevels = computed(() => wantedBySystem(g.state));
 const mapX = ref(0),
   mapY = ref(0),
   selected = ref(g.system.id),
+  panStep = computed(() => (props.colossal ? 3 : 1)),
   mapSystems = computed(() =>
     nearby(
       g.state.seed,
@@ -128,7 +130,8 @@ function stationType(system: StarSystem) {
     <div class="dialog-heading">
       <div>
         <div class="eyebrow">
-          NAVEGAÇÃO / ALCANCE {{ g.jumpRange }} ANOS-LUZ
+          NAVEGAÇÃO / ALCANCE
+          {{ colossal ? COLOSSAL_RANGE : g.jumpRange }} ANOS-LUZ
         </div>
         <h2>
           {{
@@ -219,8 +222,10 @@ function stationType(system: StarSystem) {
           {{ g.state.systemY + mapY }}</span
         >
         <div>
-          <button aria-label="Mover mapa à esquerda" @click="mapX--">←</button
-          ><button aria-label="Mover mapa para cima" @click="mapY--">↑</button
+          <button aria-label="Mover mapa à esquerda" @click="mapX -= panStep">
+            ←</button
+          ><button aria-label="Mover mapa para cima" @click="mapY -= panStep">
+            ↑</button
           ><button
             aria-label="Centralizar mapa"
             @click="
@@ -229,22 +234,25 @@ function stationType(system: StarSystem) {
             "
           >
             ⌖</button
-          ><button aria-label="Mover mapa para baixo" @click="mapY++">↓</button
-          ><button aria-label="Mover mapa à direita" @click="mapX++">→</button>
+          ><button aria-label="Mover mapa para baixo" @click="mapY += panStep">
+            ↓</button
+          ><button aria-label="Mover mapa à direita" @click="mapX += panStep">
+            →
+          </button>
         </div>
       </div>
       <div class="galaxy-map">
         <div
           class="jump-radius"
           :style="{
-            width: `${(g.jumpRange / 7) * 100 * 2}%`,
-            height: `${(g.jumpRange / 7) * 100 * 2}%`,
+            width: `${((colossal ? COLOSSAL_RANGE : g.jumpRange) / 7) * 100 * 2}%`,
+            height: `${((colossal ? COLOSSAL_RANGE : g.jumpRange) / 7) * 100 * 2}%`,
             left: `${50 - (mapX / 7) * 100}%`,
             top: `${50 - (mapY / 7) * 100}%`,
           }"
         />
         <svg
-          v-if="route?.length"
+          v-if="!colossal && route?.length"
           class="galaxy-route"
           viewBox="0 0 7 7"
           preserveAspectRatio="none"
@@ -327,7 +335,7 @@ function stationType(system: StarSystem) {
         planetas governados
       </p>
       <section
-        v-if="g.state.jumpDestination"
+        v-if="!colossal && g.state.jumpDestination"
         class="galaxy-route-summary"
         aria-label="Rota galáctica"
       >
@@ -422,6 +430,20 @@ function stationType(system: StarSystem) {
           >
             {{ world.name }} · Sob seu governo
           </p>
+          <p
+            v-if="
+              destination &&
+              g.state.colossal?.sector.x === destination.x &&
+              g.state.colossal.sector.y === destination.y
+            "
+          >
+            Colossal ·
+            {{
+              g.state.colossal.stage === 3
+                ? "Operacional"
+                : `Construção ${g.state.colossal.stage}/3`
+            }}
+          </p>
           <p v-if="destination?.station">
             {{ destination.station.name }} ·
             {{
@@ -433,12 +455,27 @@ function stationType(system: StarSystem) {
           <p>
             {{
               destination
-                ? `${starSystemLabel(destination.stars)} · ${destination.stars.map((star) => starClasses[star.kind].name).join(" + ")} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${jumpFuel(distance)} combustível`
+                ? `${starSystemLabel(destination.stars)} · ${destination.stars.map((star) => starClasses[star.kind].name).join(" + ")} · ${destination.planets.length} planetas · ${distance.toFixed(1)} a.l. · ${colossal ? Math.ceil(distance * 3) : jumpFuel(distance)} combustível`
                 : "Explore os setores. O círculo indica o alcance do motor."
             }}
           </p>
         </div>
         <button
+          v-if="colossal"
+          class="primary"
+          :disabled="
+            !destination ||
+            g.busy ||
+            distance <= 0 ||
+            distance > COLOSSAL_RANGE ||
+            (g.localColossal?.warp ?? 0) < Math.ceil(distance * 3)
+          "
+          @click="destination && g.jumpColossal(destination.x, destination.y)"
+        >
+          Saltar · {{ Math.ceil(distance * 3) }} combustível de dobra
+        </button>
+        <button
+          v-else
           class="primary"
           :disabled="
             !destination ||
@@ -454,11 +491,11 @@ function stationType(system: StarSystem) {
           INICIAR SALTO ↗
         </button>
       </div>
-      <p v-if="!g.state.upgrades.includes('jump')" class="warning">
+      <p v-if="!colossal && !g.state.upgrades.includes('jump')" class="warning">
         Propulsor de salto necessário. Disponível na missão 05.
       </p>
       <button
-        v-if="destination && distance > 0"
+        v-if="!colossal && destination && distance > 0"
         class="secondary"
         @click="plot(destination)"
       >

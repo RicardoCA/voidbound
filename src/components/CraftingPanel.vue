@@ -18,7 +18,10 @@ function open(id: string) {
 const tab = ref("all"),
   inShip = computed(
     () =>
-      g.state.mode === "interior" || g.state.mode === "docked" || g.flightCabin,
+      g.state.mode === "interior" ||
+      g.state.mode === "docked" ||
+      g.flightCabin ||
+      g.aboardColossal,
   ),
   availableRecipes = computed(() =>
     recipes.filter(

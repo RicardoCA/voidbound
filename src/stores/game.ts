@@ -1,3 +1,10 @@
+import {
+  colossalHere,
+  parkColossal,
+  COLOSSAL_RANGE,
+  COLOSSAL_EXIT,
+} from "../fleet/colossal";
+import { systemExists } from "../universe/generator";
 import { jumpFuel } from "../universe/jumpRoute";
 import {
   applyCivicAction,
@@ -221,6 +228,9 @@ export const useGame = defineStore("game", () => {
     speed = ref(0),
     flightContact = ref<FlightContact>(),
     policeContact = ref<import("../combat/flight").PoliceContact>(),
+    colossalJumpMs = ref<number>(),
+    colossalHelm = ref(false),
+    colossalContact = ref(""),
     policeAnswer = ref<"surrender" | "refuse">(),
     shipScanContacts = ref<ScannerContact[]>([]),
     radarShips = ref<
@@ -238,6 +248,11 @@ export const useGame = defineStore("game", () => {
       if (!playing) {
         surfaceSequence.value = undefined;
         dockingSequence.value = undefined;
+        if (colossalJumpMs.value !== undefined) {
+          colossalJumpMs.value = undefined;
+          busy.value = false;
+        }
+        colossalHelm.value = false;
         if (blackHoleTransit.value) {
           blackHoleTransit.value = undefined;
           busy.value = false;
@@ -411,7 +426,8 @@ export const useGame = defineStore("game", () => {
       () =>
         state.value.mode === "interior" ||
         state.value.mode === "docked" ||
-        flightCabin.value,
+        flightCabin.value ||
+        Boolean(state.value.colossal?.aboard),
     ),
     mission = computed(() => missions[state.value.mission]!),
     showMission = computed(() => state.value.mission < missions.length - 1),
@@ -698,6 +714,7 @@ export const useGame = defineStore("game", () => {
     if (
       state.value.mode !== "interior" &&
       !flightCabin.value &&
+      !state.value.colossal?.aboard &&
       state.value.mode !== "docked" &&
       !(state.value.mode === "surface" && recipe?.station === "hand")
     ) {
@@ -1060,8 +1077,103 @@ export const useGame = defineStore("game", () => {
     );
     void save();
   }
+  const localColossal = computed(() => colossalHere(state.value));
+  const aboardColossal = computed(() => Boolean(localColossal.value?.aboard));
+  function boardColossal() {
+    if (
+      paused.value ||
+      busy.value ||
+      panel.value ||
+      inSequence.value ||
+      flightCabin.value ||
+      aboardColossal.value
+    )
+      return false;
+    const carrier = localColossal.value;
+    const ship = state.value.ship;
+    if (
+      !carrier ||
+      carrier.stage < 3 ||
+      Math.hypot(ship.x - carrier.x, ship.y - carrier.y) > 190
+    )
+      return false;
+    const error = parkColossal(state.value);
+    releaseControls();
+    notify(error ?? "Você desembarcou no hangar da colossal.");
+    if (!error) {
+      ship.x = carrier.x;
+      ship.y = carrier.y;
+      policeContact.value = undefined;
+      policeAnswer.value = undefined;
+      void save();
+    }
+    return true;
+  }
+  function leaveColossal() {
+    const carrier = localColossal.value;
+    if (!carrier?.aboard || busy.value || paused.value) return;
+    delete carrier.aboard;
+    colossalHelm.value = false;
+    panel.value = "";
+    Object.assign(state.value.ship, {
+      x: carrier.x + COLOSSAL_EXIT,
+      y: carrier.y,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+    });
+    releaseControls();
+    notify("Nave liberada do hangar.");
+    void save();
+  }
+  async function jumpColossal(x: number, y: number) {
+    const carrier = localColossal.value;
+    const s = state.value;
+    if (
+      !carrier?.aboard ||
+      busy.value ||
+      paused.value ||
+      !Number.isSafeInteger(x) ||
+      !Number.isSafeInteger(y)
+    )
+      return;
+    const distance = Math.hypot(x - s.systemX, y - s.systemY);
+    const cost = Math.ceil(distance * 3);
+    if (
+      !distance ||
+      distance > COLOSSAL_RANGE ||
+      !systemExists(s.seed, x, y) ||
+      carrier.warp < cost
+    ) {
+      notify(
+        "Destino inválido, fora do alcance ou com combustível de dobra insuficiente.",
+      );
+      return;
+    }
+    const duration = Math.round(4000 + distance * 200);
+    colossalJumpMs.value = duration;
+    busy.value = true;
+    releaseControls();
+    audio.playJump(duration / 1000);
+    await new Promise((resolve) => setTimeout(resolve, duration));
+    if (state.value !== s || !started.value) return;
+    carrier.warp -= cost;
+    carrier.sector = { x, y };
+    carrier.x = -350;
+    carrier.y = 330;
+    for (const ship of s.parkedShips)
+      if (carrier.ships.includes(ship.id)) ship.location = { x, y };
+    arriveInSystem(x, y);
+    s.ship.x = carrier.x;
+    s.ship.y = carrier.y;
+    panel.value = "";
+    colossalJumpMs.value = undefined;
+    busy.value = false;
+    notify(`A frota chegou a ${system.value.name}.`);
+    await save();
+  }
   async function jump(x: number, y: number) {
-    if (busy.value || inSequence.value) return;
+    if (busy.value || inSequence.value || aboardColossal.value) return;
     const s = state.value,
       d = Math.hypot(x - s.systemX, y - s.systemY),
       cost = jumpFuel(d);
@@ -1568,6 +1680,14 @@ export const useGame = defineStore("game", () => {
     showMission,
     maxFuel,
     jumpRange,
+    localColossal,
+    aboardColossal,
+    colossalHelm,
+    colossalContact,
+    colossalJumpMs,
+    boardColossal,
+    leaveColossal,
+    jumpColossal,
     notify,
     flag,
     progress,
