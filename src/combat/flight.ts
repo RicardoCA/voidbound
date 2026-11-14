@@ -315,7 +315,7 @@ export class SpaceCombat {
     return true;
   }
 
-  private collide(state: Save, npc: SpaceNpc) {
+  private collide(state: Save, npc: SpaceNpc, altitude?: number) {
     const ship = state.ship;
     const dx = npc.x - ship.x;
     const dy = npc.y - ship.y;
@@ -326,7 +326,9 @@ export class SpaceCombat {
     const extent = (angle: number) =>
       Math.hypot(19 * Math.cos(bearing - angle), 9 * Math.sin(bearing - angle));
     const shipRadius = extent(ship.angle);
-    const overlap = shipRadius + extent(npc.angle) - separation;
+    const verticalOffset = altitude === undefined ? 0 : altitude - (npc.altitude ?? 0);
+    const heightFactor = Math.sqrt(Math.max(0, 1 - (verticalOffset / 14) ** 2));
+    const overlap = (shipRadius + extent(npc.angle)) * heightFactor - separation;
     if (overlap <= 0) return;
 
     const correction = (overlap + 0.5) / 2;
@@ -385,7 +387,7 @@ export class SpaceCombat {
     });
   }
 
-  update(state: Save, system: StarSystem, dt: number) {
+  update(state: Save, system: StarSystem, dt: number, altitude?: number) {
     const ship = state.ship;
     const { level } = wantedStatus(state, system);
     this.updateTraffic(state, system);
@@ -536,7 +538,12 @@ export class SpaceCombat {
     }
     for (const npc of this.npcs) {
       if (npc.hull <= 0) continue;
-      const impact = this.collide(state, npc);
+      if (altitude !== undefined) {
+        const height = npc.altitude ?? 0;
+        const climb = ((npc.engaged ? altitude : 0) - height) * dt * 2.6;
+        npc.altitude = height + Math.max(-160 * dt, Math.min(160 * dt, climb));
+      }
+      const impact = this.collide(state, npc, altitude);
       if (!impact) continue;
       impacts.push(impact);
       ship.hull = Math.max(0, ship.hull - impact.damage);

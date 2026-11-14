@@ -1,3 +1,4 @@
+import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -610,6 +611,18 @@ export class Space3D {
       })
       .catch((error: unknown) =>
         console.warn("Modelo estelar indisponível.", error),
+      );
+    return group;
+  }
+
+  private salvageCapsule() {
+    const group = new T.Group();
+    void this.loadEnvironmentAsset("capsula-de-saque")
+      .then((model) => {
+        if (!this.disposed && group.parent) group.add(model.clone());
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo da cápsula de saque indisponível.", error),
       );
     return group;
   }
@@ -2071,6 +2084,12 @@ export class Space3D {
       );
       model.position.set(station.x, 0, station.y);
     }
+    for (const wreck of systemWrecks(g.system.id, g.state.progression.piracy)) {
+      const capsule = this.object("wreck:" + wreck.id, () => this.salvageCapsule(), seen);
+      capsule.position.set(wreck.x, wreck.altitude ?? 0, wreck.y);
+      capsule.scale.setScalar(12);
+      capsule.rotation.set(0.16, now / 2400, 0.12);
+    }
     for (const npc of g.radarShips) {
       const model = this.object(
         "npc:" + npc.id,
@@ -2082,11 +2101,10 @@ export class Space3D {
       );
       const dx = npc.x - model.position.x;
       const dz = npc.y - model.position.z;
-      const following = npc.role === "ally" || npc.engaged;
-      const targetHeight = following
-        ? altitude + (npc.role === "ally" ? 12 : 0)
-        : 0;
-      const climb = g.paused
+      const targetHeight = npc.role === "ally" ? altitude + 12 : npc.altitude ?? 0;
+      const climb = npc.role !== "ally"
+        ? targetHeight - model.position.y
+        : g.paused
         ? 0
         : T.MathUtils.clamp(
             (targetHeight - model.position.y) * dt * 2.6,

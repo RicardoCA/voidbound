@@ -1095,27 +1095,23 @@ export class WorldScene extends Phaser.Scene {
       const station = g.system.station;
       if (station) {
         const height = Math.abs(flight3D.altitude);
-        if (height < 43) {
-          resolveSpaceHull(s, station, Math.PI / 2, 79, 113);
-        } else {
-          // The upper and lower arcs narrow as they approach the ring crest.
-          const radius = 93;
-          if (height < radius) {
-            const outerX = Math.sqrt(radius ** 2 - height ** 2);
-            const innerX = Math.sqrt(Math.max(0, 60 ** 2 - height ** 2));
-            for (const offset of [-29, 31])
-              for (const side of [-1, 1])
-                resolveSpaceHull(
-                  s,
-                  {
-                    x: station.x + (side * (outerX + innerX)) / 2,
-                    y: station.y + offset,
-                  },
-                  Math.PI / 2,
-                  17,
-                  (outerX - innerX) / 2,
-                );
-          }
+        if (height < 29)
+          resolveSpaceHull(s, station, Math.PI / 2, 72, Math.sqrt(29 ** 2 - height ** 2));
+        if (height < 89) {
+          const outerX = Math.sqrt(89 ** 2 - height ** 2);
+          const innerX = Math.sqrt(Math.max(0, 63 ** 2 - height ** 2));
+          for (const offset of [-29, 31])
+            for (const side of [-1, 1])
+              resolveSpaceHull(
+                s,
+                {
+                  x: station.x + (side * (outerX + innerX)) / 2,
+                  y: station.y + offset,
+                },
+                Math.PI / 2,
+                15,
+                (outerX - innerX) / 2,
+              );
         }
       }
       const carrier = g.localColossal;
@@ -1165,12 +1161,15 @@ export class WorldScene extends Phaser.Scene {
       s.fuel = Math.min(3, s.fuel + dt * 0.15);
     }
     for (const rock of g.asteroids) {
-      const distance = Math.hypot(rock.x - s.x, rock.y - s.y);
+      const distance = Math.hypot(rock.x - s.x, rock.y - s.y,
+        spatial ? spaceAltitude("asteroid", rock.id) - flight3D.altitude : 0,
+      );
       if (distance < rock.r + 15 && speed > 30) {
         s.hull -=
           speed * dt * (g.state.upgrades.includes("shield") ? 0.025 : 0.07);
         s.vx *= -0.65;
         s.vy *= -0.65;
+        if (spatial) flight3D.velocity *= -0.65;
         s.x -= Math.cos(s.angle) * 8;
         s.y -= Math.sin(s.angle) * 8;
         if (
@@ -1200,7 +1199,7 @@ export class WorldScene extends Phaser.Scene {
         void g.save();
       }
     }
-    const encounter = this.combat.update(g.state, g.system, dt);
+    const encounter = this.combat.update(g.state, g.system, dt, spatial ? flight3D.altitude : undefined);
     g.policeContact = this.combat.policeContact;
     if (g.policeContact?.phase === "offer") {
       releaseControls();
@@ -1310,11 +1309,18 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store;
     return systemWrecks(g.system.id, g.state.progression.piracy);
   }
-  private closestWreck(range: number): Wreck | undefined {
+  private wreckDistance(wreck: Wreck) {
     const ship = this.store.state.ship;
+    return Math.hypot(
+      wreck.x - ship.x,
+      wreck.y - ship.y,
+      flight3D.enabled ? (wreck.altitude ?? 0) - flight3D.altitude : 0,
+    );
+  }
+  private closestWreck(range: number): Wreck | undefined {
     let closest: Wreck | undefined;
     for (const wreck of this.nearbyWrecks()) {
-      const distance = Math.hypot(wreck.x - ship.x, wreck.y - ship.y);
+      const distance = this.wreckDistance(wreck);
       if (distance <= range) {
         closest = wreck;
         range = distance;
@@ -1326,7 +1332,7 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store;
     const wreck = this.closestWreck(SALVAGE_RANGE);
     if (!wreck) return false;
-    const error = salvage(g.state, wreck, g.capacity);
+    const error = salvage(g.state, wreck, g.capacity, flight3D.enabled ? flight3D : undefined);
     g.notify(error ?? "Carga recuperada · +160 XP de Pirata.");
     if (!error) {
       this.updateFlightContact();
@@ -1339,7 +1345,7 @@ export class WorldScene extends Phaser.Scene {
     const ship = g.state.ship;
     const traffic = this.combat.npcs
       .filter((npc) => npc.hull > 0)
-      .map(({ id, name, x, y, role, engaged, bountyTarget }) => ({
+      .map(({ id, name, x, y, role, engaged, bountyTarget, altitude }) => ({
         id,
         name,
         x,
@@ -1347,6 +1353,7 @@ export class WorldScene extends Phaser.Scene {
         role,
         engaged,
         bountyTarget,
+        altitude,
       }));
     g.radarShips = [
       ...traffic,
@@ -1368,7 +1375,7 @@ export class WorldScene extends Phaser.Scene {
     );
     const npc = bounty ?? this.combat.target(ship, 670);
     const wreckInReach =
-      wreck && Math.hypot(wreck.x - ship.x, wreck.y - ship.y) <= SALVAGE_RANGE;
+      wreck && this.wreckDistance(wreck) <= SALVAGE_RANGE;
     const target = wreckInReach ? wreck : (bounty ?? wreck ?? npc);
     if (!target) {
       g.flightContact = undefined;
@@ -1379,7 +1386,7 @@ export class WorldScene extends Phaser.Scene {
     const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
     g.flightContact = {
       name: target === bounty ? `Alvo procurado: ${target.name}` : target.name,
-      distance: Math.round(Math.hypot(dx, dy)),
+      distance: Math.round(target === wreck ? this.wreckDistance(wreck) : Math.hypot(dx, dy)),
       bearing: ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]!,
       wreck: target !== npc,
       ...(target === npc
