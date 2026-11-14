@@ -62,6 +62,8 @@ export class Space3D {
     };
   });
   private carrierRoom?: { key: string; scene: T.Scene; actor: T.Group };
+  private readonly stationAssets = new Map<boolean, Promise<T.Group>>();
+  private readonly stationTemplates = new Set<T.Group>();
   private importedCabin?: T.Group;
   private mapModel?: T.Group;
   private disposed = false;
@@ -608,6 +610,27 @@ export class Space3D {
       20,
       3,
     );
+    let asset = this.stationAssets.get(clandestine);
+    if (!asset) {
+      const file = clandestine ? "estacao-clandestina" : "estacao-galatica";
+      asset = new GLTFLoader()
+        .loadAsync(import.meta.env.BASE_URL + "models/" + file + ".glb")
+        .then(({ scene }) => {
+          if (this.disposed) this.disposeStation(scene);
+          else this.stationTemplates.add(scene);
+          return scene;
+        });
+      this.stationAssets.set(clandestine, asset);
+    }
+    void asset
+      .then((scene) => {
+        if (this.disposed || !group.parent) return;
+        group.clear();
+        group.add(scene.clone());
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo da estação indisponível.", error),
+      );
     return group;
   }
 
@@ -1969,6 +1992,21 @@ export class Space3D {
     this.renderer.render(this.scene, this.camera);
   }
 
+  private disposeStation(model: T.Group) {
+    const textures = new Set<T.Texture>();
+    model.traverse((node) => {
+      if (!(node instanceof T.Mesh)) return;
+      const materials = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
+      for (const material of materials)
+        if (material instanceof T.MeshStandardMaterial && material.map)
+          textures.add(material.map);
+    });
+    this.disposeMap(model);
+    for (const texture of textures) texture.dispose();
+  }
+
   private disposeMap(model: T.Object3D) {
     model.traverse((node) => {
       if (!(node instanceof T.Mesh)) return;
@@ -1982,6 +2020,7 @@ export class Space3D {
 
   destroy() {
     this.disposed = true;
+    for (const station of this.stationTemplates) this.disposeStation(station);
     if (this.playerTemplate) this.disposeMap(this.playerTemplate);
     if (this.mapModel) this.disposeMap(this.mapModel);
     if (this.importedCabin) this.disposeMap(this.importedCabin);
