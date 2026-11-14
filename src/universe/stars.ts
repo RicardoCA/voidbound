@@ -60,6 +60,9 @@ export const saberFor = (kind: StarKind): PhotonSaber => `photonSaber-${kind}`;
 export const isPhotonSaber = (id: string): id is PhotonSaber =>
   starKinds.some((kind) => saberFor(kind) === id);
 
+export const saberSpriteUrl = (id: PhotonSaber) =>
+  `${import.meta.env.BASE_URL}sabers/${id.slice("photonSaber-".length)}.webp`;
+
 export interface StellarBody {
   id: string;
   kind: StarKind;

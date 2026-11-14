@@ -2,7 +2,12 @@ import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
 import { representativePosition } from "../../diplomacy/representative";
 import { isShipScanner, scannerContacts } from "../../combat/shipScanners";
-import { starClasses } from "../../universe/stars";
+import {
+  saberFor,
+  saberSpriteUrl,
+  starClasses,
+  starKinds,
+} from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
   drawAsteroid,
@@ -113,6 +118,7 @@ export class WorldScene extends Phaser.Scene {
   private scienceSprite!: Phaser.GameObjects.Image;
   private surfaceSky!: Phaser.GameObjects.Graphics;
   private surfaceBase!: Phaser.GameObjects.Graphics;
+  private saberSprite!: Phaser.GameObjects.Image;
   private surfaceArt = new SurfaceArt();
   private backdrop!: Phaser.GameObjects.Graphics;
   private spaceDust!: Phaser.GameObjects.TileSprite;
@@ -160,6 +166,10 @@ export class WorldScene extends Phaser.Scene {
   }
   preload() {
     this.surfaceArt.preload(this);
+    for (const kind of starKinds) {
+      const id = saberFor(kind);
+      this.load.image(id, saberSpriteUrl(id));
+    }
     for (const stage of [1, 2, 3])
       this.load.image(
         `colossal:${stage}`,
@@ -268,6 +278,11 @@ export class WorldScene extends Phaser.Scene {
     });
     this.flightShipGfx = this.add.graphics().setDepth(2);
     this.atmosphereGfx = this.add.graphics().setDepth(3);
+    this.saberSprite = this.add
+      .image(0, 0, saberFor("yellow"))
+      .setOrigin(0.17, 0.84)
+      .setDepth(0.8)
+      .setVisible(false);
     this.keys = this.input.keyboard!.addKeys(
       "W,A,S,D,LEFT,RIGHT,UP,DOWN,SPACE,E,F,M,I,C,ESC",
       false,
@@ -476,6 +491,7 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceSky.clear();
     this.surfaceBase.clear();
     this.surfaceArt.reset();
+    this.saberSprite.setVisible(false);
     this.backdrop.clear();
     this.spaceDust.setVisible(false);
     this.planetTextures.hide();
@@ -2624,12 +2640,14 @@ export class WorldScene extends Phaser.Scene {
       const color = Number.parseInt(items[g.equippedSaber].color.slice(1), 16);
       for (let radius = 14; radius <= 54; radius += 8)
         f.fillStyle(color, 0.036).fillCircle(x, y - 8, radius);
-      const swinging = this.mineTime > 0.23;
-      const tipX = x + this.facing * (swinging ? 23 : 10);
-      const tipY = y - (swinging ? 5 : 21);
-      f.lineStyle(6, color, 0.32).lineBetween(x, y, tipX, tipY);
-      f.lineStyle(3, color, 1).lineBetween(x, y, tipX, tipY);
-      f.lineStyle(1, 0xffffff, 0.9).lineBetween(x, y, tipX, tipY);
+      const swing = Phaser.Math.Clamp(this.mineTime / 0.45, 0, 1);
+      const angle = -24 + Math.sin(swing * Math.PI) * 58;
+      this.saberSprite
+        .setTexture(g.equippedSaber)
+        .setPosition(x, y)
+        .setScale(this.facing * (34 / 128), 34 / 128)
+        .setAngle(this.facing * angle)
+        .setVisible(true);
     }
     const cursor = this.building.cursor;
     if (this.building.enabled && cursor && !g.panel && !sequence) {
