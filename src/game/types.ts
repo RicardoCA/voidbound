@@ -207,6 +207,7 @@ export interface Save {
   parkedShips: ParkedShip[];
   nextShipId: number;
   marketStocks: Record<string, Inventory>;
+  marketDeliveryCycles?: Record<string, Inventory>;
   settlements: Record<string, Settlement>;
   seed: string;
   mode: Mode;
