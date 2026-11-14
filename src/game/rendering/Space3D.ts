@@ -1,3 +1,4 @@
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { landingTerrain } from "./planetTerrain3D";
 import { biomes } from "../types";
 import { SURFACE_SEQUENCE_DURATION } from "../../stores/game";
@@ -60,6 +61,8 @@ export class Space3D {
     };
   });
   private carrierRoom?: { key: string; scene: T.Scene; actor: T.Group };
+  private mapModel?: T.Group;
+  private disposed = false;
   private cabinScene?: T.Scene;
   private outfitKey = "";
   private cabinActor?: T.Group;
@@ -754,8 +757,32 @@ export class Space3D {
         this.part(prop, this.box, dark, 0, 9, 1, 19, 14, 2);
         this.part(prop, this.box, screen, 5, 10, 0, 4, 2, 1);
       } else if (id === "map") {
-        this.part(prop, this.box, dark, 0, 4, -7, 18, 8, 11);
-        this.part(prop, this.box, screen, 0, 8, -7, 15, 1, 8);
+        const base = this.part(prop, this.box, dark, 0, 4, -7, 18, 8, 11);
+        const display = this.part(prop, this.box, screen, 0, 8, -7, 15, 1, 8);
+        void new GLTFLoader()
+          .loadAsync(import.meta.env.BASE_URL + "models/mapa-galactico.glb")
+          .then(({ scene: model }) => {
+            if (this.disposed) {
+              this.disposeMap(model);
+              return;
+            }
+            const bounds = new T.Box3().setFromObject(model);
+            const size = bounds.getSize(new T.Vector3());
+            const center = bounds.getCenter(new T.Vector3());
+            const scale = Math.min(22 / size.x, 20 / size.y, 18 / size.z);
+            model.scale.setScalar(scale);
+            model.position.set(
+              -center.x * scale,
+              -bounds.min.y * scale,
+              -7 - center.z * scale,
+            );
+            prop.add(model);
+            this.mapModel = model;
+            base.visible = display.visible = false;
+          })
+          .catch((error: unknown) =>
+            console.warn("Mapa galáctico 3D indisponível.", error),
+          );
       } else {
         this.part(prop, consoleShape, dark, 0, 1, -8);
         this.part(prop, consoleShape, steel, 0, 8, -9);
@@ -1802,7 +1829,20 @@ export class Space3D {
     this.renderer.render(this.scene, this.camera);
   }
 
+  private disposeMap(model: T.Object3D) {
+    model.traverse((node) => {
+      if (!(node instanceof T.Mesh)) return;
+      node.geometry.dispose();
+      const materials = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
+      for (const material of materials) material.dispose();
+    });
+  }
+
   destroy() {
+    this.disposed = true;
+    if (this.mapModel) this.disposeMap(this.mapModel);
     for (const geometry of [
       this.sphere,
       this.rock,
