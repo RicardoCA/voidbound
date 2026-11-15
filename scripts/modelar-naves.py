@@ -56,7 +56,7 @@ def material(name, rgb, metallic=.45, glow=0):
     mat.diffuse_color = color
     shader = mat.node_tree.nodes.get("Principled BSDF")
     shader.inputs["Base Color"].default_value = color
-    shader.inputs["Metallic"].default_value = metallic
+    shader.inputs["Metallic"].default_value = .22 if name.endswith("· casco") else metallic
     shader.inputs["Roughness"].default_value = .34 if "cabine" in name else .49
     shader.inputs["Emission Color"].default_value = color
     shader.inputs["Emission Strength"].default_value = glow
@@ -77,7 +77,7 @@ def material(name, rgb, metallic=.45, glow=0):
                     shade *= .40
                 if (x * 3 + y * 83) % 487 < 3:
                     shade *= 1.35
-                pixels.extend(min(1, channel * shade) for channel in color[:3])
+                pixels.extend(min(1, (.028 + channel * 1.40) * shade) for channel in color[:3])
                 pixels.append(1)
         image.pixels.foreach_set(pixels)
         image.pack()
@@ -142,6 +142,40 @@ def plate(name, outline, y, thickness, mat):
     return obj
 
 
+def loft(name, stations, mat):
+    """Shape the hull with octagonal bulkheads of varying width and height."""
+    sections = [(-.66, 1), (.66, 1), (1, .46), (1, -.46),
+                (.66, -1), (-.66, -1), (-1, -.46), (-1, .46)]
+    vertices = [xyz(span * x, center + rise * y, z)
+                for z, span, center, rise in stations for x, y in sections]
+    faces = [tuple(reversed(range(8)))]
+    for row in range(len(stations) - 1):
+        for i in range(8):
+            j = (i + 1) % 8
+            faces.append((row*8+i, row*8+j, (row+1)*8+j, (row+1)*8+i))
+    faces.append(tuple(range(len(vertices)-8, len(vertices))))
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(vertices, [], faces)
+    topology = bmesh.new()
+    topology.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(topology, faces=list(topology.faces))
+    topology.to_mesh(mesh)
+    topology.free()
+    uv = mesh.uv_layers.new()
+    for face in mesh.polygons:
+        for index in face.loop_indices:
+            x, y, z = mesh.vertices[mesh.loops[index].vertex_index].co
+            uv.data[index].uv = ((z if abs(face.normal.x) > .6 else x) / 15, y / 25)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    mesh.materials.append(mat)
+    bevel = obj.modifiers.new("Borda da carenagem", "BEVEL")
+    bevel.width = .34
+    bevel.segments = 2
+    obj.modifiers.new("Normais ponderadas", "WEIGHTED_NORMAL")
+    return obj
+
+
 def build(name, spec):
     width, height, length, color, accent, style = spec
     rng = random.Random(name)
@@ -158,47 +192,56 @@ def build(name, spec):
     scene.collection.children.link(collection)
     bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[name]
 
-    w = width / 2
+    w = width * .80
     nose = -length * .53
     tail = length * .43
     slender = style in {"fork", "delta", "keel", "tail"}
-    nose_width = w * (.12 if slender else .53)
-    body_width = w * (.43 if slender else .77)
-    outline = [
-        (-nose_width, nose), (nose_width, nose),
-        (body_width, nose * .54), (body_width, tail * .74),
-        (body_width * .72, tail), (-body_width * .72, tail),
-        (-body_width, tail * .74), (-body_width, nose * .54),
-    ]
-    plate("Casco ventral", outline, -height * .45, height * .42, dark)
-    plate("Blindagem principal", outline, -height * .04, height * .55, armor)
-    plate("Cabine facetada", [
-        (-body_width * .39, nose * .80), (body_width * .39, nose * .80),
-        (body_width * .64, nose * .38), (-body_width * .64, nose * .38),
-    ], height * .48, height * .23, glass)
-    # Cada chassi tem seções sobrepostas e ferragens expostas entre os painéis.
-    for row, fraction in enumerate((-.38, -.20, -.02, .16, .31)):
+    body_width = w * (.43 if slender else .66)
+    # The cross-sections describe the solid silhouette, including the rear view.
+    forms = {
+        "fork": (.08, .45, 1, .61, .89, .58),
+        "delta": (.06, .39, .82, 1, .82, .69),
+        "keel": (.34, .79, .95, .74, .70, .55),
+        "tail": (.06, .66, .88, .65, 1, .81),
+        "cargo": (.63, .91, .80, .84, 1, .91),
+        "tanks": (.45, .83, .79, .83, .77, .70),
+        "drill": (.35, .70, .96, .98, 1, .80),
+        "wheel": (.52, .81, 1, .89, .94, .86),
+        "claw": (.43, .82, .85, 1, .94, .75),
+        "shield": (.29, .86, 1, .83, .99, .73),
+        "survey": (.14, .51, .92, 1, .70, .63),
+        "vertical": (.25, .66, .99, 1, .72, .31),
+    }
+    fractions = (-.53, -.34, -.13, .08, .29, .43)
+    rises = (.14, .32, .49, .47, .43, .28)
+    stations = [(length*f, body_width*span, -.3, height*rise)
+                for f, span, rise in zip(fractions, forms[style], rises)]
+    loft("Casco principal facetado", stations, armor)
+    loft("Carenagem ventral", [
+        (z + 1, span*.81, -height*.24, rise*.77)
+        for z, span, _, rise in stations
+    ], dark)
+    loft("Cabine panorâmica", [
+        (length * f, body_width * span, height * center, height * rise)
+        for f, span, center, rise in (
+            (-.38, .12, .29, .08), (-.28, .37, .44, .17),
+            (-.16, .49, .53, .24), (-.06, .46, .49, .20), (.01, .29, .38, .09),
+        )
+    ], glass)
+    # Split panels follow the shoulder contours and leave an exposed spine.
+    for row, fraction in enumerate((-.26, -.08, .11, .28)):
         z = length * fraction
-        span = body_width * (.62 if row in (0, 4) else .90)
-        y = height * (.52 + .075 * (1 - abs(fraction)))
-        plate("Placas de blindagem superior", [
-            (-span, z - 3.4), (span * .80, z - 3.4), (span, z - 1.5),
-            (span, z + 2.5), (-span * .79, z + 2.5), (-span, z + .85),
-        ], y, .48 + rng.random() * .37, armor)
+        span = body_width * (.59 if row == 0 else .76)
+        y = height * (.31 if row == 0 else .43)
         for side in (-1, 1):
-            block("Trilho de manutenção", side * span * .78, y + .55, z,
-                  .65, .38, 4.15, steel)
-            for vent in range(3):
-                block("Fenda de refrigeração", side * span * .52, y + .70,
-                      z + (vent - 1) * .68, span * .31, .18, .23, dark)
-    # O para-brisa fica livre acima da blindagem, com montantes metálicos.
-    plate("Canópia superior", [
-        (-body_width * .30, nose * .80), (body_width * .30, nose * .80),
-        (body_width * .58, nose * .57), (body_width * .60, nose * .39),
-        (-body_width * .60, nose * .39), (-body_width * .58, nose * .57),
-    ], height * .64, height * .21, glass)
-    block("Travessa da canópia", 0, height * .845, nose * .55,
-          body_width * 1.08, .36, .48, steel)
+            plate("Blindagem da ombreira", [
+                (side*span*.40, z-3.6), (side*span*.88, z-4),
+                (side*span*1.16, z-.7), (side*span*.90, z+3.7),
+                (side*span*.44, z+3),
+            ], y, .7 + rng.random() * .51, trim if row == 2 else armor)
+            for vent in range(4):
+                block("Fenda de refrigeração", side*span*.63, y+.91,
+                      z + (vent - 1.5)*.61, span*.23, .20, .23, dark)
     for side in (-1, 1):
         for rail in range(3):
             z = length * (.02 + .12 * rail)
@@ -207,16 +250,30 @@ def build(name, spec):
                      .46, trim, 8)
             block("Abraçadeira", x, -.9, z, 1.22, 1.25, .75, steel)
         if slender:
-            wing_tip = tail * (.85 if style != "fork" else -.38)
-            plate("Asa enflechada", [
-                (side * 3, nose * .48), (side * w, wing_tip),
-                (side * w * .87, tail * .99), (side * 4, tail * .54),
-            ], -.8, 1.55, armor)
-            plate("Painel da asa", [
-                (side * w * .57, wing_tip * .70),
-                (side * w * .94, wing_tip),
-                (side * w * .82, tail * .91),
-            ], .77, .24, trim)
+            tip = length * (.32 if style == "delta" else -.14)
+            tip_width = w * (1.12 if name in {"specter", "peregrine"} else 1)
+            root = body_width*.60
+            outline = [(side*root, nose*.65), (side*w*.60, length*.02),
+                       (side*tip_width, tip), (side*tip_width*.96, tip+5),
+                       (side*w*.62, tail*.71), (side*root, tail*.62)]
+            wing = plate("Asa de longarina dupla", outline, -1.5, 2.15, armor)
+            wing.rotation_euler.y = side*.09
+            plate("Faixa longa da asa", [
+                (side*w*.55, length*.06), (side*tip_width*.91, tip+1.5),
+                (side*tip_width*.86, tip+4), (side*w*.54, tail*.61),
+            ], 1.5, .52, trim)
+            for inner in (.53, .68, .82):
+                z = tip*.62 + tail*.28
+                block("Flape de manobra", side*tip_width*inner, .28, z,
+                      w*.13, 1.48, 4.3, dark)
+            if name in {"specter", "sparrow", "viper", "raptor"}:
+                fin = plate("Deriva dorsal", [
+                    (side*w*.48, tail*.28), (side*w*.56, tail*.31),
+                    (side*w*.59, tail*.88), (side*w*.47, tail*.68),
+                ], 0, height*.71, armor)
+                fin.rotation_euler.y = side*.13
+            block("Luz de navegação", side*tip_width*.93, .95, tip+2,
+                  .72, .51, 1.8, cyan if side > 0 else amber)
         elif style in {"cargo", "tanks"}:
             for bay in range(3):
                 z = (bay - 1) * length * .19

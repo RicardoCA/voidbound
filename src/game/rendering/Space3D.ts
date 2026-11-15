@@ -45,6 +45,7 @@ type Game = ReturnType<typeof useGame>;
 
 export class Space3D {
   private readonly renderer: T.WebGLRenderer;
+  private readonly flightFill = new T.DirectionalLight(0xc0d7ff, 1.15);
   private readonly scene = new T.Scene();
   private readonly stationFloor = new T.CylinderGeometry(1, 1, 1, 48);
   private readonly stationRooms = new Map<
@@ -125,7 +126,7 @@ export class Space3D {
     this.scene.add(new T.HemisphereLight(0xc4e1ff, 0x30214c, 1.05));
     const sun = new T.DirectionalLight(0xffe3b9, 2.8);
     sun.position.set(300, 450, -500);
-    this.scene.add(sun);
+    this.scene.add(sun, this.flightFill);
     const rng = random(hash("voidbound-3d"));
     const points = new Float32Array(4800);
     for (let i = 0; i < points.length; i++) points[i] = (rng() - 0.5) * 15000;
@@ -2091,6 +2092,8 @@ export class Space3D {
     }
 
     this.camera.updateMatrixWorld();
+    this.flightFill.position.set(-0.8, 1.25, 0.9)
+      .applyQuaternion(this.camera.quaternion);
     g.system.planets.forEach((planet, index) => {
       const { x, y, altitude, radius } = spatialPlanet(index, planet.id);
       const model = this.object(
