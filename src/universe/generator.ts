@@ -96,7 +96,7 @@ export function planetPosition(index: number) {
 export function spatialPlanet(index: number, id: string) {
   const orbit = planetPosition(index);
   return {
-    x: 1040 + index * 1800,
+    x: 1040 + index * 90_000,
     y: orbit.y,
     altitude: (hash("planet:" + id) % 641) - 320,
     radius: 395 + (hash(id) % 111),
