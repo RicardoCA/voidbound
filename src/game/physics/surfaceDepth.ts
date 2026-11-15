@@ -1,3 +1,5 @@
+import type { Fruit } from "../../survival/wildlife";
+import type { AlienTree } from "../procedural/trees";
 import { blocksAir } from "../../construction/pieces";
 import { TILE, type Terrain } from "../procedural/terrain";
 import type { Settlement } from "../types";
@@ -20,6 +22,49 @@ export function solidSurfaceVoxel(
   );
 }
 
+export function surfaceFloraCollision(
+  origin: { x: number; y: number; z: number },
+  trees: readonly AlienTree[],
+  fruit: readonly Fruit[],
+) {
+  const obstacles = [
+    ...trees.map((tree) => ({
+      x: (tree.x + 0.5) * TILE,
+      z: tree.depth ? tree.depth * TILE : 5,
+      bottom: tree.ground * TILE,
+      height: tree.height * TILE * 0.78,
+      halfWidth: 4.7,
+      halfDepth: 4.3,
+    })),
+    ...fruit.map((item) => ({
+      x: item.x,
+      z: item.depth ? item.depth * TILE : 9,
+      bottom: item.y,
+      height: 10,
+      halfWidth: 8.5,
+      halfDepth: 5,
+    })),
+  ];
+  const overlaps = (
+    object: (typeof obstacles)[number],
+    x: number,
+    y: number,
+    z: number,
+  ) =>
+    Math.abs(x - object.x) < object.halfWidth + 3.8 &&
+    Math.abs(z - object.z) < object.halfDepth + 3.8 &&
+    y + 11.9 > object.bottom - object.height &&
+    y - 11.9 < object.bottom;
+  // If an old save or fruit regrowth places the player inside a prop, allow escape.
+  const nearby = obstacles.filter(
+    (object) =>
+      Math.hypot(origin.x - object.x, origin.z - object.z) <= 24 &&
+      !overlaps(object, origin.x, origin.y, origin.z),
+  );
+  return (x: number, y: number, z: number) =>
+    nearby.some((object) => overlaps(object, x, y, z));
+}
+
 export function stepSurfaceDepth(
   actor: Actor & { z: number },
   dx: number,
@@ -28,9 +73,11 @@ export function stepSurfaceDepth(
   gravity: number,
   dt: number,
   solid: (x: number, y: number, depth: number) => boolean,
+  blockedByFlora?: (x: number, y: number, z: number) => boolean,
 ) {
   const a = { ...actor };
   const clear = (x: number, y: number, z: number) => {
+    if (blockedByFlora?.(x, y, z)) return false;
     const top = Math.floor((y - 11.9) / TILE);
     const bottom = Math.floor((y + 11.9) / TILE);
     for (const wx of [x - 3.8, x + 3.8])
@@ -46,6 +93,7 @@ export function stepSurfaceDepth(
     } else if (
       a.grounded &&
       !jump &&
+      !blockedByFlora?.(x, a.y, z) &&
       clear(a.x, a.y - TILE, a.z) &&
       clear(x, a.y - TILE, z) &&
       !clear(x, a.y - TILE + 1, z)

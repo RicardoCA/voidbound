@@ -1,5 +1,5 @@
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
-import { solidSurfaceVoxel, stepSurfaceDepth } from "../physics/surfaceDepth";
+import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -66,7 +66,7 @@ import {
   useGame,
 } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
-import { spatialTreeAt, treeAt, treesInRange, treeContains } from "../procedural/trees";
+import { spatialTreeAt, spatialTreesNear, treeAt, treesInRange, treeContains } from "../procedural/trees";
 import {
   drawAlienTree,
   drawSettlement,
@@ -1708,13 +1708,26 @@ export class WorldScene extends Phaser.Scene {
     const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
     const yaw = flight3D.surfaceLook.yaw;
     const step = 90 * dt * vertical;
-    const spatialMove = !climb && flight3D.surfaceView
+    const spatial = flight3D.surfaceView;
+    const z = p.surfaceZ ?? 0;
+    const settlement = this.building.settlement;
+    this.fruit = fruitsNear(g.planet, t, settlement, p.x, g.state.time, spatial ? z : undefined);
+    const spatialMove = !climb && spatial
       ? stepSurfaceDepth(
-          { ...actor, z: p.surfaceZ ?? 0 },
+          { ...actor, z },
           Math.sin(yaw) * step,
           Math.cos(yaw) * step,
           jump, g.planet.gravity, dt,
-          (x, y, depth) => solidSurfaceVoxel(t, this.building.settlement, x, y, depth),
+          (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
+          surfaceFloraCollision(
+            { x: p.x, y: p.y, z },
+            [
+              ...treesInRange(g.planet, t, Math.floor(p.x / 16) - 2,
+                Math.floor(p.x / 16) + 2, settlement.cutTrees),
+              ...spatialTreesNear(t, p.x, z, settlement.cutTrees),
+            ],
+            this.fruit,
+          ),
         )
       : undefined;
     const movement = climb ?? spatialMove ??
@@ -1749,14 +1762,6 @@ export class WorldScene extends Phaser.Scene {
       p,
       g.state.time,
       dt,
-    );
-    this.fruit = fruitsNear(
-      g.planet,
-      t,
-      this.building.settlement,
-      p.x,
-      g.state.time,
-      flight3D.surfaceView ? p.surfaceZ ?? 0 : undefined,
     );
     const mineButton = takePulse("mine") || controls.mine;
     const mouse = this.surfaceMouse;
