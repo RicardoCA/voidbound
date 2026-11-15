@@ -122,3 +122,13 @@ it("identifica a face minerável na faixa original sem perder a profundidade zer
     world.dispose();
   }
 });
+
+it("salta do piso na física 3D após o primeiro contato com o chão", () => {
+  const actor = { x: 8, y: 148, z: 0, vy: 0, grounded: false };
+  const solid = (_x: number, y: number) => y >= 10;
+  const grounded = stepSurfaceDepth(actor, 0, 0, false, 1, .04, solid);
+  expect(grounded.grounded).toBe(true);
+  const jumping = stepSurfaceDepth(grounded, 0, 0, true, 1, .04, solid);
+  expect(jumping.y).toBeLessThan(grounded.y);
+  expect(jumping.grounded).toBe(false);
+});

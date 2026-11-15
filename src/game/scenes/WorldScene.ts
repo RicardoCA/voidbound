@@ -358,8 +358,17 @@ export class WorldScene extends Phaser.Scene {
         !this.store.paused &&
         !isEditing(event.target) &&
         ["Space", "ArrowUp", "ArrowDown"].includes(event.code)
-      )
+      ) {
         event.preventDefault();
+        if (
+          event.code === "Space" &&
+          !event.repeat &&
+          this.store.state.mode === "surface" &&
+          !this.store.busy &&
+          !this.store.inSequence
+        )
+          queuePulse("jump");
+      }
     };
     const focusInput = (event: FocusEvent) => {
       if (isEditing(event.target)) {
