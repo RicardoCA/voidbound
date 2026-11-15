@@ -1678,10 +1678,12 @@ export class Space3D {
     this.cabinCamera.lookAt(x * 0.73, 15, -15);
     this.cabinCamera.updateProjectionMatrix();
     const landed = !inFlight && g.state.mode === "interior";
-    this.cabinSpaceBackdrop!.visible = !landed;
-    for (const object of this.cabinImportedBackdrop) object.visible = !landed;
-    if (landed) {
-      this.drawCabinExterior(g, x);
+    const liveExterior = landed || inFlight;
+    this.cabinSpaceBackdrop!.visible = !liveExterior;
+    for (const object of this.cabinImportedBackdrop) object.visible = !liveExterior;
+    if (liveExterior) {
+      if (landed) this.drawCabinExterior(g, x);
+      else this.draw(g, true);
       const scene = this.cabinScene!;
       const background = scene.background;
       const autoClear = this.renderer.autoClear;
@@ -2327,7 +2329,7 @@ export class Space3D {
     this.renderer.render(this.jumpScene, this.cabinCamera);
   }
 
-  draw(g: Game) {
+  draw(g: Game, fromCabin = false) {
     if (!this.resize()) return;
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastFrame) / 1000);
@@ -2346,7 +2348,7 @@ export class Space3D {
     const { altitude, pitch, thrust } = flight3D;
     const horizontal = Math.cos(pitch);
     const vertical = Math.sin(pitch);
-    player.visible = !pilotedCarrier;
+    player.visible = !pilotedCarrier && !fromCabin;
     player.position.set(ship.x, altitude, ship.y);
     player.rotation.set(pitch, Math.atan2(-dx, -dz), 0, "YXZ");
     const burning = thrust && !g.paused && !g.panel && ship.fuel > 0;
@@ -2489,6 +2491,19 @@ export class Space3D {
       }
     }
 
+    if (fromCabin) {
+      const eyeOffset = 25;
+      this.camera.position.set(
+        ship.x + dx * horizontal * eyeOffset,
+        altitude + vertical * eyeOffset + 7,
+        ship.y + dz * horizontal * eyeOffset,
+      );
+      this.camera.lookAt(
+        this.camera.position.x + dx * horizontal,
+        this.camera.position.y + vertical,
+        this.camera.position.z + dz * horizontal,
+      );
+    }
     this.camera.updateMatrixWorld();
     this.flightFill.position.set(-0.8, 1.25, 0.9)
       .applyQuaternion(this.camera.quaternion);
@@ -2502,7 +2517,7 @@ export class Space3D {
       model.scale.setScalar(radius);
       model.position.set(x, altitude, y);
       model.rotation.y = (hash(planet.id) % 628) / 100;
-      if (!g.state.progression.cataloguedPlanets[planet.id]) return;
+      if (fromCabin || !g.state.progression.cataloguedPlanets[planet.id]) return;
       const observer = pilotedCarrier ?? ship;
       const observerAltitude = pilotedCarrier ? 0 : flight3D.altitude;
       const surfaceDistance =
