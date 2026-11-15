@@ -79,6 +79,12 @@ export class Space3D {
     duration: number;
     landing: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
     takeoff: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
+    disembark: {
+      ramp: T.Object3D;
+      pilot: T.Object3D;
+      camera: T.Object3D;
+      target: T.Object3D;
+    };
   };
   private routeScene?: T.Scene;
   private routeModel?: T.Group;
@@ -156,6 +162,12 @@ export class Space3D {
           duration: Math.max(...clips.map((clip) => clip.duration)),
           landing: tracking("Landing"),
           takeoff: tracking("Takeoff"),
+          disembark: {
+            ramp: rig.getObjectByName("DisembarkRamp")!,
+            pilot: rig.getObjectByName("DisembarkPilot")!,
+            camera: rig.getObjectByName("DisembarkCamera")!,
+            target: rig.getObjectByName("DisembarkTarget")!,
+          },
         };
       })
       .catch((error: unknown) =>
@@ -1784,25 +1796,43 @@ export class Space3D {
       0,
       1,
     );
+    const rig = this.surfaceFlight;
+    if (rig) rig.mixer.setTime(progress * rig.duration * 0.9999);
     const disembarking = sequence.kind === "disembark";
     ramp.visible = disembarking;
-    astronaut.visible = disembarking && progress > 0.22;
+    astronaut.visible = disembarking && progress > (rig ? 0.30 : 0.22);
     if (disembarking) {
       craft.position.set(0, 6, 0);
       craft.rotation.set(0, Math.PI, 0);
       for (const part of craft.children)
         if (part.name === "exhaust") part.visible = false;
-      const opening = T.MathUtils.smoothstep(progress, 0, 0.27);
-      ramp.rotation.z = T.MathUtils.lerp(1.4, -Math.asin(6 / 16), opening);
-      const walk = T.MathUtils.smoothstep(progress, 0.22, 1);
-      astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
-      astronaut.rotation.y = -Math.PI / 2;
-      this.animatePilot(astronaut, walk * Math.PI * 6);
       sky.setHex(biome.sky).lerp(new T.Color(biome.daySky), sunlight);
       fog.color.copy(sky);
       this.cabinCamera.aspect = this.width / this.height;
-      this.cabinCamera.position.set(44 + walk * 10, 30, 63);
-      this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
+      if (rig) {
+        const track = rig.disembark;
+        if (!ramp.userData.blenderRamp) {
+          ramp.clear();
+          ramp.add(...track.ramp.children.map((part) => part.clone()));
+          ramp.userData.blenderRamp = true;
+        }
+        ramp.position.copy(track.ramp.position);
+        ramp.quaternion.copy(track.ramp.quaternion);
+        astronaut.position.copy(track.pilot.position);
+        astronaut.quaternion.copy(track.pilot.quaternion);
+        this.animatePilot(astronaut, track.pilot.scale.x);
+        this.cabinCamera.position.copy(track.camera.position);
+        this.cabinCamera.lookAt(track.target.position);
+      } else {
+        const opening = T.MathUtils.smoothstep(progress, 0, 0.27);
+        ramp.rotation.z = T.MathUtils.lerp(1.4, -Math.asin(6 / 16), opening);
+        const walk = T.MathUtils.smoothstep(progress, 0.22, 1);
+        astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
+        astronaut.rotation.y = -Math.PI / 2;
+        this.animatePilot(astronaut, walk * Math.PI * 6);
+        this.cabinCamera.position.set(44 + walk * 10, 30, 63);
+        this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
+      }
       this.cabinCamera.updateProjectionMatrix();
       this.renderer.render(scene, this.cabinCamera);
       return;
@@ -1816,10 +1846,8 @@ export class Space3D {
       takingOff ? 0 : Math.PI,
       0,
     );
-    const rig = this.surfaceFlight;
     const track = takingOff ? rig?.takeoff : rig?.landing;
-    if (rig && track) {
-      rig.mixer.setTime(progress * rig.duration * 0.9999);
+    if (track) {
       craft.position.copy(track.ship.position);
       craft.quaternion.copy(track.ship.quaternion);
     }
