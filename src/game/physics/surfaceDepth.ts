@@ -31,7 +31,8 @@ export function surfaceWallBlocks(
   y: number,
   z: number,
 ) {
-  if (Math.abs(z - surfaceWallZ) >= surfaceWallThickness / 2 + 3.8)
+  const depth = Math.round((z - surfaceWallZ) / TILE);
+  if (Math.abs(z - (depth * TILE + surfaceWallZ)) >= surfaceWallThickness / 2 + 3.8)
     return false;
   for (
     let column = Math.floor((x - 3.8) / TILE);
@@ -43,7 +44,8 @@ export function surfaceWallBlocks(
       row <= Math.floor((y + 11.9) / TILE);
       row++
     )
-      if (settlement.walls[`${column},${row}`]) return true;
+      if (depth === 0 ? settlement.walls[`${column},${row}`] :
+        settlement.depthWalls?.[`${column},${row},${depth}`]) return true;
   return false;
 }
 

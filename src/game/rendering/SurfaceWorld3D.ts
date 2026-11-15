@@ -414,7 +414,7 @@ export class SurfaceWorld3D {
             0,
             () =>
               this.piece(wall === true ? "woodWall" : wall, false, 1, false),
-          ).userData.cell = { x, y };
+          ).userData.cell = { x, y, depth: 0, wall: true };
         const piece = settlement.pieces[key];
         if (piece) {
           const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
@@ -609,7 +609,8 @@ export class SurfaceWorld3D {
         this.part(group, this.gem, 0x77cac1, 0, 26, 5, 6, 5, 4);
         return group;
       });
-    for (const [key] of Object.entries(settlement.depthBlocks ?? {})) {
+    for (const [key, kind] of Object.entries({ ...settlement.depthBlocks, ...settlement.depthWalls })) {
+      const wall = settlement.depthWalls?.[key];
       const [tx, ty, depth] = key.split(",").map(Number) as [
         number,
         number,
@@ -624,12 +625,12 @@ export class SurfaceWorld3D {
       )
         continue;
       put(
-        "depthBlock:" + key,
+        (wall ? "wall:" : "depthBlock:") + key + ":" + kind,
         (tx + 0.5) * TILE,
         (ty + 1) * TILE,
         depth * TILE,
-        () => this.piece("woodBlock", false, 1, false),
-      );
+        () => this.piece(wall === true ? "woodWall" : wall || "woodBlock", false, 1, false),
+      ).userData.cell = { x: tx, y: ty, depth, wall: !!wall };
     }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
@@ -708,14 +709,12 @@ export class SurfaceWorld3D {
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
     this.ray.far = 112;
     this.scene.updateMatrixWorld();
-    const objects = hitSolid
-      ? this.ray.intersectObjects(
+    const objects = this.ray.intersectObjects(
           [...this.meshes]
-            .filter(([id]) => !id.startsWith("depthBlock:"))
+            .filter(([id]) => hitSolid ? !id.startsWith("depthBlock:") : id.startsWith("wall:"))
             .map(([, group]) => group),
           true,
-        )
-      : [];
+        );
     let picked: Pick<T.Intersection, "point" | "distance" | "object"> | undefined = objects[0];
     if (hitSolid) {
       const trunk = new T.Box3();
@@ -744,12 +743,20 @@ export class SurfaceWorld3D {
         let node: T.Object3D | null = picked.object;
         while (node?.parent && node.parent !== this.scene) node = node.parent;
         const target = node?.userData;
+        if (!hitSolid && target?.cell?.wall) {
+          const { x, y, depth } = target.cell;
+          const dx = picked.point.x / TILE - x - 0.5;
+          const dy = -picked.point.y / TILE - y - 0.5;
+          const nextX = x + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) || 1 : 0);
+          const nextY = y + (Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) || -1 : 0);
+          return { x: nextX, y: nextY, depth, wx: (nextX + 0.5) * TILE, wy: (nextY + 0.5) * TILE };
+        }
         return {
           wx: picked.point.x,
           wy: -picked.point.y,
           x: target?.cell?.x ?? Math.floor(picked.point.x / TILE),
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
-          depth: target?.dropDepth ?? 0,
+          depth: target?.cell?.depth ?? target?.dropDepth ?? 0,
           ...target?.flora,
         };
       }

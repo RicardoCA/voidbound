@@ -14,7 +14,7 @@ export function regrowTerrain(state: Save, surfacePlanetId?: string) {
       if ((pending[key] ??= now + TERRAIN_REGROWTH_SECONDS) > now) continue;
       const [x, y, depth = 0] = key.split(",").map(Number) as [number, number, number?];
       const settlement = state.settlements[planetId];
-      if (settlement && (depth === 0 ? settlement.walls[key] || pieceAt(settlement, x, y) : settlement.depthBlocks?.[key]))
+      if (settlement && (depth === 0 ? settlement.walls[key] || pieceAt(settlement, x, y) : (settlement.depthBlocks?.[key] || settlement.depthWalls?.[key])))
         continue;
       if (
         planetId === surfacePlanetId &&

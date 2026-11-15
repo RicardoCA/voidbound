@@ -156,21 +156,30 @@ export const useConstruction = defineStore("construction", () => {
     const dz = depth * 16 - (player.surfaceZ ?? 0);
     let error = "";
     const blocks = (ctx.settlement.depthBlocks ??= {});
+    const walls = (ctx.settlement.depthWalls ??= {});
+    const wall = walls[key];
+    const item = selected.value;
+    const isWall = item === "woodWall" || item === "stoneWall" || item === "metalWall";
     if (y < 1 || y >= 63 || Math.hypot(dx, dy, dz) > 96)
       error = "Aproxime-se para construir.";
     else if (removing.value) {
-      if (!blocks[key]) error = "Nenhum bloco construído nesta posição.";
+      if (wall) {
+        if (!addBatch(ctx.inventory, { [wall === true ? "woodWall" : wall]: 1 }, ctx.capacity))
+          error = "Mochila cheia.";
+        else delete walls[key];
+      } else if (!blocks[key]) error = "Nenhum bloco construído nesta posição.";
       else if (!addBatch(ctx.inventory, { woodBlock: 1 }, ctx.capacity))
         error = "Mochila cheia.";
       else delete blocks[key];
-    } else if (selected.value !== "woodBlock")
+    } else if (item !== "woodBlock" && !isWall)
       error = "Esta peça usa a faixa da base. Fora dela, use blocos de madeira.";
-    else if (ctx.terrain.getAt(x, y, depth) || blocks[key])
+    else if (ctx.terrain.getAt(x, y, depth) || blocks[key] || wall)
       error = "Este espaço já está ocupado.";
     else if (Math.abs(dx) < 12 && Math.abs(dy) < 20 && Math.abs(dz) < 12)
       error = "Saia da posição antes de construir.";
-    else if (!consume(ctx.inventory, { woodBlock: 1 }))
-      error = "Você precisa de um bloco de madeira.";
+    else if (!consume(ctx.inventory, { [item]: 1 }))
+      error = "Você não tem esta peça na mochila.";
+    else if (isWall) walls[key] = item === "woodWall" ? true : item;
     else blocks[key] = true;
     lastError.value = error;
     if (error) { g.notify(error); return false; }

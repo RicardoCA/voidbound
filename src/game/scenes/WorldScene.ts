@@ -1723,6 +1723,7 @@ export class WorldScene extends Phaser.Scene {
             ],
             this.fruit,
           );
+          const wallCenter = Math.round((z - surfaceWallZ) / 16) * 16 + surfaceWallZ;
           const insideWall = surfaceWallBlocks(settlement, p.x, p.y, z);
           return stepSurfaceDepth(
             { ...actor, z },
@@ -1731,7 +1732,7 @@ export class WorldScene extends Phaser.Scene {
             jump, g.planet.gravity, dt,
             (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
             (x, y, depth) => flora(x, y, depth) ||
-              ((!insideWall || Math.abs(depth - surfaceWallZ) <= Math.abs(z - surfaceWallZ)) &&
+              ((!insideWall || Math.abs(depth - wallCenter) <= Math.abs(z - wallCenter)) &&
                 surfaceWallBlocks(settlement, x, y, depth)),
           );
         })()

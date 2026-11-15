@@ -144,6 +144,7 @@ export interface PlacedPiece {
   powered?: boolean;
 }
 export interface Settlement {
+  depthWalls?: Settlement["walls"];
   depthBlocks?: Record<string, true>;
   pieces: Record<string, PlacedPiece>;
   walls: Record<string, true | "stoneWall" | "metalWall">;
