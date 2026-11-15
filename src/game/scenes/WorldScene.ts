@@ -1817,15 +1817,10 @@ export class WorldScene extends Phaser.Scene {
         if (tap) g.notify("Aproxime-se do tronco para cortar a árvore.");
         return;
       }
-      const hits = (this.treeHits.get(tree.id) ?? 0) + 1;
-      this.mineTime = .28;
-      this.treeHits.set(tree.id, hits);
-      this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
-      if (g.equippedSaber || hits >= 3) {
-        if (this.building.harvest(tree)) this.treeHits.delete(tree.id);
-      } else {
-        p.energy--;
-        audio.play(140);
+      if (this.building.harvest(tree)) {
+        this.treeHits.delete(tree.id);
+        this.mineTime = g.equippedSaber ? .45 : .28;
+        this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
       }
       return;
     }

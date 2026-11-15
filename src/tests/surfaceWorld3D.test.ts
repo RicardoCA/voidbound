@@ -1,3 +1,4 @@
+import { treeAt } from "../game/procedural/trees";
 import { InstancedMesh, Matrix4, Texture, TextureLoader } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { emptySettlement } from "../construction/building";
@@ -126,9 +127,46 @@ it("identifica a face minerável na faixa original sem perder a profundidade zer
 it("salta do piso na física 3D após o primeiro contato com o chão", () => {
   const actor = { x: 8, y: 148, z: 0, vy: 0, grounded: false };
   const solid = (_x: number, y: number) => y >= 10;
-  const grounded = stepSurfaceDepth(actor, 0, 0, false, 1, .04, solid);
+  const grounded = stepSurfaceDepth(actor, 0, 0, false, 1, 0.04, solid);
   expect(grounded.grounded).toBe(true);
-  const jumping = stepSurfaceDepth(grounded, 0, 0, true, 1, .04, solid);
+  const jumping = stepSurfaceDepth(grounded, 0, 0, true, 1, 0.04, solid);
   expect(jumping.y).toBeLessThan(grounded.y);
   expect(jumping.grounded).toBe(false);
+});
+
+it("seleciona o tronco pela mira 3D e remove o alvo após o corte", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, {});
+  const tree = treeAt(planet, terrain, 0)!;
+  const settlement = emptySettlement();
+  const frame: SurfaceFrame = {
+    terrain,
+    settlement,
+    revision: 0,
+    light: 1,
+    elapsed: 0,
+    sunPhase: 0,
+    facing: 1,
+    stride: 0,
+    animals: [],
+    fruit: [],
+    drops: [],
+    camera: {
+      x: tree.x * 16 + 8,
+      y: tree.ground * 16 - 15,
+      z: 27,
+      yaw: 0,
+      pitch: 0,
+    },
+  };
+  try {
+    world.update(frame, 960, 540);
+    expect(world.pointAt(0, 0, true)?.treeId).toBe(tree.id);
+    settlement.cutTrees.push(tree.id);
+    world.update(frame, 960, 540);
+    expect(world.pointAt(0, 0, true)?.treeId).not.toBe(tree.id);
+  } finally {
+    world.dispose();
+  }
 });

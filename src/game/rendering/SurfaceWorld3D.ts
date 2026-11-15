@@ -458,6 +458,7 @@ export class SurfaceWorld3D {
           const group = new T.Group();
           group.userData.flora = { treeId: tree.id, depth };
           const height = tree.height * TILE;
+          group.userData.trunkHeight = height * .78;
           this.part(
             group,
             this.cylinder,
@@ -715,7 +716,22 @@ export class SurfaceWorld3D {
           true,
         )
       : [];
-    const picked = objects[0];
+    let picked: Pick<T.Intersection, "point" | "distance" | "object"> | undefined = objects[0];
+    if (hitSolid) {
+      const trunk = new T.Box3();
+      for (const group of this.meshes.values()) {
+        const height = group.userData.trunkHeight as number | undefined;
+        if (!height) continue;
+        const { x, y, z } = group.position;
+        trunk.min.set(x - 4.7, y, z - 4.3);
+        trunk.max.set(x + 4.7, y + height, z + 4.3);
+        const hit = this.ray.ray.intersectBox(trunk, this.rayPoint);
+        if (!hit) continue;
+        const distance = this.ray.ray.origin.distanceTo(hit);
+        if (distance > (picked?.distance ?? this.ray.far)) continue;
+        picked = { point: hit.clone(), distance, object: group };
+      }
+    }
     let lastAir: SurfaceTarget | undefined;
     for (let distance = 0.5; distance <= this.ray.far; distance += 0.65) {
       const position = this.ray.ray.at(distance, this.rayPoint);

@@ -243,7 +243,7 @@ export const useConstruction = defineStore("construction", () => {
     data.cutTrees.push(current.id);
     g.state.player.energy -= 3;
     audio.play(170, 0.15);
-    g.notify(`${treeNames[current.kind]}: +${current.wood} madeiras.`);
+    g.notify(`${treeNames[current.kind]}: +${current.wood} de madeira alienígena.`);
     void g.save();
     return true;
   }
