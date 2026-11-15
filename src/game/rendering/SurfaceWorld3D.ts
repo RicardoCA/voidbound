@@ -86,7 +86,7 @@ export class SurfaceWorld3D {
   private targetFrame?: SurfaceFrame;
   private bounds = { left: 0, right: 0, top: 0, bottom: 0 };
 
-  constructor() {
+  constructor(private readonly loadModel?: (asset: string) => Promise<T.Group>) {
     this.sun.position.set(-100, 150, 100);
     this.scene.background = this.backdrop;
     this.scene.fog = new T.Fog(this.backdrop, 85, 198);
@@ -143,6 +143,31 @@ export class SurfaceWorld3D {
     object.scale.set(w, h, d);
     root.add(object);
     return object;
+  }
+
+  private attachLifeModel(
+    group: T.Group, key: string, width: number, height: number, depth: number,
+  ) {
+    void this.loadModel?.("biosfera/" + key)
+      .then((asset) => {
+        if (!group.parent) return;
+        const model = asset.clone();
+        const bounds = new T.Box3().setFromObject(model);
+        const size = bounds.getSize(new T.Vector3());
+        if (!size.x || !size.y || !size.z) return;
+        const center = bounds.getCenter(new T.Vector3());
+        model.scale.set(width / size.x, height / size.y, depth / size.z);
+        model.position.set(
+          -center.x * model.scale.x,
+          -bounds.min.y * model.scale.y,
+          -center.z * model.scale.z,
+        );
+        group.clear();
+        group.add(model);
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo da biosfera indisponível.", key, error),
+      );
   }
 
   private updateTerrain(frame: SurfaceFrame) {
@@ -456,6 +481,7 @@ export class SurfaceWorld3D {
               spread,
             );
           }
+          this.attachLifeModel(group, "planta-" + tree.kind, tree.crown * 19, height, tree.crown * 14);
           return group;
         },
       );
@@ -477,6 +503,7 @@ export class SurfaceWorld3D {
             5,
             5,
           );
+        this.attachLifeModel(group, "fruta-" + planet.kind, 15, 8, 8);
         return group;
       });
     for (const animal of frame.animals.filter(near)) {
@@ -531,6 +558,9 @@ export class SurfaceWorld3D {
           }
           if (animal.kind === 3 || animal.kind === 5)
             this.part(group, this.gem, animal.crest, -2, 12, 0, 9, 5.5, 7.6);
+          const type = animal.hostile ? "hostil" : "pacifico";
+          this.attachLifeModel(group, type + "-" + animal.kind,
+            animal.hostile ? 30 : 25, animal.hostile ? 18 : 16, 12);
           return group;
         },
       );

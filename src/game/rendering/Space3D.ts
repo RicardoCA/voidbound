@@ -1853,7 +1853,7 @@ export class Space3D {
     const frame = flight3D.surface;
     if (!frame || frame.terrain.planet.id !== g.planet.id || !this.resize()) return;
     if (!this.exploration) {
-      const world = new SurfaceWorld3D();
+      const world = new SurfaceWorld3D((asset) => this.loadEnvironmentAsset(asset));
       const representative = this.dressedPilot();
       const saber = new T.Mesh(this.box, new T.MeshBasicMaterial());
       const saberLight = new T.PointLight(0xffffff, 145, 45);
