@@ -1779,7 +1779,7 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceTap = undefined;
     if (this.building.enabled) {
       if (tap) {
-        this.building.apply(tap.x, tap.y, tap.depth);
+        this.building.apply(tap.x, tap.y, tap.depth, tap.wallFace);
         this.mineTime = 0.2;
       }
       return;
@@ -2014,6 +2014,9 @@ export class WorldScene extends Phaser.Scene {
         ruin: g.surfaceRuin,
         representative: this.representativePosition(),
         storm,
+        wallPlacementFace: this.building.enabled && !this.building.removing &&
+          ["woodWall", "metalWall", "stoneWall"].includes(this.building.selected)
+          ? this.building.rotation : undefined,
         cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
         beam: this.beam,
       };

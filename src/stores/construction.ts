@@ -156,7 +156,7 @@ export const useConstruction = defineStore("construction", () => {
     )
       return "Corte a árvore antes de construir neste tronco.";
   }
-  function apply(x: number, y: number, depth = 0) {
+  function apply(x: number, y: number, depth = 0, wallFace?: number) {
     if (g.state.mode !== "surface" || g.paused || g.panel || !enabled.value)
       return false;
     const buildDepth = flight3D.surfaceView || depth ? depth : undefined;
@@ -175,7 +175,7 @@ export const useConstruction = defineStore("construction", () => {
         }
         delete ctx.settlement.depthBlocks[key];
       } else {
-        error = removePiece(ctx, x, y, Boolean(wall && (isWall(selected.value) || !foreground)));
+        error = removePiece(ctx, x, y, Boolean(wallFace !== undefined || (wall && (isWall(selected.value) || !foreground))), wallFace);
       }
     } else {
       error = errorAt(x, y, buildDepth);

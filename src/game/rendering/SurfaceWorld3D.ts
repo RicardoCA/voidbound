@@ -1,6 +1,6 @@
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness } from "../physics/surfaceDepth";
 import * as T from "three";
-import { cabinetWidths, isCabinet } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
 import { TILE, type Terrain } from "../procedural/terrain";
@@ -10,6 +10,7 @@ import { biomes, type BuildItem, type Settlement } from "../types";
 
 type Point = { x: number; y: number };
 export interface SurfaceTarget extends Point {
+  wallFace?: number;
   wx: number;
   wy: number;
   depth: number;
@@ -34,6 +35,7 @@ export interface SurfaceFrame {
   ruin?: Point;
   representative?: Point;
   storm?: { kind: Precipitation; intensity: number };
+  wallPlacementFace?: number;
   cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
 }
@@ -698,11 +700,13 @@ export class SurfaceWorld3D {
     settlement: Settlement, key: string, wall: Settlement["walls"][string],
     x: number, y: number, depth: number,
   ) {
-    const rotation = settlement.wallRotations?.[key];
-    put(
-      `wall:${key}:${wall}:${rotation}`, (x + 0.5) * TILE, (y + 1) * TILE, depth * TILE,
-      () => this.orientedPiece(wall === true ? "woodWall" : wall, false, 1, false, rotation),
+    const draw = (material: typeof wall, rotation?: number) => put(
+      `wall:${key}:${material}:${rotation}`, (x + 0.5) * TILE, (y + 1) * TILE, depth * TILE,
+      () => this.orientedPiece(material === true ? "woodWall" : material, false, 1, false, rotation),
     ).userData.cell = { x, y, depth, wall: true, rotation };
+    draw(wall, settlement.wallRotations?.[key]);
+    for (const [face, material] of Object.entries(settlement.cornerWalls?.[key] ?? {}))
+      draw(material, Number(face));
   }
 
   pointAt(nx: number, ny: number, hitSolid: boolean, pickPreview = false): SurfaceTarget | undefined {
@@ -754,6 +758,12 @@ export class SurfaceWorld3D {
         const target = node?.userData;
         if (!hitSolid && target?.cell?.wall) {
           const { x, y, depth, rotation = 0 } = target.cell;
+          const face = frame.wallPlacementFace;
+          if (face !== undefined && face !== rotation &&
+              !frame.settlement.cornerWalls?.[keyAt(x, y, depth)]?.[face] &&
+              (frame.settlement.wallRotations?.[keyAt(x, y, depth)] ?? 0) !== face) {
+            return { x, y, depth, wx: picked.point.x, wy: -picked.point.y };
+          }
           const sideways = rotation % 2 !== 0;
           const horizontal = sideways
             ? picked.point.z / TILE - depth
@@ -772,6 +782,7 @@ export class SurfaceWorld3D {
           x: target?.cell?.x ?? Math.floor(picked.point.x / TILE),
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
           depth: target?.cell?.depth ?? target?.dropDepth ?? 0,
+          ...(target?.cell?.wall ? { wallFace: target.cell.rotation ?? 0 } : {}),
           ...target?.flora,
         };
       }

@@ -228,3 +228,20 @@ it("alinha a colisão de paredes e portas giradas no eixo de profundidade", () =
   settlement.pieces["0,8,4"]!.open = true;
   expect(surfaceWallBlocks(settlement, 2, 120, 64)).toBe(false);
 });
+
+it("fecha cantos com duas paredes na mesma célula e desmonta apenas a face selecionada", () => {
+  const terrain = new Terrain(planet, { "0,8,3": 0, "0,9,3": 2 });
+  const settlement = emptySettlement();
+  const ctx = {
+    terrain, settlement, inventory: { woodWall: 2, metalWall: 1 }, capacity: 24,
+    player: { x: -30, y: 136, surfaceZ: 48 }, landingX: 100, depth: 3, rotation: 0,
+  };
+  expect(placePiece(ctx, "woodWall", 0, 8)).toBeUndefined();
+  expect(placePiece(ctx, "woodWall", 0, 8)).toBe("Já existe uma peça nesta camada.");
+  expect(placePiece({ ...ctx, rotation: 1 }, "metalWall", 0, 8)).toBeUndefined();
+  expect(surfaceWallBlocks(settlement, 2, 136, 48)).toBe(true);
+  expect(removePiece(ctx, 0, 8, true, 0)).toBeUndefined();
+  expect(ctx.inventory.woodWall).toBe(2);
+  expect(settlement.depthWalls?.["0,8,3"]).toBe("metalWall");
+  expect(settlement.wallRotations?.["0,8,3"]).toBe(1);
+});

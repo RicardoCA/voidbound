@@ -36,7 +36,10 @@ export function surfaceWallPenetration(settlement: Settlement, x: number, y: num
         const wall = (depth ? settlement.depthWalls : settlement.walls)?.[key];
         const door = pieceAt(settlement, column, row, depth)?.piece;
         const rotations = [];
-        if (wall) rotations.push(settlement.wallRotations?.[key] ?? 0);
+        if (wall) {
+          rotations.push(settlement.wallRotations?.[key] ?? 0);
+          for (const face of Object.keys(settlement.cornerWalls?.[key] ?? {})) rotations.push(Number(face));
+        }
         if (door?.kind === "woodDoor" && !door.open && door.rotation !== undefined)
           rotations.push(door.rotation);
         for (const rotation of rotations) {

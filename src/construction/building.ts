@@ -104,11 +104,14 @@ export function placementError(
       return kind === "woodDoor"
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
         : "Minere o terreno antes de construir aqui.";
-    if (
-      isWall(kind)
-        ? walls?.[keyAt(cell.x, cell.y, depth)]
-        : pieceAt(settlement, cell.x, cell.y, depth)
-    )
+    const key = keyAt(cell.x, cell.y, depth);
+    const rotation = ctx.rotation;
+    const wallOccupied = walls?.[key] && (
+      rotation === undefined ||
+      (settlement.wallRotations?.[key] ?? 0) === rotation ||
+      settlement.cornerWalls?.[key]?.[rotation]
+    );
+    if (isWall(kind) ? wallOccupied : pieceAt(settlement, cell.x, cell.y, depth))
       return "Já existe uma peça nesta camada.";
   }
   if (
@@ -163,7 +166,7 @@ export function placementError(
   const wallBacking = kind === "picture" && walls?.[keyAt(x, y, depth)];
   if (kind === "picture" && !wallBacking)
     return "Instale o quadro sobre uma parede de fundo.";
-  if (!supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking)
+  if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
     (isCabinet(kind) ||
@@ -202,8 +205,14 @@ export function placePiece(
   const key = keyAt(x, y, ctx.depth);
   if (isWall(kind)) {
     const walls = ctx.depth ? (ctx.settlement.depthWalls ??= {}) : ctx.settlement.walls;
-    walls[key] = kind === "woodWall" ? true : kind;
-    if (ctx.rotation !== undefined) (ctx.settlement.wallRotations ??= {})[key] = ctx.rotation;
+    const material = kind === "woodWall" ? true : kind;
+    if (walls[key] && ctx.rotation !== undefined) {
+      const corners = (ctx.settlement.cornerWalls ??= {});
+      (corners[key] ??= {})[ctx.rotation] = material;
+    } else {
+      walls[key] = material;
+      if (ctx.rotation !== undefined) (ctx.settlement.wallRotations ??= {})[key] = ctx.rotation;
+    }
   }
   else {
     ctx.settlement.pieces[key] = {
@@ -222,12 +231,16 @@ export function removePiece(
   x: number,
   y: number,
   wallLayer = false,
+  wallFace?: number,
 ) {
   if (Math.hypot(x * 16 + 8 - ctx.player.x, y * 16 + 8 - ctx.player.y, (ctx.depth ?? 0) * 16 - (ctx.depth === undefined ? 0 : ctx.player.surfaceZ ?? 0)) > BUILD_RANGE) return "Aproxime-se para desmontar.";
   const walls = ctx.depth ? ctx.settlement.depthWalls : ctx.settlement.walls;
   const located = pieceAt(ctx.settlement, x, y, ctx.depth),
     key = wallLayer ? keyAt(x, y, ctx.depth) : (located?.key ?? keyAt(x, y, ctx.depth));
-  const wall = walls?.[key];
+  const primaryFace = ctx.settlement.wallRotations?.[key] ?? 0;
+  const corners = ctx.settlement.cornerWalls?.[key];
+  const extraFace = wallFace !== undefined && wallFace !== primaryFace ? wallFace : undefined;
+  const wall = extraFace === undefined ? walls?.[key] : corners?.[extraFace];
   const kind = wallLayer
     ? wall === true
       ? "woodWall"
@@ -242,8 +255,20 @@ export function removePiece(
   if (!add(ctx.inventory, kind, 1, ctx.capacity))
     return "Carga cheia: não há espaço para recuperar a peça.";
   if (wallLayer && walls) {
-    delete walls[key];
-    if (ctx.settlement.wallRotations) delete ctx.settlement.wallRotations[key];
+    if (extraFace !== undefined && corners) delete corners[extraFace];
+    else {
+      const replacement = Object.entries(corners ?? {})[0];
+      if (replacement && corners) {
+        const [face, material] = replacement;
+        walls[key] = material;
+        (ctx.settlement.wallRotations ??= {})[key] = Number(face);
+        delete corners[face];
+      } else {
+        delete walls[key];
+        if (ctx.settlement.wallRotations) delete ctx.settlement.wallRotations[key];
+      }
+    }
+    if (corners && !Object.keys(corners).length) delete ctx.settlement.cornerWalls?.[key];
   }
   else {
     delete ctx.settlement.pieces[key];
