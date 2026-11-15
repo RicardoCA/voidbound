@@ -245,6 +245,15 @@ export class WorldScene extends Phaser.Scene {
         canvas.setPointerCapture(event.pointerId);
         return;
       }
+      if (
+        flight3D.surfaceView && onSurface() && event.pointerType === "mouse" &&
+        document.pointerLockElement !== canvas && canvas.requestPointerLock
+      ) {
+        void Promise.resolve(canvas.requestPointerLock()).catch(() => {
+          this.store.notify("Use Controlar câmera ou arraste com o botão direito.");
+        });
+        return;
+      }
       const g = this.store;
       if (
         g.started &&
@@ -469,6 +478,10 @@ export class WorldScene extends Phaser.Scene {
       )
         this.store.panel = this.store.panel === "craft" ? "" : "craft";
       if (e.code === "Escape") {
+        if (document.pointerLockElement === canvas) {
+          document.exitPointerLock();
+          return;
+        }
         if (this.store.panel) this.store.panel = "";
         else if (this.building.enabled) this.building.disable();
         else this.store.paused = !this.store.paused;

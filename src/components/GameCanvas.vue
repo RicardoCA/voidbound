@@ -86,6 +86,7 @@ function lockSurfaceMouse() {
 }
 function onPointerLock() {
   mouseLocked.value = document.pointerLockElement === game?.canvas;
+  if (mouseLocked.value && !surfaceControls.value) document.exitPointerLock();
 }
 const landingComputer = computed(
   () => props.playing && g.state.mode === "orbit" && !g.inSequence && !g.busy,
