@@ -8,6 +8,17 @@ import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Settlement } from "../types";
 
+const equipmentModels = {
+  battery: { file: "bateria", width: 13, height: 12, depth: 9, center: -5 },
+  oxygenGenerator: { file: "gerador-oxigenio", width: 13, height: 12, depth: 9, center: -5 },
+  solarPanel: { file: "placa-solar", width: 15, height: 11, depth: 10, center: -6 },
+  cabinet: { file: "bau", width: 14, height: 14, depth: 11, center: -5 },
+  cabinetDouble: { file: "bau-duplo", width: 30, height: 14, depth: 11, center: -5 },
+  cabinetTriple: { file: "bau-triplo", width: 46, height: 14, depth: 11, center: -5 },
+} satisfies Partial<Record<BuildItem, {
+  file: string; width: number; height: number; depth: number; center: number;
+}>>;
+
 type Point = { x: number; y: number };
 export interface SurfaceTarget extends Point {
   wallFace?: number;
@@ -152,7 +163,14 @@ export class SurfaceWorld3D {
   private attachLifeModel(
     group: T.Group, key: string, width: number, height: number, depth: number,
   ) {
-    void this.loadModel?.("biosfera/" + key)
+    this.attachSurfaceModel(group, "biosfera/" + key, width, height, depth);
+  }
+
+  private attachSurfaceModel(
+    group: T.Group, file: string, width: number, height: number, depth: number,
+    centerZ = 0,
+  ) {
+    void this.loadModel?.(file)
       .then((asset) => {
         if (!group.parent) return;
         const model = asset.clone();
@@ -164,13 +182,13 @@ export class SurfaceWorld3D {
         model.position.set(
           -center.x * model.scale.x,
           -bounds.min.y * model.scale.y,
-          -center.z * model.scale.z,
+          centerZ - center.z * model.scale.z,
         );
         group.clear();
         group.add(model);
       })
       .catch((error: unknown) =>
-        console.warn("Modelo da biosfera indisponível.", key, error),
+        console.warn("Modelo da superfície indisponível.", file, error),
       );
   }
 
@@ -684,6 +702,10 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number) {
     const piece = this.piece(kind, open, facing, powered);
+    const model = equipmentModels[kind as keyof typeof equipmentModels];
+    if (model) this.attachSurfaceModel(
+      piece, "equipamentos-base/" + model.file, model.width, model.height, model.depth, model.center,
+    );
     if (rotation === undefined) return piece;
     const group = new T.Group();
     const pivot = new T.Group();
