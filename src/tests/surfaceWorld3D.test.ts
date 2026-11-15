@@ -1,4 +1,4 @@
-import { Texture, TextureLoader } from "three";
+import { InstancedMesh, Matrix4, Texture, TextureLoader } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { emptySettlement } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
@@ -51,8 +51,23 @@ it.each([
         y: 9,
         depth: -1,
       });
+      const hasBlockMesh = () => {
+        let found = false;
+        const transform = new Matrix4();
+        world.scene.traverse((object) => {
+          if (!(object instanceof InstancedMesh)) return;
+          for (let i = 0; i < object.count; i++) {
+            object.getMatrixAt(i, transform);
+            const [x, y, z] = transform.elements.slice(12, 15);
+            if (x === 8 && y === -152 && z === -32) found = true;
+          }
+        });
+        return found;
+      };
+      expect(hasBlockMesh()).toBe(true);
       terrain.remove(0, 9, -2);
-      world.update({ ...frame, revision: 1 }, width, height);
+      world.update(frame, width, height);
+      expect(hasBlockMesh()).toBe(false);
       expect(world.pointAt(0, 0, true)).toBeUndefined();
     } finally {
       world.dispose();

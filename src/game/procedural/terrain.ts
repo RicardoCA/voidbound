@@ -21,6 +21,11 @@ export const tileItems: Record<number, Item> = {
 export class Terrain {
   private noise;
   private depthNoise;
+  private edits = 0;
+
+  get editRevision() {
+    return this.edits;
+  }
   private depthHeights = new LRU<string, number>(1200);
   private cache = new LRU<number, Uint8Array>(12);
   constructor(
@@ -121,6 +126,7 @@ export class Terrain {
 
   remove(x: number, y: number, depth = 0) {
     this.changes[this.keyAt(x, y, depth)] = 0;
+    this.edits++;
   }
   get cachedChunks() {
     return this.cache.size;

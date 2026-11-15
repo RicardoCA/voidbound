@@ -86,6 +86,7 @@ export class SurfaceWorld3D {
   private readonly ray = new T.Raycaster();
   private readonly rayPoint = new T.Vector3();
   private groundKey = "";
+  private groundTerrain?: Terrain;
   private planetKey = "";
   private targetFrame?: SurfaceFrame;
   private bounds = { left: 0, right: 0, top: 0, bottom: 0 };
@@ -156,11 +157,13 @@ export class SurfaceWorld3D {
     const key = [
       terrain.planet.id,
       frame.revision,
+      terrain.editRevision,
       centerX,
       centerZ,
       playerRow,
     ].join(":");
-    if (key === this.groundKey) return;
+    if (terrain === this.groundTerrain && key === this.groundKey) return;
+    this.groundTerrain = terrain;
     this.groundKey = key;
     const solidTiles: { x: number; y: number; z: number; tile: number }[] = [];
     for (let x = centerX - terrainRadius; x <= centerX + terrainRadius + 2; x++)
@@ -209,6 +212,7 @@ export class SurfaceWorld3D {
         color.lerp(this.dayColor.setHex(ores[tile]!), 0.54);
       surface.setColorAt(index, color);
     });
+    surface.instanceMatrix.needsUpdate = true;
     this.ground.add(surface);
   }
 
