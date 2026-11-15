@@ -138,12 +138,14 @@ export type BuildItem =
 export interface PlacedPiece {
   kind: Exclude<BuildItem, "woodWall" | "stoneWall" | "metalWall">;
   facing: 1 | -1;
+  rotation?: number;
   open?: boolean;
   energy?: number;
   oxygen?: number;
   powered?: boolean;
 }
 export interface Settlement {
+  wallRotations?: Record<string, number>;
   depthWalls?: Settlement["walls"];
   depthBlocks?: Record<string, true>;
   pieces: Record<string, PlacedPiece>;

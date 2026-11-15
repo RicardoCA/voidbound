@@ -1,6 +1,6 @@
 import type { Fruit } from "../../survival/wildlife";
 import type { AlienTree } from "../procedural/trees";
-import { blocksAir } from "../../construction/pieces";
+import { pieceAt } from "../../construction/pieces";
 import { TILE, type Terrain } from "../procedural/terrain";
 import type { Settlement } from "../types";
 import type { Actor } from "./surface";
@@ -14,39 +14,44 @@ export function solidSurfaceVoxel(
   y: number,
   depth: number,
 ) {
-  return (
-    terrain.getAt(x, y, depth) !== 0 ||
-    (depth === 0
-      ? blocksAir(settlement, x, y)
-      : !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)])
-  );
+  const piece = pieceAt(settlement, x, y, depth)?.piece;
+  return terrain.getAt(x, y, depth) !== 0 ||
+    !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
+    piece?.kind === "woodBlock" ||
+    (!!piece && !piece.open && (piece.kind === "woodHatch" ||
+      (piece.kind === "woodDoor" && piece.rotation === undefined)));
 }
 
 export const surfaceWallZ = -6;
 export const surfaceWallThickness = 3;
 
-export function surfaceWallBlocks(
-  settlement: Settlement,
-  x: number,
-  y: number,
-  z: number,
-) {
-  const depth = Math.round((z - surfaceWallZ) / TILE);
-  if (Math.abs(z - (depth * TILE + surfaceWallZ)) >= surfaceWallThickness / 2 + 3.8)
-    return false;
-  for (
-    let column = Math.floor((x - 3.8) / TILE);
-    column <= Math.floor((x + 3.8) / TILE);
-    column++
-  )
-    for (
-      let row = Math.floor((y - 11.9) / TILE);
-      row <= Math.floor((y + 11.9) / TILE);
-      row++
-    )
-      if (depth === 0 ? settlement.walls[`${column},${row}`] :
-        settlement.depthWalls?.[`${column},${row},${depth}`]) return true;
-  return false;
+export function surfaceWallPenetration(settlement: Settlement, x: number, y: number, z: number) {
+  const margin = 3.8;
+  const halfPanel = surfaceWallThickness / 2 + margin;
+  let penetration = 0;
+  for (let depth = surfaceLayer(z - margin); depth <= surfaceLayer(z + margin); depth++)
+    for (let column = Math.floor((x - margin) / TILE); column <= Math.floor((x + margin) / TILE); column++)
+      for (let row = Math.floor((y - 11.9) / TILE); row <= Math.floor((y + 11.9) / TILE); row++) {
+        const key = depth ? `${column},${row},${depth}` : `${column},${row}`;
+        const wall = (depth ? settlement.depthWalls : settlement.walls)?.[key];
+        const door = pieceAt(settlement, column, row, depth)?.piece;
+        const rotations = [];
+        if (wall) rotations.push(settlement.wallRotations?.[key] ?? 0);
+        if (door?.kind === "woodDoor" && !door.open && door.rotation !== undefined)
+          rotations.push(door.rotation);
+        for (const rotation of rotations) {
+          const offset = rotation < 2 ? surfaceWallZ : -surfaceWallZ;
+          const normal = rotation % 2 === 0
+            ? z - depth * TILE - offset
+            : x - (column + 0.5) * TILE - offset;
+          penetration = Math.max(penetration, halfPanel - Math.abs(normal));
+        }
+      }
+  return penetration;
+}
+
+export function surfaceWallBlocks(settlement: Settlement, x: number, y: number, z: number) {
+  return surfaceWallPenetration(settlement, x, y, z) > 0;
 }
 
 export function surfaceFloraCollision(

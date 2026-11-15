@@ -34,7 +34,7 @@ export interface SurfaceFrame {
   ruin?: Point;
   representative?: Point;
   storm?: { kind: Precipitation; intensity: number };
-  cursor?: Point & { valid: boolean; depth?: number };
+  cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
 }
 
@@ -406,42 +406,19 @@ export class SurfaceWorld3D {
       for (let y = top; y < bottom; y++) {
         const key = x + "," + y;
         const wall = settlement.walls[key];
-        if (wall)
-          put(
-            "wall:" + key + ":" + wall,
-            (x + 0.5) * TILE,
-            (y + 1) * TILE,
-            0,
-            () =>
-              this.piece(wall === true ? "woodWall" : wall, false, 1, false),
-          ).userData.cell = { x, y, depth: 0, wall: true };
-        const piece = settlement.pieces[key];
-        if (piece) {
-          const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
-          put(
-            "piece:" +
-              key +
-              ":" +
-              piece.kind +
-              ":" +
-              piece.open +
-              ":" +
-              piece.facing +
-              ":" +
-              piece.powered,
-            (x + size / 2) * TILE,
-            (y + 1) * TILE,
-            0,
-            () =>
-              this.piece(
-                piece.kind,
-                !!piece.open,
-                piece.facing,
-                !!piece.powered,
-              ),
-          ).userData.cell = { x, y };
-        }
+        if (wall) this.putWall(put, settlement, key, wall, x, y, 0);
       }
+    for (const [key, piece] of Object.entries(settlement.pieces)) {
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+      if (x < left - 3 || x > right || y < top || y > bottom ||
+          Math.abs(depth * TILE - z) > 224) continue;
+      const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
+      put(
+        `piece:${key}:${piece.kind}:${piece.open}:${piece.facing}:${piece.powered}:${piece.rotation}`,
+        (x + size / 2) * TILE, (y + 1) * TILE, depth * TILE,
+        () => this.orientedPiece(piece.kind, !!piece.open, piece.facing, !!piece.powered, piece.rotation),
+      ).userData.cell = { x, y, depth };
+    }
     const trees = [
       ...(Math.abs(z) < 230 ? treesInRange(planet, terrain, left, right, settlement.cutTrees) : []),
       ...spatialTreesNear(terrain, x, z, settlement.cutTrees),
@@ -610,27 +587,13 @@ export class SurfaceWorld3D {
         return group;
       });
     for (const [key, kind] of Object.entries({ ...settlement.depthBlocks, ...settlement.depthWalls })) {
+      const [tx = 0, ty = 0, depth = 0] = key.split(",").map(Number);
+      if (tx < left || tx > right || ty < top || ty > bottom ||
+          Math.abs(depth * TILE - z) > 224) continue;
       const wall = settlement.depthWalls?.[key];
-      const [tx, ty, depth] = key.split(",").map(Number) as [
-        number,
-        number,
-        number,
-      ];
-      if (
-        tx < left ||
-        tx > right ||
-        ty < top ||
-        ty > bottom ||
-        Math.abs(depth * TILE - z) > 224
-      )
-        continue;
-      put(
-        (wall ? "wall:" : "depthBlock:") + key + ":" + kind,
-        (tx + 0.5) * TILE,
-        (ty + 1) * TILE,
-        depth * TILE,
-        () => this.piece(wall === true ? "woodWall" : wall || "woodBlock", false, 1, false),
-      ).userData.cell = { x: tx, y: ty, depth, wall: !!wall };
+      if (wall) this.putWall(put, settlement, key, wall, tx, ty, depth);
+      else put("depthBlock:" + key + ":" + kind, (tx + 0.5) * TILE,
+        (ty + 1) * TILE, depth * TILE, () => this.piece("woodBlock", false, 1, false));
     }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
@@ -644,7 +607,21 @@ export class SurfaceWorld3D {
         -(frame.cursor.y + 0.5) * TILE,
         (frame.cursor.depth ?? 0) * TILE,
       );
-      this.cursor.scale.set(TILE + 0.3, TILE + 0.3, TILE + 0.3);
+      const { kind, rotation = 0 } = frame.cursor;
+      const panel = kind === "woodDoor" || kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
+      const angle = rotation * Math.PI / 2;
+      this.cursor.rotation.y = angle;
+      this.cursor.scale.set(
+        kind && isCabinet(kind) ? cabinetWidths[kind] * TILE : TILE + 0.3,
+        kind === "woodDoor" ? TILE * 2 : TILE + 0.3,
+        panel ? 4 : TILE + 0.3,
+      );
+      if (kind && isCabinet(kind)) this.cursor.position.x += (cabinetWidths[kind] - 1) * TILE / 2;
+      if (kind === "woodDoor") this.cursor.position.y += TILE / 2;
+      if (panel) {
+        this.cursor.position.x += Math.sin(angle) * surfaceWallZ;
+        this.cursor.position.z += Math.cos(angle) * surfaceWallZ;
+      }
       this.cursor.material.color.setHex(
         frame.cursor.valid ? 0x8ff1dd : 0xff816f,
       );
@@ -703,6 +680,31 @@ export class SurfaceWorld3D {
     };
   }
 
+  private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number) {
+    const piece = this.piece(kind, open, facing, powered);
+    if (rotation === undefined) return piece;
+    const group = new T.Group();
+    const pivot = new T.Group();
+    pivot.position.z = -8;
+    pivot.rotation.y = rotation * Math.PI / 2;
+    piece.position.z = kind === "woodDoor" ? -4 : 8;
+    pivot.add(piece);
+    group.add(pivot);
+    return group;
+  }
+
+  private putWall(
+    put: (key: string, x: number, y: number, z: number, make: () => T.Group) => T.Group,
+    settlement: Settlement, key: string, wall: Settlement["walls"][string],
+    x: number, y: number, depth: number,
+  ) {
+    const rotation = settlement.wallRotations?.[key];
+    put(
+      `wall:${key}:${wall}:${rotation}`, (x + 0.5) * TILE, (y + 1) * TILE, depth * TILE,
+      () => this.orientedPiece(wall === true ? "woodWall" : wall, false, 1, false, rotation),
+    ).userData.cell = { x, y, depth, wall: true, rotation };
+  }
+
   pointAt(nx: number, ny: number, hitSolid: boolean): SurfaceTarget | undefined {
     const frame = this.targetFrame;
     if (!frame) return;
@@ -744,12 +746,18 @@ export class SurfaceWorld3D {
         while (node?.parent && node.parent !== this.scene) node = node.parent;
         const target = node?.userData;
         if (!hitSolid && target?.cell?.wall) {
-          const { x, y, depth } = target.cell;
-          const dx = picked.point.x / TILE - x - 0.5;
-          const dy = -picked.point.y / TILE - y - 0.5;
-          const nextX = x + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) || 1 : 0);
-          const nextY = y + (Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) || -1 : 0);
-          return { x: nextX, y: nextY, depth, wx: (nextX + 0.5) * TILE, wy: (nextY + 0.5) * TILE };
+          const { x, y, depth, rotation = 0 } = target.cell;
+          const sideways = rotation % 2 !== 0;
+          const horizontal = sideways
+            ? picked.point.z / TILE - depth
+            : picked.point.x / TILE - x - 0.5;
+          const vertical = -picked.point.y / TILE - y - 0.5;
+          const alongWall = Math.abs(horizontal) > Math.abs(vertical);
+          const shift = alongWall ? Math.sign(horizontal) : 0;
+          const nextX = x + (sideways ? 0 : shift);
+          const nextDepth = depth + (sideways ? shift : 0);
+          const nextY = y + (alongWall ? 0 : Math.sign(vertical) || -1);
+          return { x: nextX, y: nextY, depth: nextDepth, wx: (nextX + 0.5) * TILE, wy: (nextY + 0.5) * TILE };
         }
         return {
           wx: picked.point.x,

@@ -1,5 +1,5 @@
 import type { BuildItem, Settlement } from "../game/types";
-export const keyAt = (x: number, y: number) => `${x},${y}`;
+export const keyAt = (x: number, y: number, depth = 0) => depth ? `${x},${y},${depth}` : `${x},${y}`;
 export const cabinetWidths = {
   cabinet: 1,
   fridge: 1,
@@ -21,13 +21,13 @@ export function footprint(kind: BuildItem, x: number, y: number) {
         (_, offset) => ({ x: x + offset, y }),
       );
 }
-export function pieceAt(data: Settlement, x: number, y: number) {
-  const key = keyAt(x, y),
+export function pieceAt(data: Settlement, x: number, y: number, depth = 0) {
+  const key = keyAt(x, y, depth),
     piece = data.pieces[key];
   if (piece) return { key, piece, x, y };
   for (let offset = 1; offset < cabinetWidths.cabinetTriple; offset++) {
     const anchor = x - offset;
-    const cabinetKey = keyAt(anchor, y);
+    const cabinetKey = keyAt(anchor, y, depth);
     const cabinet = data.pieces[cabinetKey];
     if (
       cabinet &&
@@ -36,7 +36,7 @@ export function pieceAt(data: Settlement, x: number, y: number) {
     )
       return { key: cabinetKey, piece: cabinet, x: anchor, y };
   }
-  const belowKey = keyAt(x, y + 1),
+  const belowKey = keyAt(x, y + 1, depth),
     below = data.pieces[belowKey];
   if (below?.kind === "woodDoor")
     return { key: belowKey, piece: below, x, y: y + 1 };
@@ -49,8 +49,8 @@ export function isWall(
 export function isOpening(kind: BuildItem | undefined) {
   return kind === "woodDoor" || kind === "woodHatch";
 }
-export function blocksAir(data: Settlement, x: number, y: number) {
-  const piece = pieceAt(data, x, y)?.piece;
+export function blocksAir(data: Settlement, x: number, y: number, depth = 0) {
+  const piece = pieceAt(data, x, y, depth)?.piece;
   return (
     piece?.kind === "woodBlock" ||
     (piece !== undefined && isOpening(piece.kind) && !piece.open)

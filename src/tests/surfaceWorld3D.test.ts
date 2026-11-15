@@ -1,7 +1,7 @@
 import { treeAt } from "../game/procedural/trees";
 import { InstancedMesh, Matrix4, Texture, TextureLoader } from "three";
 import { afterEach, expect, it, vi } from "vitest";
-import { emptySettlement } from "../construction/building";
+import { emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import {
   solidSurfaceVoxel,
@@ -192,3 +192,32 @@ it.each([true, "stoneWall", "metalWall"] as const)(
     expect(surfaceWallBlocks(settlement, 8, 148, 8)).toBe(false);
   },
 );
+
+it("instala e desmonta um armário sobre piso de madeira fora da faixa original", () => {
+  const terrain = new Terrain(planet, { "0,8,3": 0, "0,9,3": 0 });
+  const settlement = emptySettlement();
+  settlement.depthBlocks = { "0,9,3": true };
+  const ctx = {
+    terrain, settlement, inventory: { cabinet: 1 }, capacity: 24,
+    player: { x: -30, y: 136, surfaceZ: 48 }, landingX: 100, depth: 3, rotation: 1,
+  };
+  expect(placementError(ctx, "cabinet", 0, 8)).toBeUndefined();
+  expect(placePiece(ctx, "cabinet", 0, 8)).toBeUndefined();
+  expect(settlement.pieces["0,8,3"]).toMatchObject({ kind: "cabinet", rotation: 1 });
+  expect(settlement.cabinets["0,8,3"]).toEqual({});
+  expect(removePiece(ctx, 0, 8)).toBeUndefined();
+  expect(ctx.inventory.cabinet).toBe(1);
+  expect(settlement.depthBlocks["0,9,3"]).toBe(true);
+});
+
+it("alinha a colisão de paredes e portas giradas no eixo de profundidade", () => {
+  const settlement = emptySettlement();
+  settlement.depthWalls = { "0,8,3": "metalWall" };
+  settlement.wallRotations = { "0,8,3": 1 };
+  settlement.pieces["0,8,4"] = { kind: "woodDoor", facing: 1, rotation: 1, open: false };
+  expect(surfaceWallBlocks(settlement, 2, 136, 48)).toBe(true);
+  expect(surfaceWallBlocks(settlement, 11, 136, 48)).toBe(false);
+  expect(surfaceWallBlocks(settlement, 2, 120, 64)).toBe(true);
+  settlement.pieces["0,8,4"]!.open = true;
+  expect(surfaceWallBlocks(settlement, 2, 120, 64)).toBe(false);
+});

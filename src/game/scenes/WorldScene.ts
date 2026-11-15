@@ -1,5 +1,5 @@
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
-import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallBlocks, surfaceWallZ } from "../physics/surfaceDepth";
+import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -980,6 +980,10 @@ export class WorldScene extends Phaser.Scene {
           const cabinet = this.building.nearestInteraction();
           if (g.recoverBackpack()) return;
           if (Math.abs(s.player.surfaceZ ?? 0) > 38) {
+            if (cabinet.key) {
+              const [x, y, depth] = cabinet.key.split(",").map(Number);
+              if (this.building.interactAt(x!, y!, depth)) return;
+            }
             const fruit = this.fruit.find((candidate) => this.canReachFruit(candidate));
             if (fruit) this.gatherFruit(fruit);
             else g.notify("Aproxime-se da base, da nave ou de frutas para interagir.");
@@ -992,16 +996,16 @@ export class WorldScene extends Phaser.Scene {
             cabinet.key &&
             cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
           ) {
-            const [x, y] = cabinet.key.split(",").map(Number);
-            this.building.interactAt(x!, y!);
+            const [x, y, depth] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!, depth);
           } else if (
             Math.abs(s.player.x - s.landingX * 16) < 90 &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
             g.enter();
           else if (cabinet.key) {
-            const [x, y] = cabinet.key.split(",").map(Number);
-            this.building.interactAt(x!, y!);
+            const [x, y, depth] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!, depth);
           } else {
             const fruit = this.fruit.find((target) =>
               this.canReachFruit(target),
@@ -1723,8 +1727,7 @@ export class WorldScene extends Phaser.Scene {
             ],
             this.fruit,
           );
-          const wallCenter = Math.round((z - surfaceWallZ) / 16) * 16 + surfaceWallZ;
-          const insideWall = surfaceWallBlocks(settlement, p.x, p.y, z);
+          const wallDepth = surfaceWallPenetration(settlement, p.x, p.y, z);
           return stepSurfaceDepth(
             { ...actor, z },
             Math.sin(yaw) * step,
@@ -1732,8 +1735,7 @@ export class WorldScene extends Phaser.Scene {
             jump, g.planet.gravity, dt,
             (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
             (x, y, depth) => flora(x, y, depth) ||
-              ((!insideWall || Math.abs(depth - wallCenter) <= Math.abs(z - wallCenter)) &&
-                surfaceWallBlocks(settlement, x, y, depth)),
+              surfaceWallPenetration(settlement, x, y, depth) > wallDepth,
           );
         })()
       : undefined;
@@ -1784,8 +1786,9 @@ export class WorldScene extends Phaser.Scene {
     if (
       tap &&
       (g.recoverBackpack(tap) ||
-        (!tap.terrain && tap.depth === 0 && Math.abs(p.surfaceZ ?? 0) < 38 &&
-          (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))))
+        (!tap.terrain &&
+          ((!tap.depth && Math.abs(p.surfaceZ ?? 0) < 38 && this.talkToRepresentative(tap)) ||
+            this.building.interactAt(tap.x, tap.y, tap.depth))))
     )
       return;
     if (tap?.fruitId) {
@@ -2010,7 +2013,7 @@ export class WorldScene extends Phaser.Scene {
         ruin: g.surfaceRuin,
         representative: this.representativePosition(),
         storm,
-        cursor: cursor ? { ...cursor, valid: !this.building.lastError } : undefined,
+        cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
         beam: this.beam,
       };
       this.particles = [];

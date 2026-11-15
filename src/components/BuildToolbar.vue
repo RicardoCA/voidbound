@@ -3,13 +3,14 @@ import ItemIcon from "./ItemIcon.vue";
 import { computed } from "vue";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
+import { flight3D } from "../game/rendering/flight3D";
 import { items } from "../game/types";
 const g = useGame(),
   b = useConstruction();
 const error = computed(
   () =>
     b.lastError ||
-    (b.cursor && !b.removing ? b.errorAt(b.cursor.x, b.cursor.y) : undefined),
+    (b.cursor && !b.removing ? b.errorAt(b.cursor.x, b.cursor.y, flight3D.surfaceView ? b.cursor.depth : undefined) : undefined),
 );
 </script>
 <template>
@@ -44,12 +45,12 @@ const error = computed(
       ⌫
     </button>
     <button
-      aria-label="Inverter escada"
-      title="Inverter escada (R)"
-      :disabled="b.selected !== 'woodStairs'"
+      aria-label="Girar peça"
+      title="Girar peça (R)"
+      :disabled="!b.canRotate || b.removing"
       @click="b.rotate"
     >
-      {{ b.facing === 1 ? "↗" : "↖" }}
+      {{ flight3D.surfaceView ? `↻ ${b.rotation * 90}°` : b.facing === 1 ? "↗" : "↖" }}
     </button>
     <button
       aria-label="Sair da construção"

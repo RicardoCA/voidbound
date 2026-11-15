@@ -1,4 +1,4 @@
-import { consume } from "../inventory/inventory";
+import { flight3D } from "../game/rendering/flight3D";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
@@ -44,6 +44,7 @@ export const useConstruction = defineStore("construction", () => {
     removing = ref(false),
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
+    rotation = ref(0),
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
     cursor = ref<{ x: number; y: number; depth?: number } | null>(null),
@@ -77,8 +78,8 @@ export const useConstruction = defineStore("construction", () => {
   function cabinetInReach(key: string) {
     const kind = settlement.value.pieces[key]?.kind;
     if (!isCabinet(kind)) return false;
-    const [x, y] = key.split(",").map(Number);
-    return inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
+    const [x, y, depth = 0] = key.split(",").map(Number);
+    return Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) <= 24 && inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
   }
   const container = computed(() =>
     activeCabinet.value?.planetId === g.planet.id
@@ -86,13 +87,16 @@ export const useConstruction = defineStore("construction", () => {
       : undefined,
   );
   const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
-  function context() {
+  const canRotate = computed(() => flight3D.surfaceView ? selected.value !== "woodBlock" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
+  function context(depth?: number) {
     return {
       terrain: terrain.value,
       settlement: settlementFor(g.state, g.planet.id),
       inventory: g.state.backpack,
       capacity: BACKPACK_SLOTS,
       player: g.state.player,
+      depth,
+      rotation: depth === undefined ? undefined : rotation.value,
       landingX: g.state.landingX,
     };
   }
@@ -124,15 +128,20 @@ export const useConstruction = defineStore("construction", () => {
     releaseControls();
   }
   function rotate() {
-    facing.value = facing.value === 1 ? -1 : 1;
+    if (!canRotate.value) return;
+    lastError.value = "";
+    if (flight3D.surfaceView) rotation.value = (rotation.value + 1) % 4;
+    else facing.value = facing.value === 1 ? -1 : 1;
   }
-  function errorAt(x: number, y: number) {
-    const ctx = context(),
+  function errorAt(x: number, y: number, depth?: number) {
+    if (depth && !isWall(selected.value) && (!isCabinet(selected.value) || selected.value === "fridge") && !["woodBlock", "woodDoor", "woodHatch"].includes(selected.value))
+      return "Esta peça precisa da faixa original da base.";
+    const ctx = context(depth),
       error = placementError(ctx, selected.value, x, y, facing.value);
     if (error) return error;
     const cells = footprint(selected.value, x, y);
     if (
-      !isWall(selected.value) &&
+      !depth && !isWall(selected.value) &&
       treesInRange(
         g.planet,
         terrain.value,
@@ -147,67 +156,31 @@ export const useConstruction = defineStore("construction", () => {
     )
       return "Corte a árvore antes de construir neste tronco.";
   }
-  function applyDepthBlock(x: number, y: number, depth: number) {
-    const ctx = context();
-    const key = ctx.terrain.keyAt(x, y, depth);
-    const player = g.state.player;
-    const dx = x * 16 + 8 - player.x;
-    const dy = y * 16 + 8 - player.y;
-    const dz = depth * 16 - (player.surfaceZ ?? 0);
-    let error = "";
-    const blocks = (ctx.settlement.depthBlocks ??= {});
-    const walls = (ctx.settlement.depthWalls ??= {});
-    const wall = walls[key];
-    const item = selected.value;
-    const isWall = item === "woodWall" || item === "stoneWall" || item === "metalWall";
-    if (y < 1 || y >= 63 || Math.hypot(dx, dy, dz) > 96)
-      error = "Aproxime-se para construir.";
-    else if (removing.value) {
-      if (wall) {
-        if (!addBatch(ctx.inventory, { [wall === true ? "woodWall" : wall]: 1 }, ctx.capacity))
-          error = "Mochila cheia.";
-        else delete walls[key];
-      } else if (!blocks[key]) error = "Nenhum bloco construído nesta posição.";
-      else if (!addBatch(ctx.inventory, { woodBlock: 1 }, ctx.capacity))
-        error = "Mochila cheia.";
-      else delete blocks[key];
-    } else if (item !== "woodBlock" && !isWall)
-      error = "Esta peça usa a faixa da base. Fora dela, use blocos de madeira.";
-    else if (ctx.terrain.getAt(x, y, depth) || blocks[key] || wall)
-      error = "Este espaço já está ocupado.";
-    else if (Math.abs(dx) < 12 && Math.abs(dy) < 20 && Math.abs(dz) < 12)
-      error = "Saia da posição antes de construir.";
-    else if (!consume(ctx.inventory, { [item]: 1 }))
-      error = "Você não tem esta peça na mochila.";
-    else if (isWall) walls[key] = item === "woodWall" ? true : item;
-    else blocks[key] = true;
-    lastError.value = error;
-    if (error) { g.notify(error); return false; }
-    g.worldChanged();
-    audio.play(removing.value ? 260 : 520, .08);
-    void g.save();
-    return true;
-  }
   function apply(x: number, y: number, depth = 0) {
     if (g.state.mode !== "surface" || g.paused || g.panel || !enabled.value)
       return false;
-    if (depth) return applyDepthBlock(x, y, depth);
+    const buildDepth = flight3D.surfaceView || depth ? depth : undefined;
     g.refreshHabitat();
     let error: string | undefined;
     if (removing.value) {
-      const ctx = context();
-      const wall = ctx.settlement.walls[`${x},${y}`];
-      const foreground = pieceAt(ctx.settlement, x, y);
-      error = removePiece(
-        ctx,
-        x,
-        y,
-        Boolean(wall && (isWall(selected.value) || !foreground)),
-      );
+      const ctx = context(buildDepth);
+      const key = ctx.terrain.keyAt(x, y, depth);
+      const wall = (depth ? ctx.settlement.depthWalls : ctx.settlement.walls)?.[key];
+      const foreground = pieceAt(ctx.settlement, x, y, depth);
+      if (depth && ctx.settlement.depthBlocks?.[key]) {
+        if (!addBatch(ctx.inventory, { woodBlock: 1 }, ctx.capacity)) {
+          lastError.value = "Mochila cheia.";
+          g.notify(lastError.value);
+          return false;
+        }
+        delete ctx.settlement.depthBlocks[key];
+      } else {
+        error = removePiece(ctx, x, y, Boolean(wall && (isWall(selected.value) || !foreground)));
+      }
     } else {
-      error = errorAt(x, y);
+      error = errorAt(x, y, buildDepth);
       if (!error)
-        error = placePiece(context(), selected.value, x, y, facing.value);
+        error = placePiece(context(buildDepth), selected.value, x, y, facing.value);
     }
     if (error) {
       lastError.value = error;
@@ -276,8 +249,8 @@ export const useConstruction = defineStore("construction", () => {
     const piece = settlement.value.pieces[key];
     if (g.state.mode !== "surface" || !piece || !isOpening(piece.kind))
       return false;
-    const [x, y] = key.split(",").map(Number);
-    if (!inReach(g.state.player, x!, y!, 76)) {
+    const [x, y, depth = 0] = key.split(",").map(Number);
+    if (Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24 || !inReach(g.state.player, x!, y!, 76)) {
       g.notify("Aproxime-se da porta para interagir.");
       return false;
     }
@@ -319,8 +292,8 @@ export const useConstruction = defineStore("construction", () => {
     g.sleepInBed();
     return true;
   }
-  function interactAt(x: number, y: number) {
-    const found = pieceAt(settlement.value, x, y);
+  function interactAt(x: number, y: number, depth = 0) {
+    const found = pieceAt(settlement.value, x, y, depth);
     if (!found) return false;
     if (found.piece.kind === "bed") {
       if (
@@ -471,11 +444,14 @@ export const useConstruction = defineStore("construction", () => {
         ].includes(piece.kind)
       )
         continue;
-      const [x, y] = id.split(",").map(Number),
-        d = Math.hypot(
+      const [x, y, depth = 0] = id.split(",").map(Number);
+      const depthDistance = depth * 16 - (g.state.player.surfaceZ ?? 0);
+      if (Math.abs(depthDistance) > 24) continue;
+      const d = Math.hypot(
           x! * 16 +
             (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
             g.state.player.x,
+          depthDistance,
           y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
       if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
@@ -553,6 +529,8 @@ export const useConstruction = defineStore("construction", () => {
     removing,
     selected,
     facing,
+    rotation,
+    canRotate,
     cursor,
     settlement,
     terrain,
