@@ -1,4 +1,4 @@
-import { SurfaceWorld3D } from "./SurfaceWorld3D";
+import { SurfaceWorld3D, type SurfaceFrame } from "./SurfaceWorld3D";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { emptySettlement } from "../../construction/building";
 import { fruitsNear, Wildlife, type Fruit } from "../../survival/wildlife";
@@ -7,7 +7,6 @@ import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { landingTerrain } from "./planetTerrain3D";
 import { biomes, items } from "../types";
 import { SURFACE_SEQUENCE_DURATION } from "../../stores/game";
 import {
@@ -63,16 +62,14 @@ export class Space3D {
     }
   >();
   private landingPlanet?: T.Group;
+  private readonly cinematicSky = new T.Color();
   private landingPlanetKey?: string;
   private surfaceCinematic?: {
     key: string;
-    scene: T.Scene;
-    terrain: T.BufferGeometry;
+    actors: T.Group;
     craft: T.Group;
     ramp: T.Group;
     astronaut: T.Group;
-    sky: T.Color;
-    fog: T.Fog;
   };
   private jumpScene?: T.Scene;
   private jumpFallback?: T.Group;
@@ -1700,8 +1697,13 @@ export class Space3D {
     return true;
   }
 
-  private drawCabinExterior(g: Game, cabinX: number) {
-    const { landingX, time } = g.state;
+  private updateLandingExterior(
+    g: Game,
+    landingX: number,
+    camera: SurfaceFrame["camera"],
+    terrainRadius?: number,
+  ) {
+    const { time } = g.state;
     const { planet, planetTerrain: terrain, weather } = g;
     const settlement = g.state.settlements[planet.id] ?? this.emptyCabinSettlement;
     const site = `${planet.id}:${landingX}`;
@@ -1728,17 +1730,29 @@ export class Space3D {
       exterior.time = time;
       exterior.revision = g.worldRevision;
     }
-    const viewX = padX + cabinX * .21;
-    const viewGround = terrain.heightAt(Math.floor(viewX / 16), 3) * 16;
     exterior.world.update({
       terrain, settlement, revision: g.worldRevision,
-      camera: { x: viewX, y: Math.min(ground, viewGround) - 21, z: 42, yaw: 0, pitch: -.24 },
+      camera, terrainRadius,
       elapsed: time, light: daylight(time) * (1 - .32 * (weather?.intensity ?? 0)),
       sunPhase: solarPhase(time), facing: 1, stride: 0,
       animals: [...exterior.wildlife.animals.values()], fruit: exterior.fruit,
       drops: g.surfaceBackpacks(), ruin: g.surfaceRuin, storm: weather,
     }, this.width, this.height);
-    this.renderer.render(exterior.world.scene, exterior.world.camera);
+    return exterior.world;
+  }
+
+  private drawCabinExterior(g: Game, cabinX: number) {
+    const { landingX } = g.state;
+    const terrain = g.planetTerrain;
+    const x = landingX * 16 + cabinX * .21;
+    const ground = Math.min(terrain.height(landingX), terrain.heightAt(Math.floor(x / 16), 3)) * 16;
+    const world = this.updateLandingExterior(g, landingX, {
+      x, y: ground - 21, z: 42, yaw: 0, pitch: -.24,
+    });
+    const fog = world.scene.fog as T.Fog;
+    fog.near = 85;
+    fog.far = 198;
+    this.renderer.render(world.scene, world.camera);
   }
 
   drawColossalInterior(g: Game) {
@@ -2011,24 +2025,10 @@ export class Space3D {
       model,
       g.state.wardrobe?.equipped,
     ]);
-    const biome = biomes[planet.kind] ?? biomes[0];
     if (this.surfaceCinematic?.key !== key) {
-      this.surfaceCinematic?.terrain.dispose();
-      const scene = new T.Scene();
-      const sky = new T.Color(biome.daySky);
-      const fog = new T.Fog(sky, 210, 880);
-      scene.background = sky;
-      scene.fog = fog;
-      scene.add(new T.HemisphereLight(0xe5f0ff, biome.ground, 1.8));
-      const sun = new T.DirectionalLight(0xffdfaa, 2.7);
-      sun.position.set(-160, 230, -90);
-      scene.add(sun);
-      const terrain = landingTerrain(planet, sequence.landingX);
-      scene.add(
-        new T.Mesh(terrain, this.material(biome.color, "rock", planet.kind)),
-      );
+      const actors = new T.Group();
       const craft = this.shipForModel(model);
-      scene.add(craft);
+      actors.add(craft);
       const ramp = new T.Group();
       ramp.position.set(12, 6, 0);
       this.part(ramp, this.box, this.material(0x63758a), 8, 0, 0, 16, 1, 9);
@@ -2046,20 +2046,12 @@ export class Space3D {
         );
       const astronaut = this.dressedPilot(g.state.wardrobe?.equipped);
       astronaut.scale.setScalar(0.65);
-      scene.add(ramp, astronaut);
-      this.surfaceCinematic = {
-        key,
-        scene,
-        terrain,
-        craft,
-        ramp,
-        astronaut,
-        sky,
-        fog,
-      };
+      actors.add(ramp, astronaut);
+      this.surfaceCinematic = { key, actors, craft, ramp, astronaut };
     }
-    const { scene, craft, ramp, astronaut, sky, fog } = this.surfaceCinematic;
-    const sunlight = daylight(g.state.time);
+    const { actors, craft, ramp, astronaut } = this.surfaceCinematic;
+    const padX = sequence.landingX * 16;
+    const ground = g.planetTerrain.height(sequence.landingX) * 16;
     const progress = T.MathUtils.clamp(
       sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind],
       0,
@@ -2071,12 +2063,10 @@ export class Space3D {
     ramp.visible = disembarking;
     astronaut.visible = disembarking && progress > (rig ? 0.30 : 0.22);
     if (disembarking) {
-      craft.position.set(0, 6, 0);
-      craft.rotation.set(0, Math.PI, 0);
+      craft.position.set(0, 10, 0);
+      craft.rotation.set(0, -Math.PI / 2, 0);
       for (const part of craft.children)
         if (part.name === "exhaust") part.visible = false;
-      sky.setHex(biome.sky).lerp(new T.Color(biome.daySky), sunlight);
-      fog.color.copy(sky);
       this.cabinCamera.aspect = this.width / this.height;
       if (rig) {
         const track = rig.disembark;
@@ -2102,8 +2092,12 @@ export class Space3D {
         this.cabinCamera.position.set(44 + walk * 10, 30, 63);
         this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
       }
-      this.cabinCamera.updateProjectionMatrix();
-      this.renderer.render(scene, this.cabinCamera);
+      const exitGround = g.planetTerrain.heightAt(
+        Math.floor((padX + astronaut.position.x) / 16),
+        Math.floor((astronaut.position.z + 8) / 16),
+      ) * 16;
+      astronaut.position.y = Math.max(astronaut.position.y, ground - exitGround);
+      this.renderSurfaceCinematic(g, sequence.landingX, actors, ground, 0);
       return;
     }
     const takingOff = sequence.kind === "takeoff";
@@ -2131,11 +2125,18 @@ export class Space3D {
       part.scale.y = length;
       part.position.z = 21 + length / 2;
     }
-    sky
-      .setHex(biome.sky)
-      .lerp(new T.Color(biome.daySky), sunlight)
-      .lerp(new T.Color(0x080e21), Math.min(1, (craft.position.y - 6) / 420));
-    fog.color.copy(sky);
+    const terrain = g.planetTerrain;
+    const beneath = terrain.heightAt(
+      Math.floor((padX + craft.position.x) / 16),
+      Math.floor((craft.position.z + 8) / 16),
+    ) * 16;
+    craft.position.y = Math.max(craft.position.y, ground - beneath + 10);
+    const onPad = takingOff ? 1 - T.MathUtils.smoothstep(progress, 0, .18)
+      : T.MathUtils.smoothstep(progress, .82, 1);
+    if (onPad > 0) {
+      const heading = new T.Quaternion().setFromAxisAngle(T.Object3D.DEFAULT_UP, -Math.PI / 2);
+      craft.quaternion.slerp(heading, onPad);
+    }
     this.cabinCamera.aspect = this.width / this.height;
     this.cabinCamera.position.set(
       115,
@@ -2148,8 +2149,31 @@ export class Space3D {
     } else {
       this.cabinCamera.lookAt(0, craft.position.y - 9, craft.position.z - 16);
     }
+    this.renderSurfaceCinematic(g, sequence.landingX, actors, ground, craft.position.y);
+  }
+
+  private renderSurfaceCinematic(g: Game, landingX: number, actors: T.Group, ground: number, altitude: number) {
+    const x = landingX * 16;
+    const world = this.updateLandingExterior(g, landingX, {
+      x, y: ground - 26, z: 0, yaw: 0, pitch: 0,
+    }, altitude > 0 ? 32 : undefined);
+    const fog = world.scene.fog as T.Fog;
+    fog.near = 135 + altitude;
+    fog.far = 345 + altitude;
+    if (altitude > 0) {
+      const sky = world.scene.background as T.Color;
+      sky.lerp(this.cinematicSky.setHex(0x080e21), T.MathUtils.clamp((altitude - 6) / 420, 0, 1));
+      fog.color.copy(sky);
+    }
+    actors.position.set(x, -ground, 0);
+    this.cabinCamera.position.add(actors.position);
     this.cabinCamera.updateProjectionMatrix();
-    this.renderer.render(scene, this.cabinCamera);
+    world.scene.add(actors);
+    try {
+      this.renderer.render(world.scene, this.cabinCamera);
+    } finally {
+      actors.removeFromParent();
+    }
   }
 
   drawRouteComputer() {
@@ -2749,7 +2773,6 @@ export class Space3D {
     }
     this.jumpAnimation?.mixer.stopAllAction();
     this.jumpTrails?.dispose();
-    this.surfaceCinematic?.terrain.dispose();
     this.renderer.dispose();
   }
 }

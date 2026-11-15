@@ -45,6 +45,7 @@ export interface SurfaceFrame {
   settlement: Settlement;
   camera: Point & { z: number; yaw: number; pitch: number };
   thirdPerson?: boolean;
+  terrainRadius?: number;
   revision: number;
   light: number;
   elapsed: number;
@@ -235,6 +236,7 @@ export class SurfaceWorld3D {
     const kind = terrain.planet.kind;
     this.loadTerrainKit(kind);
     const models = this.terrainModels.get(kind);
+    const radius = frame.terrainRadius ?? terrainRadius;
     const centerX = Math.floor(frame.camera.x / (3 * TILE)) * 3;
     const centerZ = Math.floor(surfaceLayer(frame.camera.z) / 3) * 3;
     const playerRow = Math.floor(frame.camera.y / (4 * TILE)) * 4;
@@ -245,18 +247,19 @@ export class SurfaceWorld3D {
       centerX,
       centerZ,
       playerRow,
+      radius,
     ].join(":");
     if (terrain === this.groundTerrain && key === this.groundKey) return;
     this.groundTerrain = terrain;
     this.groundKey = key;
     const solidTiles = new Map<number, { x: number; y: number; z: number }[]>();
-    for (let x = centerX - terrainRadius; x <= centerX + terrainRadius + 2; x++)
+    for (let x = centerX - radius; x <= centerX + radius + 2; x++)
       for (
-        let z = centerZ - terrainRadius;
-        z <= centerZ + terrainRadius + 2;
+        let z = centerZ - radius;
+        z <= centerZ + radius + 2;
         z++
       ) {
-        if (Math.hypot(x - centerX - 1, z - centerZ - 1) > terrainRadius + 1)
+        if (Math.hypot(x - centerX - 1, z - centerZ - 1) > radius + 1)
           continue;
         const top = terrain.heightAt(x, z);
         const bottom = Math.max(top + 1, playerRow + 6);
