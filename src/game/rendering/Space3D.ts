@@ -1,3 +1,4 @@
+import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { daylight } from "../../construction/habitat";
 import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
@@ -85,6 +86,13 @@ export class Space3D {
       camera: T.Object3D;
       target: T.Object3D;
     };
+  };
+  private showroomRoom?: {
+    scene: T.Scene;
+    bays: Map<ShipModelId, T.Group>;
+    actor: T.Group;
+    outfit: string;
+    signs: T.CanvasTexture[];
   };
   private routeScene?: T.Scene;
   private routeModel?: T.Group;
@@ -1459,6 +1467,97 @@ export class Space3D {
     return { scene, counters, actor, outfit: "" };
   }
 
+  drawShowroom(g: Game) {
+    if (!this.resize()) return;
+    const outfit = g.state.wardrobe?.equipped;
+    const outfitKey = JSON.stringify(outfit ?? {});
+    if (!this.showroomRoom) {
+      const scene = new T.Scene();
+      const background = new T.Color(0x132335);
+      scene.background = this.scene.background;
+      scene.fog = new T.Fog(background, 300, 620);
+      scene.add(new T.HemisphereLight(0xd9edff, 0x65738a, 2.25));
+      const lamp = new T.DirectionalLight(0xe2f5ff, 2.7);
+      lamp.position.set(70, 135, 90);
+      scene.add(lamp);
+      const architecture = new T.Group();
+      scene.add(architecture);
+      const floor = this.material(0x344a60, "rock", 7);
+      const frame = this.material(0x3d536a);
+      const edge = this.lightMaterial(0x58d6ec);
+      const amber = this.lightMaterial(0xffb96f);
+      const length = 94 - showroomBack;
+      const center = (94 + showroomBack) / 2;
+      this.part(architecture, this.box, floor, 0, -4, center, 306, 8, length);
+      for (const side of [-1, 1]) {
+        this.part(architecture, this.box, frame, side * 152, 8, center, 8, 22, length);
+        this.part(architecture, this.box, edge, side * 150, 19, center, 3, 1, length);
+        this.part(architecture, this.box, edge, side * 26, 0.3, center, 1, .4, length);
+      }
+      const signs: T.CanvasTexture[] = [];
+      for (const bay of showroomBays) {
+        this.part(architecture, this.box, frame, bay.x, .9, bay.z, 59, 1.8, 65);
+        this.part(architecture, this.box, amber, bay.x, 2, bay.z + 30, 47, .4, 1);
+        const plaque = showroomPlaque(bay);
+        this.part(architecture, this.box, frame, plaque.x, 4, plaque.z, 4, 8, 4);
+        this.part(architecture, this.box, frame, plaque.x, 11, plaque.z, 29, 10, 3);
+        this.part(architecture, this.box, edge, plaque.x, 7, plaque.z + 1.55, 29, .55, .25);
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 64;
+        const context = canvas.getContext("2d")!;
+        context.fillStyle = "#102b39";
+        context.fillRect(0, 0, 256, 64);
+        context.font = "bold 25px sans-serif";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "#d4f7ff";
+        context.fillText(shipModels[bay.id].name, 128, 32, 234);
+        const texture = new T.CanvasTexture(canvas);
+        texture.colorSpace = T.SRGBColorSpace;
+        signs.push(texture);
+        const label = new T.Sprite(new T.SpriteMaterial({ map: texture }));
+        label.position.set(plaque.x, 12, plaque.z + 2.4);
+        label.scale.set(28, 7, 1);
+        scene.add(label);
+      }
+      const actor = this.dressedPilot(outfit);
+      scene.add(actor);
+      this.showroomRoom = { scene, bays: new Map(), actor, outfit: outfitKey, signs };
+    }
+    const room = this.showroomRoom;
+    if (room.outfit !== outfitKey) {
+      room.actor.removeFromParent();
+      room.actor = this.dressedPilot(outfit);
+      room.scene.add(room.actor);
+      room.outfit = outfitKey;
+    }
+    const { x, z, heading, stride } = flight3D.showroom;
+    for (const bay of showroomBays) {
+      const displayed = room.bays.get(bay.id);
+      if (Math.abs(z - bay.z) > 255) {
+        displayed?.removeFromParent();
+        room.bays.delete(bay.id);
+      } else if (!displayed) {
+        const ship = this.shipForModel(bay.id, false);
+        ship.position.set(bay.x, 11, bay.z);
+        ship.rotation.y = bay.x < 0 ? -.28 : .28;
+        ship.scale.multiplyScalar(.86);
+        room.bays.set(bay.id, ship);
+        room.scene.add(ship);
+      }
+    }
+    room.actor.position.set(x, 0, z);
+    const turn = heading - room.actor.rotation.y;
+    room.actor.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * 0.24;
+    this.animatePilot(room.actor, stride);
+    this.cabinCamera.aspect = this.width / this.height;
+    this.cabinCamera.position.set(x, 100, z + 103);
+    this.cabinCamera.lookAt(x, 10, z - 23);
+    this.cabinCamera.updateProjectionMatrix();
+    this.renderer.render(room.scene, this.cabinCamera);
+  }
+
   drawStationInterior(g: Game) {
     if (!this.resize()) return;
     const clandestine = g.system.station?.kind === "clandestine";
@@ -2457,6 +2556,11 @@ export class Space3D {
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
     this.surfaceFlight?.mixer.stopAllAction();
+    if (this.showroomRoom) {
+      for (const map of this.showroomRoom.signs) map.dispose();
+      for (const child of this.showroomRoom.scene.children)
+        if (child instanceof T.Sprite) child.material.dispose();
+    }
     this.jumpAnimation?.mixer.stopAllAction();
     this.jumpTrails?.dispose();
     this.surfaceCinematic?.terrain.dispose();

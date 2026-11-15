@@ -564,6 +564,7 @@ function minutes() {
         <p
           v-if="
             atStation &&
+            !g.showroom &&
             !g.panel &&
             !g.paused &&
             (g.stationContact || stationWalkTipVisible)
@@ -732,7 +733,8 @@ function minutes() {
             (!g.inSequence &&
               ((g.panel &&
                 g.panel !== 'government' &&
-                !g.panel.startsWith('station:')) ||
+                !g.panel.startsWith('station:') &&
+                !g.panel.startsWith('showroom:')) ||
                 g.state.mode === 'orbit')))
         "
         class="overlay"

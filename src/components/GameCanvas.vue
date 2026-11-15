@@ -2,6 +2,9 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import Phaser from "phaser";
 import StationPanel from "./StationPanel.vue";
+import DealershipPanel from "./DealershipPanel.vue";
+import { shipModels } from "../fleet/models";
+import { releaseControls } from "../game/input";
 import { stationServicesFor } from "../game/station/services";
 import PlanetGovernmentPanel from "./PlanetGovernmentPanel.vue";
 import { JUMP_DURATION_MS, useGame } from "../stores/game";
@@ -49,6 +52,16 @@ const inCabin = computed(
 const inStation = computed(
   () => props.playing && g.state.mode === "docked" && !g.dockingSequence,
 );
+const inShowroom = computed(() => inStation.value && g.showroom);
+function leaveShowroom() {
+  releaseControls();
+  g.showroom = false;
+  g.showroomContact = undefined;
+  if (g.panel.startsWith("showroom:")) g.panel = "";
+}
+watch([inStation, gpuFailed, use3D], ([atStation, failed, enabled]) => {
+  if (g.showroom && (!atStation || failed || !enabled)) leaveShowroom();
+});
 const inColossal = computed(
   () => props.playing && g.aboardColossal && !g.colossalHelm && !g.busy,
 );
@@ -127,7 +140,8 @@ watch(
         else if (inColossal.value) {
           if (flight3D.colossalBoarding) space!.draw(g);
           else space!.drawColossalInterior(g);
-        } else if (inStation.value) space!.drawStationInterior(g);
+        } else if (inShowroom.value) space!.drawShowroom(g);
+        else if (inStation.value) space!.drawStationInterior(g);
         else space!.draw(g);
         if (!inCabin.value) cabinLoading.value = false;
         frame = requestAnimationFrame(draw);
@@ -220,6 +234,7 @@ onBeforeUnmount(() => {
     <button
       v-if="
         (freeFlight || inCabin || inStation) &&
+        !inShowroom &&
         !gpuFailed &&
         !g.panel &&
         !g.paused
@@ -259,6 +274,35 @@ onBeforeUnmount(() => {
         {{ label }}
       </button>
     </div>
+    <div v-if="inShowroom && !g.paused && !g.panel" class="showroom-controls">
+      <button type="button" class="secondary" @click="leaveShowroom">
+        Voltar à estação
+      </button>
+      <button
+        v-if="g.showroomContact"
+        type="button"
+        class="primary"
+        @click="releaseControls(); g.panel = 'showroom:ship'"
+      >
+        Ver ficha · {{ shipModels[g.showroomContact].name }}
+      </button>
+    </div>
+    <section
+      v-if="inShowroom && g.panel === 'showroom:ship' && g.showroomContact && !g.paused"
+      class="dialog showroom-details"
+      aria-label="Ficha da nave em exposição"
+    >
+      <button
+        type="button"
+        class="secondary"
+        :disabled="g.trading"
+        @click="g.panel = ''"
+      >
+        Voltar à exposição
+      </button>
+      <DealershipPanel :key="g.showroomContact" :preview-model="g.showroomContact" />
+      <p v-if="g.notice" role="status">{{ g.notice }}</p>
+    </section>
     <StationPanel
       v-if="stationNpc && !g.paused && !g.busy"
       :key="stationNpc.id"
@@ -283,6 +327,38 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+.showroom-controls {
+  position: absolute;
+  inset: 10px 12px auto;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.showroom-controls button {
+  min-height: 44px;
+  pointer-events: auto;
+}
+.dialog.showroom-details {
+  position: absolute;
+  z-index: 6;
+  inset: 12px 12px auto auto;
+  width: min(350px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  padding: 12px;
+  overflow: auto;
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .showroom-controls,
+  .dialog.showroom-details {
+    top: calc(var(--mobile-hud-height, 110px) + 8px);
+  }
+  .dialog.showroom-details {
+    max-height: calc(100% - var(--mobile-hud-height, 110px) - 20px);
+  }
 }
 .cabin-loading {
   position: absolute;

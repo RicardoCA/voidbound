@@ -1,3 +1,4 @@
+import { showroomSpawn } from "../station/showroom";
 import { shallowReactive } from "vue";
 import { hash } from "../procedural/random";
 import type { Bolt } from "../../combat/flight";
@@ -24,6 +25,7 @@ export const flight3D = shallowReactive({
   },
   colossalView: false,
   stationView: false,
+  showroom: { ...showroomSpawn },
   station: { x: -274, z: -38, heading: -Math.PI / 2, stride: 0 },
   cabin: { x: 145, z: -24, stride: 0, heading: -Math.PI / 2 },
   pitch: 0,

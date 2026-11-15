@@ -1,3 +1,4 @@
+import type { ShipModelId } from "../game/types";
 import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
 import {
   regrowTerrain,
@@ -253,6 +254,8 @@ export const useGame = defineStore("game", () => {
       > & { role: SpaceNpc["role"] | "ally"; angle?: number })[]
     >([]),
     stationContact = ref<string>(),
+    showroom = ref(false),
+    showroomContact = ref<ShipModelId>(),
     cabinContact = ref<CabinEquipment>(),
     trading = ref(false);
   watch(
@@ -1827,6 +1830,8 @@ export const useGame = defineStore("game", () => {
     distanceToPlanet,
     interactFlightTarget,
     stationContact,
+    showroom,
+    showroomContact,
     cabinContact,
     flightCabin,
     asteroids,

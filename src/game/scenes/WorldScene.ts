@@ -1,3 +1,4 @@
+import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
 import { flight3D, spaceAltitude } from "../rendering/flight3D";
@@ -557,6 +558,23 @@ export class WorldScene extends Phaser.Scene {
         g.policeAnswer = undefined;
         this.wasAtStation = true;
       }
+      if (g.showroom && flight3D.stationView) {
+        this.station.hide();
+        this.gfx.clear();
+        for (const label of this.planetLabels.values()) label.setVisible(false);
+        const held = this.down("E") || controls.interact;
+        if (!g.paused && !g.panel && !g.trading) {
+          const { x, y } = this.walkingDirection();
+          flight3D.showroom = walkShowroom(flight3D.showroom, x, y, dt);
+          g.showroomContact = nearbyShowroomPlaque(flight3D.showroom);
+          if ((takePulse("interact") || (held && !this.interactHeld)) && g.showroomContact) {
+            releaseControls();
+            g.panel = "showroom:ship";
+          }
+        }
+        this.interactHeld = held;
+        return;
+      }
       const clandestine = hasBlackMarket(g.system);
       if (!g.paused && !g.panel && !g.trading) {
         const { x, y } = this.walkingDirection();
@@ -620,6 +638,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.wasAtStation) {
       this.station.hide();
       g.stationContact = undefined;
+      g.showroom = false;
+      g.showroomContact = undefined;
       this.wasAtStation = false;
     }
     if (g.started && g.aboardColossal && g.localColossal) {
