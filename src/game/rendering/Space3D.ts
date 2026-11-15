@@ -2110,7 +2110,7 @@ export class Space3D {
       const surfaceDistance =
         Math.hypot(observer.x - x, observer.y - y, observerAltitude - altitude) -
         radius;
-      if (surfaceDistance > 5_000) return;
+      if (surfaceDistance > 1_000) return;
       const label = this.object(
         "planet-catalog:" + planet.id,
         () => this.planetCatalogLabel(planet),
