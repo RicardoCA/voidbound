@@ -1,5 +1,5 @@
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
-import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
+import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -1714,13 +1714,14 @@ export class WorldScene extends Phaser.Scene {
       Number(this.down("W") || this.down("UP") || controls.up);
     const grip = this.building.climbingColumn;
     const climb =
-      Math.abs(p.surfaceZ ?? 0) < 6 &&
+      (!flight3D.surfaceView || Math.abs((p.surfaceZ ?? 0) - surfaceLayer(p.surfaceZ ?? 0) * 16) < 6) &&
       !direction &&
       !jumping &&
       !pulse &&
       !this.building.enabled &&
       (grip !== undefined || vertical !== 0)
-        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement)
+        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement,
+            flight3D.surfaceView ? surfaceLayer(p.surfaceZ ?? 0) : 0)
         : undefined;
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
     const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };

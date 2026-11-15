@@ -12,6 +12,7 @@ import {
   type Room,
   type HabitatReport,
 } from "../../construction/habitat";
+import { surfaceLayer } from "../physics/surfaceDepth";
 import { keyAt } from "../../construction/pieces";
 /** Topology is cached until construction, terrain or a door changes. */
 export class HabitatSystem {
@@ -79,13 +80,14 @@ export class HabitatSystem {
           .filter((b) => keys.has(b.key))
           .reduce((sum, b) => sum + b.panels, 0);
     }
-    if (state.mode !== "surface" || Math.abs(state.player.surfaceZ ?? 0) >= 8) return report;
+    if (state.mode !== "surface") return report;
     const player = state.player,
+      depth = surfaceLayer(player.surfaceZ ?? 0),
       px = Math.floor(player.x / 16),
       py = Math.floor(player.y / 16),
-      cell = keyAt(px, py),
-      head = keyAt(px, Math.floor((player.y - 10) / 16)),
-      feet = keyAt(px, Math.floor((player.y + 10) / 16));
+      cell = keyAt(px, py, depth),
+      head = keyAt(px, Math.floor((player.y - 10) / 16), depth),
+      feet = keyAt(px, Math.floor((player.y + 10) / 16), depth);
     const inside = network.generators.filter(
       (g) =>
         g.room.sealed &&
@@ -123,9 +125,9 @@ export class HabitatSystem {
       return report;
     }
     const nearest = [...network.generators].sort(
-      (a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py),
+      (a, b) => Math.hypot(a.x - px, a.y - py, a.depth - depth) - Math.hypot(b.x - px, b.y - py, b.depth - depth),
     )[0];
-    if (nearest && Math.hypot(nearest.x - px, nearest.y - py) <= 16) {
+    if (nearest && Math.hypot(nearest.x - px, nearest.y - py, nearest.depth - depth) <= 16) {
       const piece = data.pieces[nearest.key]!;
       report.hasGenerator = true;
       report.reason = nearest.room.sealed ? "outside" : nearest.room.reason;

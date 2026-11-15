@@ -46,12 +46,13 @@ export function exposedToSky(
   data: Settlement,
   x: number,
   y: number,
+  depth = 0,
 ) {
   for (let row = y - 1; row >= 0; row--)
     if (
-      terrain.get(x, row) !== 0 ||
-      blocksAir(data, x, row) ||
-      pieceAt(data, x, row)?.piece.kind === "solarPanel"
+      terrain.getAt(x, row, depth) !== 0 ||
+      (blocksAir(data, x, row, depth) || data.depthBlocks?.[keyAt(x, row, depth)]) ||
+      pieceAt(data, x, row, depth)?.piece.kind === "solarPanel"
     )
       return false;
   return true;
@@ -108,17 +109,54 @@ export function analyzeRoom(
   }
   return { sealed: true, reason: "sealed", cells };
 }
+// A rotated panel seals one horizontal face of its construction cell.
+const roomDirections = [
+  [0, 0, -1], [-1, 0, 0], [0, 0, 1], [1, 0, 0],
+  [0, -1, 0], [0, 1, 0],
+] as const;
+
+export function analyzeSpatialRoom(terrain: Terrain, data: Settlement, x: number, y: number, depth: number): Room {
+  const cells = new Set([keyAt(x, y, depth)]);
+  const queue = [{ x, y, depth }];
+  const closedFace = (x: number, y: number, depth: number, face: number) => {
+    const key = keyAt(x, y, depth);
+    const wall = (depth ? data.depthWalls : data.walls)?.[key];
+    const door = pieceAt(data, x, y, depth)?.piece;
+    return (wall && (data.wallRotations?.[key] ?? 0) === face) ||
+      data.cornerWalls?.[key]?.[face] ||
+      (door?.kind === "woodDoor" && !door.open && door.rotation === face);
+  };
+  for (let i = 0; i < queue.length; i++) {
+    const at = queue[i]!;
+    if (at.y < 0 || at.y >= 63) return { sealed: false, reason: "open", cells: new Set() };
+    for (const [face, [dx, dy, dz]] of roomDirections.entries()) {
+      const next = { x: at.x + dx, y: at.y + dy, depth: at.depth + dz };
+      const key = keyAt(next.x, next.y, next.depth);
+      if (cells.has(key) || terrain.getAt(next.x, next.y, next.depth) || data.depthBlocks?.[key]) continue;
+      const piece = pieceAt(data, next.x, next.y, next.depth)?.piece;
+      if (piece?.kind === "woodBlock" || (piece?.kind === "woodHatch" && !piece.open)) continue;
+      if (face < 4 && (closedFace(at.x, at.y, at.depth, face) ||
+          closedFace(next.x, next.y, next.depth, (face + 2) % 4))) continue;
+      cells.add(key);
+      if (cells.size > 1024) return { sealed: false, reason: "large", cells: new Set() };
+      queue.push(next);
+    }
+  }
+  return { sealed: true, reason: "sealed", cells };
+}
+
 export interface PowerNetwork {
   generators: {
     key: string;
     x: number;
     y: number;
+    depth: number;
     panels: number;
     directPanels: string[];
     batteries: string[];
     room: Room;
   }[];
-  batteries: { key: string; x: number; y: number; panels: number }[];
+  batteries: { key: string; x: number; y: number; depth: number; panels: number }[];
   fridges: { key: string; batteries: string[]; panels: string[] }[];
   panels: number;
   exposedPanels: number;
@@ -128,34 +166,38 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
   const generators = Object.entries(data.pieces)
     .filter(([, p]) => p.kind === "oxygenGenerator")
     .map(([key]) => {
-      const [x, y] = key.split(",").map(Number);
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
       return {
         key,
         x: x!,
-        y: y!,
+        y,
+        depth,
         panels: 0,
         batteries: [] as string[],
         directPanels: [] as string[],
-        room: analyzeRoom(terrain, data, x!, y!),
+        room: depth === 0 && data.pieces[key]?.rotation === undefined
+          ? analyzeRoom(terrain, data, x, y)
+          : analyzeSpatialRoom(terrain, data, x, y, depth),
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
   const batteries = Object.entries(data.pieces)
     .filter(([, p]) => p.kind === "battery")
     .map(([key]) => {
-      const [x, y] = key.split(",").map(Number);
-      return { key, x: x!, y: y!, panels: 0 };
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+      return { key, x, y, depth, panels: 0 };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
-  function nearest<T extends { x: number; y: number }>(
+  function nearest<T extends { x: number; y: number; depth: number }>(
     nodes: T[],
     x: number,
     y: number,
+    depth: number,
   ) {
     let result: T | undefined,
       distance = POWER_RANGE + 0.00001;
     for (const node of nodes) {
-      const d = Math.hypot(node.x - x, node.y - y);
+      const d = Math.hypot(node.x - x, node.y - y, node.depth - depth);
       if (d < distance) {
         distance = d;
         result = node;
@@ -164,20 +206,21 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
     return result;
   }
   for (const battery of batteries)
-    nearest(generators, battery.x, battery.y)?.batteries.push(battery.key);
+    nearest(generators, battery.x, battery.y, battery.depth)?.batteries.push(battery.key);
   const panels = Object.entries(data.pieces).filter(
     ([, p]) => p.kind === "solarPanel",
   );
   const fridges = Object.entries(data.pieces)
     .filter(([, piece]) => piece.kind === "fridge")
     .map(([key]) => {
-      const [x, y] = key.split(",").map(Number);
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
       return {
         key,
         x: x!,
-        y: y!,
+        y,
+        depth,
         batteries: batteries
-          .filter((b) => Math.hypot(b.x - x!, b.y - y!) <= POWER_RANGE)
+          .filter((b) => Math.hypot(b.x - x!, b.y - y, b.depth - depth) <= POWER_RANGE)
           .map((b) => b.key),
         panels: [] as string[],
       };
@@ -185,25 +228,26 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
     .sort((a, b) => a.key.localeCompare(b.key));
   let exposedPanels = 0;
   for (const [key] of panels) {
-    const [x, y] = key.split(",").map(Number);
-    if (!exposedToSky(terrain, data, x!, y!)) continue;
+    const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+    if (!exposedToSky(terrain, data, x, y, depth)) continue;
     exposedPanels++;
-    const battery = nearest(batteries, x!, y!);
+    const battery = nearest(batteries, x, y, depth);
     if (battery) {
       battery.panels++;
       continue;
     }
     const generator = nearest(
       generators.filter((g) => !g.batteries.length),
-      x!,
-      y!,
+      x,
+      y,
+      depth,
     );
     if (generator) {
       generator.panels++;
       generator.directPanels.push(key);
     }
     for (const fridge of fridges)
-      if (Math.hypot(fridge.x - x!, fridge.y - y!) <= POWER_RANGE)
+      if (Math.hypot(fridge.x - x!, fridge.y - y, fridge.depth - depth) <= POWER_RANGE)
         fridge.panels.push(key);
   }
   return {

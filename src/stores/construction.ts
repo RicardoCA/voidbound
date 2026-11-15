@@ -48,10 +48,10 @@ export const useConstruction = defineStore("construction", () => {
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
     cursor = ref<{ x: number; y: number; depth?: number } | null>(null),
-    activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
+    activeCampfire = ref<{ planetId: string; x: number; y: number; depth: number } | null>(
       null,
     ),
-    activeBed = ref<{ planetId: string; x: number; y: number }>(),
+    activeBed = ref<{ planetId: string; x: number; y: number; depth: number }>(),
     activeCabinet = ref<{ planetId: string; key: string } | null>(null);
   const blank = emptySettlement();
   const settlement = computed(() => g.state.settlements[g.planet.id] ?? blank);
@@ -134,8 +134,6 @@ export const useConstruction = defineStore("construction", () => {
     else facing.value = facing.value === 1 ? -1 : 1;
   }
   function errorAt(x: number, y: number, depth?: number) {
-    if (depth && !isWall(selected.value) && (!isCabinet(selected.value) || selected.value === "fridge") && !["woodBlock", "woodDoor", "woodHatch"].includes(selected.value))
-      return "Esta peça precisa da faixa original da base.";
     const ctx = context(depth),
       error = placementError(ctx, selected.value, x, y, facing.value);
     if (error) return error;
@@ -284,8 +282,9 @@ export const useConstruction = defineStore("construction", () => {
       g.paused ||
       g.state.mode !== "surface" ||
       bed.planetId !== g.planet.id ||
+      Math.abs(bed.depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24 ||
       !inReach(g.state.player, bed.x, bed.y, 76) ||
-      pieceAt(settlement.value, bed.x, bed.y)?.piece.kind !== "bed"
+      pieceAt(settlement.value, bed.x, bed.y, bed.depth)?.piece.kind !== "bed"
     )
       return false;
     activeBed.value = undefined;
@@ -294,13 +293,13 @@ export const useConstruction = defineStore("construction", () => {
   }
   function interactAt(x: number, y: number, depth = 0) {
     const found = pieceAt(settlement.value, x, y, depth);
-    if (!found) return false;
+    if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
     if (found.piece.kind === "bed") {
       if (
         g.state.mode === "surface" &&
         inReach(g.state.player, found.x, found.y, 76)
       ) {
-        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y };
+        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y, depth };
         releaseControls();
         g.panel = "sleep";
       } else g.notify("Aproxime-se da cama para dormir.");
@@ -315,6 +314,7 @@ export const useConstruction = defineStore("construction", () => {
           planetId: g.planet.id,
           x: found.x,
           y: found.y,
+          depth,
         };
         releaseControls();
         g.panel = "cook";
@@ -383,8 +383,9 @@ export const useConstruction = defineStore("construction", () => {
       !g.paused &&
       g.panel === "cook" &&
       fire.planetId === g.planet.id &&
+      Math.abs(fire.depth * 16 - (g.state.player.surfaceZ ?? 0)) <= 24 &&
       inReach(g.state.player, fire.x, fire.y, 76) &&
-      pieceAt(settlement.value, fire.x, fire.y)?.piece.kind === "campfire"
+      pieceAt(settlement.value, fire.x, fire.y, fire.depth)?.piece.kind === "campfire"
     );
   }
   function cookMeat() {

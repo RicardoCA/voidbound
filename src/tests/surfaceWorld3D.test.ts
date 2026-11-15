@@ -1,7 +1,8 @@
+import { advancePowerNetwork, powerNetwork } from "../construction/habitat";
 import { treeAt } from "../game/procedural/trees";
 import { InstancedMesh, Matrix4, Texture, TextureLoader } from "three";
 import { afterEach, expect, it, vi } from "vitest";
-import { emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
+import { buildItems, emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import {
   solidSurfaceVoxel,
@@ -244,4 +245,37 @@ it("fecha cantos com duas paredes na mesma célula e desmonta apenas a face sele
   expect(ctx.inventory.woodWall).toBe(2);
   expect(settlement.depthWalls?.["0,8,3"]).toBe("metalWall");
   expect(settlement.wallRotations?.["0,8,3"]).toBe(1);
+});
+
+it.each(buildItems)("instala %s na base fora da faixa original", (kind) => {
+  const settlement = emptySettlement();
+  settlement.depthBlocks = { "0,9,3": true, "1,9,3": true, "2,9,3": true };
+  if (kind === "picture") settlement.depthWalls = { "0,8,3": true };
+  const terrain = new Terrain(planet, { "0,7,3": 0, "0,8,3": 0, "1,8,3": 0, "2,8,3": 0 });
+  expect(placePiece({
+    terrain, settlement, inventory: { [kind]: 1 }, capacity: 24,
+    player: { x: -30, y: 136, surfaceZ: 48 }, landingX: 100, depth: 3, rotation: 0,
+  }, kind, 0, 8)).toBeUndefined();
+});
+
+it("alimenta geladeira e gerador numa base cercada em três dimensões", () => {
+  const settlement = emptySettlement();
+  const terrain = new Terrain(planet, { "0,8,3": 0, "0,7,3": 0, "1,8,3": 0 });
+  settlement.depthBlocks = { "0,9,3": true, "0,7,3": true };
+  settlement.depthWalls = { "0,8,3": true };
+  settlement.cornerWalls = { "0,8,3": { 1: true, 2: true, 3: true } };
+  settlement.pieces = {
+    "0,8,3": { kind: "oxygenGenerator", facing: 1, rotation: 0 },
+    "1,8,3": { kind: "fridge", facing: 1 },
+    "2,8,3": { kind: "battery", facing: 1 },
+    "0,6,3": { kind: "solarPanel", facing: 1 },
+  };
+  const network = powerNetwork(terrain, settlement);
+  expect(network.generators[0]?.room.sealed).toBe(true);
+  expect(network.batteries[0]?.panels).toBe(1);
+  advancePowerNetwork(settlement, network, 0, 30);
+  expect(settlement.pieces["0,8,3"]?.oxygen).toBeGreaterThan(0);
+  expect(settlement.pieces["1,8,3"]?.powered).toBe(true);
+  delete settlement.cornerWalls["0,8,3"]![3];
+  expect(powerNetwork(terrain, settlement).generators[0]?.room.sealed).toBe(false);
 });
