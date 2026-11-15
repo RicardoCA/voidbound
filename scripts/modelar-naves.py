@@ -1,5 +1,6 @@
 """Execute com Blender: blender -b -t 2 --python scripts/modelar-naves.py."""
 from array import array
+from math import cos, pi, sin
 import random
 from pathlib import Path
 
@@ -56,20 +57,26 @@ def material(name, rgb, metallic=.45, glow=0):
     shader = mat.node_tree.nodes.get("Principled BSDF")
     shader.inputs["Base Color"].default_value = color
     shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = .58
+    shader.inputs["Roughness"].default_value = .34 if "cabine" in name else .49
     shader.inputs["Emission Color"].default_value = color
     shader.inputs["Emission Strength"].default_value = glow
     if name.endswith("· casco"):
-        size = 64
+        size = 128
         rng = random.Random(name)
         image = bpy.data.images.new(name + " · textura", width=size, height=size)
         pixels = array("f")
         for y in range(size):
             for x in range(size):
-                a, b = x % 32, y % 32
-                shade = .58 if a == 0 or b == 0 else .92 + rng.random() * .16
-                if a in (3, 28) and b in (3, 28):
-                    shade = .53
+                a, b = (x + 24 * (y // 32 % 2)) % 64, y % 32
+                shade = .84 + rng.random() * .24 + .04 * sin(x * .23 + y * .44)
+                if a in (0, 63) or b in (0, 31):
+                    shade *= .54
+                elif a in (1, 62) or b in (1, 30):
+                    shade *= 1.23
+                if a in (5, 58) and b in (5, 26):
+                    shade *= .40
+                if (x * 3 + y * 83) % 487 < 3:
+                    shade *= 1.35
                 pixels.extend(min(1, channel * shade) for channel in color[:3])
                 pixels.append(1)
         image.pixels.foreach_set(pixels)
@@ -128,6 +135,10 @@ def plate(name, outline, y, thickness, mat):
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     mesh.materials.append(mat)
+    bevel = obj.modifiers.new("Bordas usinadas", "BEVEL")
+    bevel.width = min(.55, thickness * .24)
+    bevel.segments = 2
+    obj.modifiers.new("Normais ponderadas", "WEIGHTED_NORMAL")
     return obj
 
 
@@ -165,7 +176,36 @@ def build(name, spec):
         (-body_width * .39, nose * .80), (body_width * .39, nose * .80),
         (body_width * .64, nose * .38), (-body_width * .64, nose * .38),
     ], height * .48, height * .23, glass)
+    # Cada chassi tem seções sobrepostas e ferragens expostas entre os painéis.
+    for row, fraction in enumerate((-.38, -.20, -.02, .16, .31)):
+        z = length * fraction
+        span = body_width * (.62 if row in (0, 4) else .90)
+        y = height * (.52 + .075 * (1 - abs(fraction)))
+        plate("Placas de blindagem superior", [
+            (-span, z - 3.4), (span * .80, z - 3.4), (span, z - 1.5),
+            (span, z + 2.5), (-span * .79, z + 2.5), (-span, z + .85),
+        ], y, .48 + rng.random() * .37, armor)
+        for side in (-1, 1):
+            block("Trilho de manutenção", side * span * .78, y + .55, z,
+                  .65, .38, 4.15, steel)
+            for vent in range(3):
+                block("Fenda de refrigeração", side * span * .52, y + .70,
+                      z + (vent - 1) * .68, span * .31, .18, .23, dark)
+    # O para-brisa fica livre acima da blindagem, com montantes metálicos.
+    plate("Canópia superior", [
+        (-body_width * .30, nose * .80), (body_width * .30, nose * .80),
+        (body_width * .58, nose * .57), (body_width * .60, nose * .39),
+        (-body_width * .60, nose * .39), (-body_width * .58, nose * .57),
+    ], height * .64, height * .21, glass)
+    block("Travessa da canópia", 0, height * .845, nose * .55,
+          body_width * 1.08, .36, .48, steel)
     for side in (-1, 1):
+        for rail in range(3):
+            z = length * (.02 + .12 * rail)
+            x = side * body_width * (.94 - .07 * rail)
+            cylinder("Tubulação de serviço", (x, -.9, z - 3), (x, -.9, z + 3),
+                     .46, trim, 8)
+            block("Abraçadeira", x, -.9, z, 1.22, 1.25, .75, steel)
         if slender:
             wing_tip = tail * (.85 if style != "fork" else -.38)
             plate("Asa enflechada", [
@@ -212,6 +252,15 @@ def build(name, spec):
         cylinder("Gôndola do motor", (x, -1, tail-8), (x, -1, 21), 2.55, armor)
         cylinder("Bocal do motor", (x, -1, 20), (x, -1, 21.45), 2.23, dark)
         cylinder("Núcleo propulsor", (x, -1, 21.4), (x, -1, 21.55), 1.64, cyan)
+        for section in range(3):
+            z = 17 + section * 1.63
+            cylinder("Colar da turbina", (x, -1, z), (x, -1, z + .38), 2.78,
+                     steel if section != 1 else trim, 16)
+        for vane in range(8):
+            angle = vane * pi / 4
+            detail = block("Aleta do bocal", x + 2.27*cos(angle), -1 + 2.27*sin(angle),
+                           21.45, .48, .72, 1.3, steel)
+            detail.rotation_euler.y = -angle
     if style == "wheel":
         cylinder("Cabeça escavadora", (0, 0, nose + 7), (0, 0, nose - 1), 8, dark, 20)
         cylinder("Coroa dentada", (0, 0, nose + 2), (0, 0, nose - 2), 8.45, trim, 20)
@@ -231,11 +280,31 @@ def build(name, spec):
     if style == "survey":
         cylinder("Mastro", (0, 4, 6), (0, 10, 6), .8, steel)
         cylinder("Antena parabólica", (0, 9, 6), (0, 12, 4), 1.8, steel, 16, 5.2)
-    bpy.ops.object.select_all(action="DESELECT")
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    groups = {}
     for obj in collection.objects:
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = bpy.data.meshes.new_from_object(evaluated, depsgraph=depsgraph)
+        groups.setdefault(mesh.materials[0].name, []).append((obj.name, mesh, obj.matrix_world.copy()))
+    exports = []
+    for parts in groups.values():
+        bpy.ops.object.select_all(action="DESELECT")
+        for part_name, mesh, transform in parts:
+            clone = bpy.data.objects.new(part_name + " · exportação", mesh)
+            collection.objects.link(clone)
+            clone.matrix_world = transform
+            clone.select_set(True)
+        bpy.context.view_layer.objects.active = clone
+        if len(parts) > 1:
+            bpy.ops.object.join()
+        exports.append(bpy.context.object)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in exports:
         obj.select_set(True)
     bpy.ops.export_scene.gltf(filepath=str(ROOT / "public/models/naves" / (name + ".glb")),
                               export_format="GLB", use_selection=True)
+    for obj in exports:
+        bpy.data.objects.remove(obj, do_unlink=True)
     collection.hide_render = True
     collection.hide_viewport = True
 
