@@ -66,7 +66,7 @@ import {
   useGame,
 } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
-import { treesInRange, treeContains } from "../procedural/trees";
+import { spatialTreeAt, treeAt, treesInRange, treeContains } from "../procedural/trees";
 import {
   drawAlienTree,
   drawSettlement,
@@ -980,7 +980,9 @@ export class WorldScene extends Phaser.Scene {
           const cabinet = this.building.nearestInteraction();
           if (g.recoverBackpack()) return;
           if (Math.abs(s.player.surfaceZ ?? 0) > 38) {
-            g.notify("Aproxime-se da base ou da nave para interagir.");
+            const fruit = this.fruit.find((candidate) => this.canReachFruit(candidate));
+            if (fruit) this.gatherFruit(fruit);
+            else g.notify("Aproxime-se da base, da nave ou de frutas para interagir.");
             return;
           }
           if (this.talkToRepresentative()) return;
@@ -1002,7 +1004,7 @@ export class WorldScene extends Phaser.Scene {
             this.building.interactAt(x!, y!);
           } else {
             const fruit = this.fruit.find((target) =>
-              this.canReachFood(target.x, target.y),
+              this.canReachFruit(target),
             );
             if (fruit) this.gatherFruit(fruit);
             else
@@ -1640,9 +1642,15 @@ export class WorldScene extends Phaser.Scene {
     g.panel = "government";
     return true;
   }
+  private canReachFruit(fruit: Fruit) {
+    const player = this.store.state.player;
+    if (!fruit.depth) return Math.abs(player.surfaceZ ?? 0) <= 38 && this.canReachFood(fruit.x, fruit.y);
+    return Math.hypot(fruit.x - player.x, fruit.y - player.y, fruit.depth * 16 - (player.surfaceZ ?? 0)) <= 78;
+  }
+
   private gatherFruit(fruit: Fruit) {
     const g = this.store;
-    if (!this.canReachFood(fruit.x, fruit.y)) {
+    if (!this.canReachFruit(fruit)) {
       g.notify("Aproxime-se das frutas para colher.");
       return;
     }
@@ -1748,6 +1756,7 @@ export class WorldScene extends Phaser.Scene {
       this.building.settlement,
       p.x,
       g.state.time,
+      flight3D.surfaceView ? p.surfaceZ ?? 0 : undefined,
     );
     const mineButton = takePulse("mine") || controls.mine;
     const mouse = this.surfaceMouse;
@@ -1767,6 +1776,12 @@ export class WorldScene extends Phaser.Scene {
           (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))))
     )
       return;
+    if (tap?.fruitId) {
+      const fruit = this.fruit.find((target) => target.id === tap.fruitId);
+      if (fruit) this.gatherFruit(fruit);
+      this.mineTime = .25;
+      return;
+    }
     if (tap && !tap.terrain && !tap.depth && Math.abs(p.surfaceZ ?? 0) < 32) {
       const fruit = this.fruit.find(
         (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
@@ -1785,6 +1800,30 @@ export class WorldScene extends Phaser.Scene {
       tap ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
+    if (aim?.treeId && flight3D.surfaceView) {
+      if (this.mineTime > 0 || p.energy < 3) return;
+      const [kind, x, z] = aim.treeId.split(":");
+      const tree = kind === "grove"
+        ? spatialTreeAt(g.planet, t, Number(x), Number(z))
+        : treeAt(g.planet, t, Number(x));
+      if (!tree || this.building.settlement.cutTrees.includes(tree.id)) return;
+      if (Math.hypot(tree.x * 16 + 8 - p.x, tree.ground * 16 - 8 - p.y,
+                    (tree.depth ?? 0) * 16 - (p.surfaceZ ?? 0)) > 96) {
+        if (tap) g.notify("Aproxime-se do tronco para cortar a árvore.");
+        return;
+      }
+      const hits = (this.treeHits.get(tree.id) ?? 0) + 1;
+      this.mineTime = .28;
+      this.treeHits.set(tree.id, hits);
+      this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
+      if (g.equippedSaber || hits >= 3) {
+        if (this.building.harvest(tree)) this.treeHits.delete(tree.id);
+      } else {
+        p.energy--;
+        audio.play(140);
+      }
+      return;
+    }
     if (aim?.terrain && flight3D.surfaceView) {
       if (this.mineTime <= 0 && p.energy >= 1) this.mineSurfaceVoxel(aim, !!tap);
       return;

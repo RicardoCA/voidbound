@@ -1,3 +1,4 @@
+import { grovePosition, groveSize } from "../game/procedural/trees";
 import type { Item, Planet, Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
 import { hash } from "../game/procedural/random";
@@ -62,6 +63,7 @@ const biomeLife = [
 }[];
 
 export interface Fruit {
+  depth?: number;
   id: string;
   x: number;
   y: number;
@@ -100,6 +102,7 @@ export function fruitsNear(
   settlement: Settlement,
   worldX: number,
   time: number,
+  worldZ?: number,
 ) {
   const life = biomeLife[planet.kind]!,
     fruit: Fruit[] = [];
@@ -121,6 +124,21 @@ export function fruitsNear(
       item: life.fruit,
       color: life.fruitColor,
     });
+  }
+  if (worldZ !== undefined) {
+    const unit = groveSize * 16;
+    const cx = Math.floor(worldX / unit), cz = Math.floor(worldZ / unit);
+    for (let x = cx - 3; x <= cx + 3; x++)
+      for (let z = cz - 3; z <= cz + 3; z++) {
+        const site = grovePosition(planet, "fruit", x, z);
+        const id = `fruit-grove:${x}:${z}`;
+        if (!site || (site.seed >>> 17) % 100 >= 77 || !available(settlement.foraged, id, time)) continue;
+        const ground = terrain.heightAt(site.x, site.depth);
+        if (!terrain.getAt(site.x, ground, site.depth) ||
+            settlement.depthBlocks?.[terrain.keyAt(site.x, ground - 1, site.depth)]) continue;
+        fruit.push({ id, x: site.x * 16 + 8, y: ground * 16 - 6, depth: site.depth,
+          item: life.fruit, color: life.fruitColor });
+      }
   }
   return fruit;
 }

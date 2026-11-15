@@ -4,7 +4,7 @@ import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
 import { TILE, type Terrain } from "../procedural/terrain";
-import { treesInRange } from "../procedural/trees";
+import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Settlement } from "../types";
 
@@ -14,6 +14,8 @@ export interface SurfaceTarget extends Point {
   wy: number;
   depth: number;
   terrain?: boolean;
+  treeId?: string;
+  fruitId?: string;
   distance?: number;
 }
 export interface SurfaceFrame {
@@ -440,20 +442,21 @@ export class SurfaceWorld3D {
           ).userData.cell = { x, y };
         }
       }
-    for (const tree of treesInRange(
-      planet,
-      terrain,
-      left,
-      right,
-      settlement.cutTrees,
-    )) {
+    const trees = [
+      ...(Math.abs(z) < 230 ? treesInRange(planet, terrain, left, right, settlement.cutTrees) : []),
+      ...spatialTreesNear(terrain, x, z, settlement.cutTrees),
+    ];
+    for (const tree of trees) {
+      const depth = tree.depth ?? 0;
+      if (Math.abs(depth * TILE - z) > 215 || tree.x < left || tree.x > right) continue;
       put(
         tree.id + ":" + planet.id,
         (tree.x + 0.5) * TILE,
         tree.ground * TILE,
-        -3,
+        depth ? depth * TILE - 8 : -3,
         () => {
           const group = new T.Group();
+          group.userData.flora = { treeId: tree.id, depth };
           const height = tree.height * TILE;
           this.part(
             group,
@@ -488,8 +491,10 @@ export class SurfaceWorld3D {
     }
     const near = (point: Point) =>
       Math.abs(z) < 220 && point.x >= left * TILE && point.x <= right * TILE;
-    for (const fruit of frame.fruit.filter(near))
-      put("fruit:" + fruit.id, fruit.x, fruit.y, 1, () => {
+    for (const fruit of frame.fruit) {
+      const depth = fruit.depth ?? 0;
+      if (Math.abs(depth * TILE - z) > 215 || fruit.x < left * TILE || fruit.x > right * TILE) continue;
+      put("fruit:" + fruit.id + ":" + planet.id, fruit.x, fruit.y, depth ? depth * TILE - 8 : 1, () => {
         const group = new T.Group();
         for (const i of [-1, 0, 1])
           this.part(
@@ -503,9 +508,11 @@ export class SurfaceWorld3D {
             5,
             5,
           );
-        this.attachLifeModel(group, "fruta-" + planet.kind, 15, 8, 8);
+        group.userData.flora = { fruitId: fruit.id, depth };
+        this.attachLifeModel(group, "fruta-" + planet.kind, 17, 10, 10);
         return group;
       });
+    }
     for (const animal of frame.animals.filter(near)) {
       const model = put(
         animal.id + ":" + planet.id,
@@ -718,13 +725,16 @@ export class SurfaceWorld3D {
         y = Math.floor(wy / TILE),
         depth = surfaceLayer(position.z);
       if (picked && distance >= picked.distance) {
-        const target = picked.object.parent?.userData;
+        let node: T.Object3D | null = picked.object;
+        while (node?.parent && node.parent !== this.scene) node = node.parent;
+        const target = node?.userData;
         return {
           wx: picked.point.x,
           wy: -picked.point.y,
           x: target?.cell?.x ?? Math.floor(picked.point.x / TILE),
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
           depth: target?.dropDepth ?? 0,
+          ...target?.flora,
         };
       }
       const target = { wx, wy, x, y, depth };

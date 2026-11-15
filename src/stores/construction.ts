@@ -9,6 +9,7 @@ import { items } from "../game/types";
 import { Terrain } from "../game/procedural/terrain";
 import {
   treeAt,
+  spatialTreeAt,
   treesInRange,
   treeContains,
   treeNames,
@@ -219,17 +220,17 @@ export const useConstruction = defineStore("construction", () => {
   }
   function harvest(tree: AlienTree) {
     if (g.state.mode !== "surface" || g.state.player.energy < 3) return false;
-    const current = treeAt(
-      g.planet,
-      terrain.value,
-      Number(tree.id.split(":")[1]),
-    );
+    const [, cell, layer] = tree.id.split(":");
+    const current = tree.depth
+      ? spatialTreeAt(g.planet, terrain.value, Number(cell), Number(layer))
+      : treeAt(g.planet, terrain.value, Number(cell));
     if (
       !current ||
       current.id !== tree.id ||
       Math.hypot(
         current.x * 16 + 8 - g.state.player.x,
         current.ground * 16 - 8 - g.state.player.y,
+        (current.depth ?? 0) * 16 - (g.state.player.surfaceZ ?? 0),
       ) > 96
     )
       return false;
