@@ -1052,10 +1052,8 @@ export class WorldScene extends Phaser.Scene {
       );
       ship.angle += Phaser.Math.Clamp(turn, -2.5 * dt, 2.5 * dt);
     }
-    ship.fuel = Math.max(
-      0,
-      ship.fuel - dt * g.model.consumption * Math.min(1, change / acceleration),
-    );
+    if (Math.hypot(ship.vx, ship.vy, spatial ? flight3D.velocity : 0) > 0.01)
+      ship.fuel = Math.max(0, ship.fuel - dt * g.model.consumption);
   }
   private spacePhysics(dt: number, piloting = true) {
     const g = this.store,
@@ -1195,7 +1193,7 @@ export class WorldScene extends Phaser.Scene {
     g.speed = Math.round(Math.hypot(s.vx, s.vy));
     this.camX = Phaser.Math.Linear(this.camX, s.x, 0.09);
     this.camY = Phaser.Math.Linear(this.camY, s.y, 0.09);
-    if (s.fuel < 3 && !thrust) {
+    if (s.fuel < 3 && !thrust && !g.routeDestination) {
       s.fuel = Math.min(3, s.fuel + dt * 0.15);
     }
     for (const rock of g.asteroids) {
