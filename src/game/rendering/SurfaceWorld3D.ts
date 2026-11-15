@@ -37,11 +37,6 @@ export interface SurfaceFrame {
 }
 
 const terrainRadius = 13;
-const ores = [
-  0, 0, 0xadcad5, 0xe1905a, 0xa998e1, 0x62798e, 0xffd07b, 0x9cf5dd, 0x94d5f9,
-  0xacdd87, 0xa37662, 0xe1bf61, 0x9aa9bf,
-];
-
 export class SurfaceWorld3D {
   readonly scene = new T.Scene();
   readonly camera = new T.PerspectiveCamera(68, 1, 0.22, 380);
@@ -117,16 +112,17 @@ export class SurfaceWorld3D {
     return material;
   }
 
-  private rock(kind: number) {
-    let material = this.groundMaterials.get(kind);
+  private rock(kind: number, tile: number) {
+    const key = kind * 16 + tile;
+    let material = this.groundMaterials.get(key);
     if (!material) {
       const map = new T.TextureLoader().load(
-        import.meta.env.BASE_URL + "surface/ground-" + kind + ".webp",
+        import.meta.env.BASE_URL + `surface/voxels/${kind}-${tile}.webp`,
       );
       map.colorSpace = T.SRGBColorSpace;
-      this.groundMaps.set(kind, map);
+      this.groundMaps.set(key, map);
       material = new T.MeshStandardMaterial({ map, roughness: 0.91 });
-      this.groundMaterials.set(kind, material);
+      this.groundMaterials.set(key, material);
     }
     return material;
   }
@@ -165,7 +161,7 @@ export class SurfaceWorld3D {
     if (terrain === this.groundTerrain && key === this.groundKey) return;
     this.groundTerrain = terrain;
     this.groundKey = key;
-    const solidTiles: { x: number; y: number; z: number; tile: number }[] = [];
+    const solidTiles = new Map<number, { x: number; y: number; z: number }[]>();
     for (let x = centerX - terrainRadius; x <= centerX + terrainRadius + 2; x++)
       for (
         let z = centerZ - terrainRadius;
@@ -188,7 +184,10 @@ export class SurfaceWorld3D {
               terrain.getAt(x, y, z + 1))
           )
             continue;
-          solidTiles.push({ x, y, z, tile });
+          const type = tile >= 1 && tile <= 12 ? tile : 1;
+          const group = solidTiles.get(type) ?? [];
+          group.push({ x, y, z });
+          solidTiles.set(type, group);
         }
       }
     for (const child of [...this.ground.children]) {
@@ -196,24 +195,20 @@ export class SurfaceWorld3D {
       if (child instanceof T.InstancedMesh) child.dispose();
     }
     const matrix = new T.Matrix4();
-    const surface = new T.InstancedMesh(
-      this.box,
-      this.rock(terrain.planet.kind),
-      solidTiles.length,
-    );
-    const color = new T.Color();
-    solidTiles.forEach(({ x, y, z, tile }, index) => {
-      matrix
-        .makeScale(TILE, TILE, TILE)
-        .setPosition((x + 0.5) * TILE, -(y + 0.5) * TILE, z * TILE);
-      surface.setMatrixAt(index, matrix);
-      color.setHex(0xffffff);
-      if (tile > 1 && ores[tile])
-        color.lerp(this.dayColor.setHex(ores[tile]!), 0.54);
-      surface.setColorAt(index, color);
-    });
-    surface.instanceMatrix.needsUpdate = true;
-    this.ground.add(surface);
+    for (const [tile, positions] of solidTiles) {
+      const surface = new T.InstancedMesh(
+        this.box,
+        this.rock(terrain.planet.kind, tile),
+        positions.length,
+      );
+      positions.forEach(({ x, y, z }, index) => {
+        matrix.makeScale(TILE, TILE, TILE)
+          .setPosition((x + .5) * TILE, -(y + .5) * TILE, z * TILE);
+        surface.setMatrixAt(index, matrix);
+      });
+      surface.instanceMatrix.needsUpdate = true;
+      this.ground.add(surface);
+    }
   }
 
   private piece(
