@@ -288,7 +288,7 @@ it("instancia o kit Blender na superfície e atualiza a célula depois de minera
   const voxel = new Mesh(geometry, material);
   voxel.name = "voxel_2_1";
   template.add(voxel);
-  const load = vi.fn(async (_name: string) => template);
+  const load = vi.fn<(name: string) => Promise<Group>>(async () => template);
   const world = new SurfaceWorld3D(load);
   const terrain = new Terrain(planet, {});
   const row = terrain.heightAt(0, -2);
