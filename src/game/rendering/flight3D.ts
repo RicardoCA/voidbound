@@ -27,10 +27,11 @@ export const flight3D = shallowReactive({
   colossalView: false,
   stationView: false,
   surfaceView: false,
+  surfaceLook: { yaw: -Math.PI / 2, pitch: -.12 },
   surface: undefined as SurfaceFrame | undefined,
   surfacePointer: undefined as (
     (clientX: number, clientY: number, snapTerrain: boolean) =>
-      { wx: number; wy: number; x: number; y: number } | undefined
+      { wx: number; wy: number; x: number; y: number; depth: number } | undefined
   ) | undefined,
   showroom: { ...showroomSpawn },
   station: { x: -274, z: -38, heading: -Math.PI / 2, stride: 0 },

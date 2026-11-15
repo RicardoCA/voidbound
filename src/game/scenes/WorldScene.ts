@@ -1,3 +1,4 @@
+import { solidSurfaceVoxel, stepSurfaceDepth } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -119,7 +120,7 @@ export class WorldScene extends Phaser.Scene {
   private fruit: Fruit[] = [];
   private surfaceMouse?: PointerEvent;
   private surfaceTap:
-    { x: number; y: number; wx: number; wy: number } | undefined;
+    { x: number; y: number; wx: number; wy: number; depth: number } | undefined;
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
@@ -174,6 +175,7 @@ export class WorldScene extends Phaser.Scene {
         ty: number;
         life: number;
         targetAltitude?: number;
+        depth?: number;
       }
     | undefined;
   private cabin = new CabinInterior();
@@ -225,11 +227,24 @@ export class WorldScene extends Phaser.Scene {
     const targetSurface = (event: PointerEvent) => {
       if (!onSurface()) return;
       const target = this.surfacePoint(event);
-      if (this.building.enabled) this.building.setCursor(target.x, target.y);
+      if (target && this.building.enabled) this.building.setCursor(target.x, target.y, target.depth);
       return target;
+    };
+    let touchLook: { id: number; x: number; y: number; drag: boolean } | undefined;
+    const turning = (dx: number, dy: number) => {
+      const look = flight3D.surfaceLook;
+      flight3D.surfaceLook = {
+        yaw: Phaser.Math.Angle.Wrap(look.yaw - dx * .0038),
+        pitch: Phaser.Math.Clamp(look.pitch - dy * .0038, -1.48, 1.48),
+      };
     };
     const press = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
+        touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
+        canvas.setPointerCapture(event.pointerId);
+        return;
+      }
       const g = this.store;
       if (
         g.started &&
@@ -239,7 +254,7 @@ export class WorldScene extends Phaser.Scene {
         !g.busy &&
         !g.inSequence
       ) {
-        const { wx, wy } = this.surfacePoint(event);
+        const { wx, wy } = this.surfacePoint(event)!;
         const escort = this.combat.escorts.find(
           (ally) => Math.hypot(ally.x - wx, ally.y - wy) <= 21,
         );
@@ -253,6 +268,18 @@ export class WorldScene extends Phaser.Scene {
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
+      if (flight3D.surfaceView && onSurface()) {
+        if (touchLook?.id === event.pointerId) {
+          const dx = event.clientX - touchLook.x, dy = event.clientY - touchLook.y;
+          if (touchLook.drag || Math.hypot(dx, dy) > 5) {
+            touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: true };
+            turning(dx, dy);
+          }
+          return;
+        }
+        if (document.pointerLockElement === canvas || (event.buttons & 2))
+          turning(event.movementX, event.movementY);
+      }
       if (event.pointerType !== "mouse") return;
       this.surfaceMouse = event;
       targetSurface(event);
@@ -262,18 +289,31 @@ export class WorldScene extends Phaser.Scene {
     };
     canvas.addEventListener("pointerdown", press);
     canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", clearMouse);
+    const finish = (event: PointerEvent) => {
+      if (touchLook?.id === event.pointerId) {
+        if (!touchLook.drag) this.surfaceTap = targetSurface(event);
+        touchLook = undefined;
+      }
+      clearMouse();
+    };
+    const cancel = () => { touchLook = undefined; clearMouse(); };
+    const contextMenu = (event: MouseEvent) => {
+      if (onSurface() && flight3D.surfaceView) event.preventDefault();
+    };
+    canvas.addEventListener("contextmenu", contextMenu);
+    canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointerleave", clearMouse);
-    canvas.addEventListener("pointercancel", clearMouse);
+    canvas.addEventListener("pointercancel", cancel);
     const silenceEngine = () => audio.flightEngine("idle");
     this.game.events.on("blur", clearMouse);
     this.game.events.on("blur", silenceEngine);
     this.events.once("shutdown", () => {
       canvas.removeEventListener("pointerdown", press);
       canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", clearMouse);
+      canvas.removeEventListener("pointerup", finish);
+      canvas.removeEventListener("contextmenu", contextMenu);
       canvas.removeEventListener("pointerleave", clearMouse);
-      canvas.removeEventListener("pointercancel", clearMouse);
+      canvas.removeEventListener("pointercancel", cancel);
       this.game.events.off("blur", clearMouse);
       this.game.events.off("blur", silenceEngine);
       silenceEngine();
@@ -440,12 +480,14 @@ export class WorldScene extends Phaser.Scene {
   }
   private surfacePoint(event: PointerEvent) {
     if (flight3D.surfaceView && this.store.state.mode === "surface") {
-      const target = flight3D.surfacePointer?.(
-        event.clientX,
-        event.clientY,
+      const canvas = this.game.canvas;
+      const locked = document.pointerLockElement === canvas;
+      const rect = locked ? canvas.getBoundingClientRect() : undefined;
+      return flight3D.surfacePointer?.(
+        rect ? rect.left + rect.width / 2 : event.clientX,
+        rect ? rect.top + rect.height / 2 : event.clientY,
         !this.building.enabled || this.building.removing,
       );
-      if (target) return target;
     }
     const rect = this.game.canvas.getBoundingClientRect();
     const wx =
@@ -454,7 +496,7 @@ export class WorldScene extends Phaser.Scene {
     const wy =
       ((event.clientY - rect.top) * this.viewHeight) / rect.height -
       Math.floor(this.centerY - this.camY);
-    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16) };
+    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16), depth: 0 };
   }
   private down(key: string) {
     return this.keys[key]?.isDown ?? false;
@@ -835,6 +877,7 @@ export class WorldScene extends Phaser.Scene {
           s.player.y =
             this.terrain!.height(Math.floor(s.player.x / 16)) * 16 - 13;
         }
+        flight3D.surfaceLook = { yaw: -Math.PI / 2, pitch: -.12 };
         this.camX = s.player.x;
         this.camY = s.player.y - 32;
       }
@@ -926,7 +969,12 @@ export class WorldScene extends Phaser.Scene {
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
-          if (g.recoverBackpack() || this.talkToRepresentative()) return;
+          if (g.recoverBackpack()) return;
+          if (Math.abs(s.player.surfaceZ ?? 0) > 38) {
+            g.notify("Aproxime-se da base ou da nave para interagir.");
+            return;
+          }
+          if (this.talkToRepresentative()) return;
           if (g.nearbyUnscannedRuin && !this.building.enabled) {
             g.scanSignal();
           } else if (
@@ -1564,6 +1612,11 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store,
       p = g.state.player,
       t = this.terrain!;
+    if (!flight3D.surfaceView && !flight3D.selected && p.surfaceZ) {
+      p.surfaceZ = 0;
+      p.y = Math.min(p.y, t.height(Math.floor(p.x / 16)) * 16 - 12);
+      this.vy = 0;
+    }
     const direction =
       (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
       (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
@@ -1582,6 +1635,7 @@ export class WorldScene extends Phaser.Scene {
       Number(this.down("W") || this.down("UP") || controls.up);
     const grip = this.building.climbingColumn;
     const climb =
+      Math.abs(p.surfaceZ ?? 0) < 6 &&
       !direction &&
       !jumping &&
       !pulse &&
@@ -1590,17 +1644,21 @@ export class WorldScene extends Phaser.Scene {
         ? stepClimb(p, grip, vertical, dt, t, this.building.settlement)
         : undefined;
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
-    const movement =
-      climb ??
-      stepSurface(
-        { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
-        direction,
-        jump,
-        g.planet.gravity,
-        dt,
-        t,
-        this.building.settlement,
-      );
+    const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
+    const yaw = flight3D.surfaceLook.yaw;
+    const step = 90 * dt / Math.max(1, Math.hypot(direction, vertical));
+    const spatialMove = !climb && flight3D.surfaceView
+      ? stepSurfaceDepth(
+          { ...actor, z: p.surfaceZ ?? 0 },
+          (direction * Math.cos(yaw) + vertical * Math.sin(yaw)) * step,
+          (-direction * Math.sin(yaw) + vertical * Math.cos(yaw)) * step,
+          jump, g.planet.gravity, dt,
+          (x, y, depth) => solidSurfaceVoxel(t, this.building.settlement, x, y, depth),
+        )
+      : undefined;
+    const movement = climb ?? spatialMove ??
+      stepSurface(actor, direction, jump, g.planet.gravity, dt, t, this.building.settlement);
+    if (spatialMove) p.surfaceZ = spatialMove.z;
     const travel = climb ? Math.abs(movement.y - p.y) : Math.abs(movement.x - p.x);
     this.surfaceStride =
       travel > 0.01 && (movement.grounded || climb)
@@ -1613,6 +1671,7 @@ export class WorldScene extends Phaser.Scene {
     this.grounded = movement.grounded;
     if (p.y > 1005) {
       p.health -= 25;
+      p.surfaceZ = 0;
       p.x = g.state.landingX * 16 + 40;
       p.y = t.height(Math.floor(p.x / 16)) * 16 - 14;
       this.vy = 0;
@@ -1640,7 +1699,7 @@ export class WorldScene extends Phaser.Scene {
     this.surfaceTap = undefined;
     if (this.building.enabled) {
       if (tap) {
-        this.building.apply(tap.x, tap.y);
+        this.building.apply(tap.x, tap.y, tap.depth);
         this.mineTime = 0.2;
       }
       return;
@@ -1648,11 +1707,11 @@ export class WorldScene extends Phaser.Scene {
     if (
       tap &&
       (g.recoverBackpack(tap) ||
-        this.talkToRepresentative(tap) ||
-        this.building.interactAt(tap.x, tap.y))
+        (tap.depth === 0 && Math.abs(p.surfaceZ ?? 0) < 38 &&
+          (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))))
     )
       return;
-    if (tap) {
+    if (tap && !tap.depth && Math.abs(p.surfaceZ ?? 0) < 32) {
       const fruit = this.fruit.find(
         (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
       );
@@ -1670,6 +1729,22 @@ export class WorldScene extends Phaser.Scene {
       tap ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
+    if (aim?.depth && this.mineTime <= 0 && p.energy >= 1) {
+      const { x, y, depth } = aim;
+      if (Math.hypot(x * 16 + 8 - p.x, y * 16 + 8 - p.y, depth * 16 - (p.surfaceZ ?? 0)) >= 77) {
+        if (tap) g.notify("Aproxime-se do bloco para minerar.");
+        return;
+      }
+      if (g.mineTerrain(t, x, y, depth)) {
+        const drill = g.state.upgrades.includes("drill");
+        p.energy -= (drill ? .5 : 1) * (1 - g.extractionEfficiency);
+        this.mineTime = (drill ? .1 : .22) * (1 - g.extractionEfficiency);
+        this.beam = { x: p.x, y: p.y - 3, tx: x * 16 + 8, ty: y * 16 + 8, depth, life: .12 };
+        audio.play(145, .09);
+      }
+      return;
+    }
+    if (Math.abs(p.surfaceZ ?? 0) > 72) return;
     if ((aim || mobileMine) && this.mineTime <= 0 && p.energy >= 1) {
       const trees = treesInRange(
         g.planet,
@@ -1752,7 +1827,7 @@ export class WorldScene extends Phaser.Scene {
         if (!t.get(tx, ty)) ty++;
       }
       const tile = t.get(tx, ty);
-      const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y);
+      const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y, p.surfaceZ ?? 0);
       if (tap && tile && distance >= 77)
         g.notify("Aproxime-se do bloco para minerar.");
       if (tile && ty < 63 && distance < 77) {
@@ -1831,7 +1906,8 @@ export class WorldScene extends Phaser.Scene {
       flight3D.surface = {
         terrain: this.terrain,
         settlement: this.building.settlement,
-        camera: { x: this.camX, y: this.camY },
+        camera: { x: s.player.x, y: s.player.y, z: s.player.surfaceZ ?? 0, ...flight3D.surfaceLook },
+        revision: g.worldRevision,
         light,
         elapsed: this.elapsed,
         sunPhase: solarPhase(s.time),

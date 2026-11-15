@@ -73,6 +73,20 @@ const surfaceCinematic = computed(() => !!g.surfaceSequence);
 const surfaceExploration = computed(
   () => props.playing && g.state.mode === "surface" && !g.inSequence && !g.busy,
 );
+const mouseLocked = ref(false);
+const surfaceControls = computed(
+  () => surfaceExploration.value && show3D.value && !g.paused && !g.panel,
+);
+function lockSurfaceMouse() {
+  const canvas = game?.canvas;
+  if (!canvas?.requestPointerLock) return;
+  void Promise.resolve(canvas.requestPointerLock()).catch(() => {
+    g.notify("Segure o botão direito e arraste para olhar ao redor.");
+  });
+}
+function onPointerLock() {
+  mouseLocked.value = document.pointerLockElement === game?.canvas;
+}
 const landingComputer = computed(
   () => props.playing && g.state.mode === "orbit" && !g.inSequence && !g.busy,
 );
@@ -91,6 +105,9 @@ const show3D = computed(
     use3D.value &&
     !gpuFailed.value,
 );
+watch(surfaceControls, (available) => {
+  if (!available && mouseLocked.value) document.exitPointerLock();
+});
 let space: Space3D | undefined;
 let frame = 0;
 let cabinPreload = 0;
@@ -190,6 +207,7 @@ watch(
   { flush: "post" },
 );
 onMounted(() => {
+  document.addEventListener("pointerlockchange", onPointerLock);
   media = window.matchMedia(MOBILE_LAYOUT);
   game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -210,6 +228,8 @@ onMounted(() => {
   media.addEventListener("change", resize);
 });
 onBeforeUnmount(() => {
+  document.removeEventListener("pointerlockchange", onPointerLock);
+  if (mouseLocked.value) document.exitPointerLock();
   clearTimeout(cabinPreload);
   cancelAnimationFrame(frame);
   flight3D.selected = false;
@@ -227,7 +247,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div ref="host" class="game-canvas" aria-label="Universo de Voidbound">
+  <div ref="host" class="game-canvas" :class="{ 'surface-first-person': surfaceControls }" aria-label="Universo de Voidbound">
     <canvas
       ref="spaceCanvas"
       v-show="show3D && (!surfaceExploration || !!flight3D.surface)"
@@ -243,6 +263,15 @@ onBeforeUnmount(() => {
         use3D = false;
       "
     />
+    <div v-if="surfaceControls" class="surface-reticle" aria-hidden="true">+</div>
+    <button
+      v-if="surfaceControls && !mouseLocked"
+      type="button"
+      class="secondary surface-mouse-lock"
+      @click="lockSurfaceMouse"
+    >
+      Controlar câmera
+    </button>
     <div v-if="inCabin && show3D && cabinLoading" class="cabin-loading" role="status">
       Carregando cabine…
     </div>
@@ -342,6 +371,29 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+.surface-first-person :deep(canvas) {
+  touch-action: none;
+}
+.surface-reticle {
+  position: absolute;
+  z-index: 2;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font: bold 22px monospace;
+  text-shadow: 0 1px 3px #06101f;
+  pointer-events: none;
+}
+.surface-mouse-lock {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 86px;
+  min-height: 32px;
+}
+@media (pointer: coarse) {
+  .surface-mouse-lock { display: none; }
 }
 .showroom-controls {
   position: absolute;

@@ -1,3 +1,4 @@
+import { surfaceLayer } from "../game/physics/surfaceDepth";
 import type { ShipModelId } from "../game/types";
 import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
 import {
@@ -409,8 +410,12 @@ export const useGame = defineStore("game", () => {
       if (mode !== "surface") return;
       const dx = landingX * 16 - player.x;
       const dy = planetTerrain.value.height(landingX) * 16 - 13 - player.y;
-      const distance = Math.round(Math.hypot(dx, dy));
-      const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+      const distance = Math.round(Math.hypot(dx, dy, player.surfaceZ ?? 0));
+      const yaw = flight3D.surfaceLook.yaw;
+      const dz = -(player.surfaceZ ?? 0);
+      const horizontal = flight3D.surfaceView ? dx * Math.cos(yaw) - dz * Math.sin(yaw) : dx;
+      const vertical = flight3D.surfaceView ? dx * Math.sin(yaw) + dz * Math.cos(yaw) : dy;
+      const octant = Math.round(Math.atan2(vertical, horizontal) / (Math.PI / 4));
       const bearing = distance
         ? ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]
         : "•";
@@ -691,7 +696,7 @@ export const useGame = defineStore("game", () => {
     progress();
     return true;
   }
-  function mineTerrain(terrain: Terrain, x: number, y: number) {
+  function mineTerrain(terrain: Terrain, x: number, y: number, depth = 0) {
     const s = state.value;
     if (
       s.mode !== "surface" ||
@@ -701,13 +706,13 @@ export const useGame = defineStore("game", () => {
       y >= 63
     )
       return false;
-    const tile = terrain.get(x, y);
+    const tile = terrain.getAt(x, y, depth);
     if (!tile) return false;
     const resource = tileItems[tile] ?? "iron";
     if (!collect(resource)) return false;
-    terrain.remove(x, y);
+    terrain.remove(x, y, depth);
     const deadlines = (s.terrainRegrowth ??= {});
-    (deadlines[terrain.planet.id] ??= {})[`${x},${y}`] =
+    (deadlines[terrain.planet.id] ??= {})[terrain.keyAt(x, y, depth)] =
       (s.activePlayTime ?? 0) + TERRAIN_REGROWTH_SECONDS;
     worldChanged();
     if (resource !== "wood" && resource !== "fiber")
@@ -1009,6 +1014,7 @@ export const useGame = defineStore("game", () => {
   function land(zone: number) {
     state.value.landingX = zone * 24;
     state.value.mode = "interior";
+    state.value.player.surfaceZ = 0;
     state.value.player.x = zone * 384 + 8;
     state.value.player.y = 0;
     if (state.value.mission === 0) state.value.mission = 1;
@@ -1017,6 +1023,7 @@ export const useGame = defineStore("game", () => {
     void save();
   }
   function exit() {
+    state.value.player.surfaceZ = 0;
     state.value.player.x = state.value.landingX * 16 + 40;
     state.value.player.y = 0;
     state.value.mode = "surface";
@@ -1627,14 +1634,14 @@ export const useGame = defineStore("game", () => {
       (drop) => drop.planetId === planet.value.id && drop.expiresAt > now,
     );
   }
-  function recoverBackpack(target?: { wx: number; wy: number }) {
+  function recoverBackpack(target?: { wx: number; wy: number; depth?: number }) {
     const s = state.value;
     if (s.mode !== "surface") return false;
     const nearby = surfaceBackpacks()
       .filter(
         (drop) =>
-          Math.hypot(drop.x - s.player.x, drop.y - s.player.y) <= 44 &&
-          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy) <= 16),
+          Math.hypot(drop.x - s.player.x, drop.y - s.player.y, (drop.z ?? 0) - (s.player.surfaceZ ?? 0)) <= 44 &&
+          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy, (drop.z ?? 0) - (target.depth ?? 0) * 16) <= 20),
       )
       .sort(
         (a, b) =>
@@ -1661,7 +1668,7 @@ export const useGame = defineStore("game", () => {
   function resolvePlayerDeath() {
     const s = state.value;
     if (s.player.health > 0) return false;
-    const deathPosition = { x: s.player.x, y: s.player.y };
+    const deathPosition = { x: s.player.x, y: s.player.y, z: s.player.surfaceZ };
     restorePlayer();
     s.ship.hull = Math.max(15, s.ship.hull - 10);
     const lostBackpack =
@@ -1766,7 +1773,7 @@ export const useGame = defineStore("game", () => {
         const head = Math.floor((s.player.y - 11) / 16);
         const shelter = s.settlements[planet.value.id] ?? noShelter;
         if (
-          weatherCeiling(planetTerrain.value, shelter, column, head) ===
+          weatherCeiling(planetTerrain.value, shelter, column, head, surfaceLayer(s.player.surfaceZ ?? 0)) ===
           Infinity
         )
           s.player.health -= dt * storm.intensity * 1.5;
@@ -1795,6 +1802,7 @@ export const useGame = defineStore("game", () => {
     state,
     habitat,
     worldChanged,
+    worldRevision,
     refreshHabitat,
     started,
     surfaceSequence,

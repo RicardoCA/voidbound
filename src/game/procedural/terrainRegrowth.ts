@@ -12,12 +12,13 @@ export function regrowTerrain(state: Save, surfacePlanetId?: string) {
       if (tile !== 0) continue;
       const pending = (deadlines[planetId] ??= {});
       if ((pending[key] ??= now + TERRAIN_REGROWTH_SECONDS) > now) continue;
-      const [x, y] = key.split(",").map(Number) as [number, number];
+      const [x, y, depth = 0] = key.split(",").map(Number) as [number, number, number?];
       const settlement = state.settlements[planetId];
-      if (settlement && (settlement.walls[key] || pieceAt(settlement, x, y)))
+      if (settlement && (depth === 0 ? settlement.walls[key] || pieceAt(settlement, x, y) : settlement.depthBlocks?.[key]))
         continue;
       if (
         planetId === surfacePlanetId &&
+        Math.abs((state.player.surfaceZ ?? 0) - depth * 16) < 24 &&
         Math.abs(state.player.x - (x * 16 + 8)) < 24 &&
         Math.abs(state.player.y - (y * 16 + 8)) < 32
       )

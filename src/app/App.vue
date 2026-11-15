@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { flight3D } from "../game/rendering/flight3D";
 import { weatherLabels } from "../game/procedural/weather";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
@@ -1051,8 +1052,13 @@ function minutes() {
     </footer>
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
-        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR <kbd>W</kbd
-        ><kbd>S</kbd> ESCALAR <kbd>CLIQUE</kbd> MINERAR
+        ><template v-if="flight3D.surfaceView">
+          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> MOVIMENTAR <kbd>MOUSE</kbd> OLHAR
+        </template>
+        <template v-else>
+          <kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>W</kbd><kbd>S</kbd> ESCALAR
+        </template>
+        <kbd>ESPAÇO</kbd> PULAR <kbd>CLIQUE</kbd> MINERAR
         <kbd>B</kbd> CONSTRUIR</span
       ><span v-else-if="atStation || inShip"
         ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para

@@ -78,8 +78,6 @@ export class Space3D {
   private jumpAnimation?: { mixer: T.AnimationMixer; duration: number };
   private exploration?: {
     world: SurfaceWorld3D;
-    outfit?: string;
-    actor?: T.Group;
     representative: T.Group;
     shipModel?: ShipModelId;
     ship?: T.Group;
@@ -1863,20 +1861,6 @@ export class Space3D {
       this.exploration = { world, representative, saber, saberLight };
     }
     const view = this.exploration;
-    const outfit = g.state.wardrobe?.equipped;
-    const key = JSON.stringify(outfit ?? {});
-    if (!view.actor || view.outfit !== key) {
-      view.actor?.removeFromParent();
-      view.actor = this.dressedPilot(outfit);
-      view.outfit = key;
-      view.world.scene.add(view.actor);
-    }
-    const player = g.state.player;
-    view.actor.position.set(player.x, -player.y - 12, 2);
-    const heading = frame.facing > 0 ? -Math.PI / 2 : Math.PI / 2;
-    const turn = heading - view.actor.rotation.y;
-    view.actor.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * .22;
-    this.animatePilot(view.actor, frame.stride);
     const model = g.state.activeShip.model;
     if (!view.ship || view.shipModel !== model) {
       view.ship?.removeFromParent();
@@ -1886,21 +1870,24 @@ export class Space3D {
       view.world.scene.add(view.ship);
     }
     const pad = g.state.landingX;
-    view.ship.position.set(pad * 16, -frame.terrain.height(pad) * 16 + 10, -26);
+    view.ship.position.set(pad * 16, -frame.terrain.height(pad) * 16 + 10, 0);
     view.representative.visible = !!frame.representative;
     if (frame.representative)
-      view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 2);
+      view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 8);
+    view.world.update(frame, this.width, this.height);
     const saberItem = g.equippedSaber;
     view.saber.visible = view.saberLight.visible = !!saberItem;
     if (saberItem) {
+      const camera = view.world.camera;
       view.saber.material.color.set(items[saberItem].color);
       view.saberLight.color.copy(view.saber.material.color);
-      view.saber.position.set(player.x + frame.facing * 11, -player.y + 1, 7);
-      view.saber.scale.set(2, 19, 2);
-      view.saber.rotation.z = -frame.facing * (frame.beam ? 1.12 : .51);
+      view.saber.position.set(7 + Math.sin(frame.stride) * .6, -5, -17)
+        .applyQuaternion(camera.quaternion).add(camera.position);
+      view.saber.scale.set(1.2, 13, 1.2);
+      view.saber.quaternion.copy(camera.quaternion);
+      view.saber.rotateZ(frame.beam ? .94 : .34);
       view.saberLight.position.copy(view.saber.position);
     }
-    view.world.update(frame, this.width, this.height);
     if (frame.representative && g.panel === "government") {
       const anchor = view.world.project(frame.representative.x, frame.representative.y - 14, 2, this.width, this.height);
       if (anchor.x !== g.governmentAnchor.x || anchor.y !== g.governmentAnchor.y)

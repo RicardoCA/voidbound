@@ -3,6 +3,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import { emptySettlement } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import {
+  solidSurfaceVoxel,
+  stepSurfaceDepth,
+} from "../game/physics/surfaceDepth";
+import {
   SurfaceWorld3D,
   type SurfaceFrame,
 } from "../game/rendering/SurfaceWorld3D";
@@ -10,21 +14,22 @@ import { systemAt } from "../universe/generator";
 
 afterEach(() => vi.restoreAllMocks());
 
+const planet = systemAt("VOIDBOUND", 0, 0).planets[0]!;
+
 it.each([
   [960, 540],
   [390, 760],
 ])(
-  "mapeia o ponteiro para o terreno 3D em uma tela de %i × %i",
+  "seleciona a face e o espaço adjacente na visão em primeira pessoa %i × %i",
   (width, height) => {
     vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
     const world = new SurfaceWorld3D();
-    const terrain = new Terrain(systemAt("VOIDBOUND", 0, 0).planets[0]!, {
-      "0,10": 1,
-    });
+    const terrain = new Terrain(planet, { "0,9,-2": 2 });
     const frame: SurfaceFrame = {
       terrain,
       settlement: emptySettlement(),
-      camera: { x: 0, y: 160 },
+      camera: { x: 8, y: 153, z: 16, yaw: 0, pitch: 0 },
+      revision: 0,
       light: 1,
       elapsed: 0,
       sunPhase: 0,
@@ -34,24 +39,39 @@ it.each([
       fruit: [],
       drops: [],
     };
-    const pick = (y: number, snap: boolean) => {
-      const projected = world.project(8, y, 0, width, height);
-      return world.pointAt(
-        (projected.x * 2) / width - 1,
-        1 - (projected.y * 2) / height,
-        snap,
-      );
-    };
     try {
       world.update(frame, width, height);
-      expect(pick(167, true)).toMatchObject({ x: 0, y: 10 });
-      expect(pick(158, true)).toMatchObject({ x: 0, y: 10 });
-      expect(pick(158, false)).toMatchObject({ x: 0, y: 9 });
-      terrain.remove(0, 10);
-      world.update(frame, width, height);
-      expect(pick(158, true)).toMatchObject({ x: 0, y: 9 });
+      expect(world.pointAt(0, 0, true)).toMatchObject({
+        x: 0,
+        y: 9,
+        depth: -2,
+      });
+      expect(world.pointAt(0, 0, false)).toMatchObject({
+        x: 0,
+        y: 9,
+        depth: -1,
+      });
+      terrain.remove(0, 9, -2);
+      world.update({ ...frame, revision: 1 }, width, height);
+      expect(world.pointAt(0, 0, true)).toBeUndefined();
     } finally {
       world.dispose();
     }
   },
 );
+
+it("preserva as escavações antigas e isola os blocos construídos por profundidade", () => {
+  const terrain = new Terrain(planet, { "0,29": 0 });
+  const settlement = {
+    ...emptySettlement(),
+    depthBlocks: { "0,27,1": true } as const,
+  };
+  expect(terrain.getAt(0, 29, 0)).toBe(0);
+  expect(solidSurfaceVoxel(terrain, settlement, 0, 27, 1)).toBe(true);
+  expect(solidSurfaceVoxel(terrain, settlement, 0, 27, 0)).toBe(false);
+  const actor = { x: 8, y: 29 * 16 - 12, z: 2, vy: 0, grounded: true };
+  const move = stepSurfaceDepth(actor, 0, 8, false, 1, 0.04, (x, y, z) =>
+    solidSurfaceVoxel(terrain, settlement, x, y, z),
+  );
+  expect(move.z).toBe(actor.z);
+});

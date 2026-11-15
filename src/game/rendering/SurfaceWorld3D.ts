@@ -1,3 +1,4 @@
+import { surfaceLayer, solidSurfaceVoxel } from "../physics/surfaceDepth";
 import * as T from "three";
 import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
@@ -11,7 +12,8 @@ type Point = { x: number; y: number };
 export interface SurfaceFrame {
   terrain: Terrain;
   settlement: Settlement;
-  camera: Point;
+  camera: Point & { z: number; yaw: number; pitch: number };
+  revision: number;
   light: number;
   elapsed: number;
   sunPhase: number;
@@ -19,15 +21,15 @@ export interface SurfaceFrame {
   stride: number;
   animals: readonly Animal[];
   fruit: readonly Fruit[];
-  drops: readonly Point[];
+  drops: readonly (Point & { z?: number })[];
   ruin?: Point;
   representative?: Point;
   storm?: { kind: Precipitation; intensity: number };
-  cursor?: Point & { valid: boolean };
-  beam?: { x: number; y: number; tx: number; ty: number };
+  cursor?: Point & { valid: boolean; depth?: number };
+  beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
 }
 
-const groundDepth = 18;
+const terrainRadius = 13;
 const ores = [
   0, 0, 0xadcad5, 0xe1905a, 0xa998e1, 0x62798e, 0xffd07b, 0x9cf5dd, 0x94d5f9,
   0xacdd87, 0xa37662, 0xe1bf61, 0x9aa9bf,
@@ -35,7 +37,7 @@ const ores = [
 
 export class SurfaceWorld3D {
   readonly scene = new T.Scene();
-  readonly camera = new T.OrthographicCamera(-1, 1, 1, -1, 1, 1800);
+  readonly camera = new T.PerspectiveCamera(68, 1, 0.22, 380);
   private readonly colors = new Map<number, T.MeshStandardMaterial>();
   private readonly meshes = new Map<string, T.Group>();
   private readonly ground = new T.Group();
@@ -75,7 +77,7 @@ export class SurfaceWorld3D {
   private readonly ndc = new T.Vector3();
   private readonly pointer = new T.Vector2();
   private readonly ray = new T.Raycaster();
-  private readonly interactionPlane = new T.Plane(new T.Vector3(0, 0, 1), 0);
+  private readonly rayPoint = new T.Vector3();
   private groundKey = "";
   private planetKey = "";
   private targetFrame?: SurfaceFrame;
@@ -84,7 +86,7 @@ export class SurfaceWorld3D {
   constructor() {
     this.sun.position.set(-100, 150, 100);
     this.scene.background = this.backdrop;
-    this.scene.fog = new T.Fog(this.backdrop, 400, 1100);
+    this.scene.fog = new T.Fog(this.backdrop, 85, 198);
     this.scene.add(
       this.ambient,
       this.sun,
@@ -141,62 +143,66 @@ export class SurfaceWorld3D {
 
   private updateTerrain(frame: SurfaceFrame) {
     const { terrain } = frame;
-    const { left, right, top, bottom } = this.bounds;
-    const cellCount = (right - left) * (bottom - top);
-    const cells = new Uint8Array(cellCount);
-    let signature = 2166136261;
-    let index = 0;
-    for (let x = left; x < right; x++)
-      for (let y = top; y < bottom; y++) {
-        const tile = terrain.get(x, y);
-        cells[index++] = tile;
-        signature = Math.imul(signature ^ tile, 16777619);
-      }
-    const key = [terrain.planet.id, left, right, top, bottom, signature].join(
-      ":",
-    );
+    const centerX = Math.floor(frame.camera.x / (3 * TILE)) * 3;
+    const centerZ = Math.floor(surfaceLayer(frame.camera.z) / 3) * 3;
+    const playerRow = Math.floor(frame.camera.y / (4 * TILE)) * 4;
+    const key = [
+      terrain.planet.id,
+      frame.revision,
+      centerX,
+      centerZ,
+      playerRow,
+    ].join(":");
     if (key === this.groundKey) return;
     this.groundKey = key;
+    const solidTiles: { x: number; y: number; z: number; tile: number }[] = [];
+    for (let x = centerX - terrainRadius; x <= centerX + terrainRadius + 2; x++)
+      for (
+        let z = centerZ - terrainRadius;
+        z <= centerZ + terrainRadius + 2;
+        z++
+      ) {
+        if (Math.hypot(x - centerX - 1, z - centerZ - 1) > terrainRadius + 1)
+          continue;
+        const top = terrain.heightAt(x, z);
+        const bottom = Math.max(top + 1, playerRow + 6);
+        for (let y = Math.min(top, playerRow - 4); y <= bottom; y++) {
+          const tile = terrain.getAt(x, y, z);
+          if (
+            !tile ||
+            (terrain.getAt(x, y - 1, z) &&
+              terrain.getAt(x, y + 1, z) &&
+              terrain.getAt(x - 1, y, z) &&
+              terrain.getAt(x + 1, y, z) &&
+              terrain.getAt(x, y, z - 1) &&
+              terrain.getAt(x, y, z + 1))
+          )
+            continue;
+          solidTiles.push({ x, y, z, tile });
+        }
+      }
     for (const child of [...this.ground.children]) {
       this.ground.remove(child);
       if (child instanceof T.InstancedMesh) child.dispose();
     }
     const matrix = new T.Matrix4();
-    const solid = new T.InstancedMesh(
+    const surface = new T.InstancedMesh(
       this.box,
       this.rock(terrain.planet.kind),
-      cellCount,
-    );
-    const deposits = new T.InstancedMesh(
-      this.gem,
-      this.color(0xffffff),
-      cellCount,
+      solidTiles.length,
     );
     const color = new T.Color();
-    let stone = 0;
-    let deposit = 0;
-    index = 0;
-    for (let x = left; x < right; x++)
-      for (let y = top; y < bottom; y++) {
-        const tile = cells[index++]!;
-        if (!tile) continue;
-        const wx = (x + 0.5) * TILE;
-        const wy = -(y + 0.5) * TILE;
-        matrix
-          .makeScale(TILE, TILE, groundDepth)
-          .setPosition(wx, wy, -groundDepth / 2);
-        solid.setMatrixAt(stone++, matrix);
-        if (tile <= 1 || !ores[tile]) continue;
-        const seed = hash(x + ":" + y);
-        matrix
-          .makeScale(4 + (seed % 4), 4.5, 3)
-          .setPosition(wx + (seed % 5) - 2, wy + ((seed >>> 8) % 6) - 3, -0.2);
-        deposits.setMatrixAt(deposit, matrix);
-        deposits.setColorAt(deposit++, color.setHex(ores[tile]!));
-      }
-    solid.count = stone;
-    deposits.count = deposit;
-    this.ground.add(solid, deposits);
+    solidTiles.forEach(({ x, y, z, tile }, index) => {
+      matrix
+        .makeScale(TILE, TILE, TILE)
+        .setPosition((x + 0.5) * TILE, -(y + 0.5) * TILE, z * TILE);
+      surface.setMatrixAt(index, matrix);
+      color.setHex(0xffffff);
+      if (tile > 1 && ores[tile])
+        color.lerp(this.dayColor.setHex(ores[tile]!), 0.54);
+      surface.setColorAt(index, color);
+    });
+    this.ground.add(surface);
   }
 
   private piece(
@@ -320,33 +326,28 @@ export class SurfaceWorld3D {
     this.ambient.intensity = 0.52 + light * 1.02;
     this.sun.intensity = 0.15 + light * 1.9;
     const aspect = width / height;
-    const spanY = aspect < 1 ? 285 : 258;
-    const spanX = spanY * aspect;
-    const { x, y } = frame.camera;
-    this.camera.left = -spanX / 2;
-    this.camera.right = spanX / 2;
-    this.camera.top = spanY / 2;
-    this.camera.bottom = -spanY / 2;
-    this.camera.position.set(x, -y + 54, 236);
-    this.camera.lookAt(x, -y, 0);
+    const spanY = 172;
+    const spanX = Math.min(380, spanY * aspect);
+    const { x, y, z, yaw, pitch } = frame.camera;
+    this.camera.aspect = aspect;
+    this.camera.fov = aspect < 1 ? 76 : 67;
+    this.camera.position.set(x, -y + 7.5, z);
+    this.camera.rotation.set(pitch, yaw, 0, "YXZ");
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    this.mountains.position.set(
-      x * 0.88,
-      -terrain.height(Math.floor(x / TILE)) * TILE - 56,
-      0,
-    );
+    this.mountains.position.set(x, -y - 75, z);
+    this.mountains.rotation.y = yaw;
     this.star.visible = light > 0.03;
     this.star.position.set(
-      x + Math.sin(frame.sunPhase) * spanX * 0.32,
-      -y - 23 + light * 44,
-      -345,
+      x + Math.sin(frame.sunPhase) * 95,
+      -y + 65 + light * 65,
+      z - 240,
     );
     this.bounds = {
-      left: Math.floor((x - spanX / 2) / (4 * TILE)) * 4 - 3,
-      right: Math.ceil((x + spanX / 2) / (4 * TILE)) * 4 + 3,
-      top: Math.max(0, Math.floor((y - spanY / 2) / (4 * TILE)) * 4 - 4),
-      bottom: Math.max(1, Math.ceil((y + spanY / 2) / (4 * TILE)) * 4 + 5),
+      left: Math.floor(x / TILE) - terrainRadius,
+      right: Math.ceil(x / TILE) + terrainRadius,
+      top: Math.max(0, Math.floor(y / TILE) - 9),
+      bottom: Math.max(1, Math.ceil(y / TILE) + 9),
     };
     this.updateTerrain(frame);
     const seen = new Set<string>();
@@ -364,7 +365,7 @@ export class SurfaceWorld3D {
         this.meshes.set(key, group);
         this.scene.add(group);
       }
-      group.position.set(wx, -wy, z);
+      group.position.set(wx, -wy, z + 8);
       return group;
     };
     const { left, right, top, bottom } = this.bounds;
@@ -380,7 +381,7 @@ export class SurfaceWorld3D {
             0,
             () =>
               this.piece(wall === true ? "woodWall" : wall, false, 1, false),
-          );
+          ).userData.cell = { x, y };
         const piece = settlement.pieces[key];
         if (piece) {
           const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
@@ -405,7 +406,7 @@ export class SurfaceWorld3D {
                 piece.facing,
                 !!piece.powered,
               ),
-          );
+          ).userData.cell = { x, y };
         }
       }
     for (const tree of treesInRange(
@@ -454,7 +455,7 @@ export class SurfaceWorld3D {
       );
     }
     const near = (point: Point) =>
-      point.x >= left * TILE && point.x <= right * TILE;
+      Math.abs(z) < 220 && point.x >= left * TILE && point.x <= right * TILE;
     for (const fruit of frame.fruit.filter(near))
       put("fruit:" + fruit.id, fruit.x, fruit.y, 1, () => {
         const group = new T.Group();
@@ -532,14 +533,28 @@ export class SurfaceWorld3D {
         ? Math.abs(Math.sin(elapsed * 10 + animal.home))
         : 0;
     }
-    frame.drops.filter(near).forEach((drop) =>
-      put("drop:" + drop.x + ":" + drop.y, drop.x, drop.y, 1, () => {
-        const group = new T.Group();
-        this.part(group, this.box, 0xa36c3f, 0, -7, 0, 12, 11, 6);
-        this.part(group, this.box, 0xffc87b, 0, -7, 3, 3, 4, 1);
-        return group;
-      }),
-    );
+    frame.drops
+      .filter(
+        (drop) =>
+          Math.abs((drop.z ?? 0) - z) < 224 &&
+          drop.x >= left * TILE &&
+          drop.x <= right * TILE,
+      )
+      .forEach((drop) =>
+        put(
+          "drop:" + drop.x + ":" + drop.y + ":" + (drop.z ?? 0),
+          drop.x,
+          drop.y,
+          (drop.z ?? 0) - 8,
+          () => {
+            const group = new T.Group();
+            group.userData.dropDepth = surfaceLayer(drop.z ?? 0);
+            this.part(group, this.box, 0xa36c3f, 0, -7, 0, 12, 11, 6);
+            this.part(group, this.box, 0xffc87b, 0, -7, 3, 3, 4, 1);
+            return group;
+          },
+        ),
+      );
     if (frame.ruin && near(frame.ruin))
       put("ruin:" + planet.id, frame.ruin.x, frame.ruin.y + 9, -4, () => {
         const group = new T.Group();
@@ -550,6 +565,28 @@ export class SurfaceWorld3D {
         this.part(group, this.gem, 0x77cac1, 0, 26, 5, 6, 5, 4);
         return group;
       });
+    for (const [key] of Object.entries(settlement.depthBlocks ?? {})) {
+      const [tx, ty, depth] = key.split(",").map(Number) as [
+        number,
+        number,
+        number,
+      ];
+      if (
+        tx < left ||
+        tx > right ||
+        ty < top ||
+        ty > bottom ||
+        Math.abs(depth * TILE - z) > 224
+      )
+        continue;
+      put(
+        "depthBlock:" + key,
+        (tx + 0.5) * TILE,
+        (ty + 1) * TILE,
+        depth * TILE,
+        () => this.piece("woodBlock", false, 1, false),
+      );
+    }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
         group.removeFromParent();
@@ -560,9 +597,9 @@ export class SurfaceWorld3D {
       this.cursor.position.set(
         (frame.cursor.x + 0.5) * TILE,
         -(frame.cursor.y + 0.5) * TILE,
-        -3,
+        (frame.cursor.depth ?? 0) * TILE,
       );
-      this.cursor.scale.set(TILE + 0.3, TILE + 0.3, 8);
+      this.cursor.scale.set(TILE + 0.3, TILE + 0.3, TILE + 0.3);
       this.cursor.material.color.setHex(
         frame.cursor.valid ? 0x8ff1dd : 0xff816f,
       );
@@ -570,8 +607,13 @@ export class SurfaceWorld3D {
     this.beam.visible = !!frame.beam;
     if (frame.beam) {
       const position = this.beam.geometry.getAttribute("position");
-      position.setXYZ(0, frame.beam.x, -frame.beam.y, 3);
-      position.setXYZ(1, frame.beam.tx, -frame.beam.ty, 3);
+      position.setXYZ(0, frame.beam.x, -frame.beam.y, z);
+      position.setXYZ(
+        1,
+        frame.beam.tx,
+        -frame.beam.ty,
+        (frame.beam.depth ?? 0) * TILE,
+      );
       position.needsUpdate = true;
     }
     this.weather.visible = !!frame.storm;
@@ -589,12 +631,15 @@ export class SurfaceWorld3D {
             409) *
             spanY;
         const column = Math.floor(px / TILE);
-        let ceiling = ceilings.get(column);
+        const rainZ = z - 60 + (seed % 120);
+        const depth = surfaceLayer(rainZ);
+        const key = (column - left) * 32 + depth - surfaceLayer(z);
+        let ceiling = ceilings.get(key);
         if (ceiling === undefined) {
-          ceiling = weatherCeiling(terrain, settlement, column);
-          ceilings.set(column, ceiling);
+          ceiling = weatherCeiling(terrain, settlement, column, 64, depth);
+          ceilings.set(key, ceiling);
         }
-        attr.setXYZ(i, px, py < ceiling ? -py : -5000, 8 + (seed % 12));
+        attr.setXYZ(i, px, py < ceiling ? -py : -5000, rainZ);
       }
       attr.needsUpdate = true;
       this.weather.material.color.setHex(
@@ -613,27 +658,46 @@ export class SurfaceWorld3D {
     };
   }
 
-  pointAt(nx: number, ny: number, snapTerrain: boolean) {
-    if (!this.targetFrame) return;
+  pointAt(nx: number, ny: number, hitSolid: boolean) {
+    const frame = this.targetFrame;
+    if (!frame) return;
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
-    const point = this.ray.ray.intersectPlane(this.interactionPlane, this.ndc);
-    if (!point) return;
-    const wx = point.x,
-      wy = -point.y;
-    const x = Math.floor(wx / TILE),
-      y = Math.floor(wy / TILE);
-    const terrain = this.targetFrame.terrain;
-    if (snapTerrain && !terrain.get(x, y)) {
-      // The top face can extend a few pixels above the front mining plane.
-      const rear = this.ray.ray.at(
-        (this.ray.ray.origin.z + groundDepth) / -this.ray.ray.direction.z,
-        new T.Vector3(),
-      );
-      const rearY = Math.floor(-rear.y / TILE);
-      if (rearY !== y && terrain.get(x, rearY))
-        return { wx, wy: rearY * TILE + TILE / 2, x, y: rearY };
+    this.ray.far = 112;
+    this.scene.updateMatrixWorld();
+    const objects = hitSolid
+      ? this.ray.intersectObjects(
+          [...this.meshes]
+            .filter(([id]) => !id.startsWith("depthBlock:"))
+            .map(([, group]) => group),
+          true,
+        )
+      : [];
+    const picked = objects[0];
+    let lastAir:
+      | { wx: number; wy: number; x: number; y: number; depth: number }
+      | undefined;
+    for (let distance = 0.5; distance <= this.ray.far; distance += 0.65) {
+      const position = this.ray.ray.at(distance, this.rayPoint);
+      const wx = position.x,
+        wy = -position.y;
+      const x = Math.floor(wx / TILE),
+        y = Math.floor(wy / TILE),
+        depth = surfaceLayer(position.z);
+      if (picked && distance >= picked.distance) {
+        const target = picked.object.parent?.userData;
+        return {
+          wx: picked.point.x,
+          wy: -picked.point.y,
+          x: target?.cell?.x ?? Math.floor(picked.point.x / TILE),
+          y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
+          depth: target?.dropDepth ?? 0,
+        };
+      }
+      const target = { wx, wy, x, y, depth };
+      if (solidSurfaceVoxel(frame.terrain, frame.settlement, x, y, depth))
+        return hitSolid ? target : lastAir;
+      lastAir = target;
     }
-    return { wx, wy, x, y };
   }
 
   dispose() {

@@ -144,6 +144,7 @@ export interface PlacedPiece {
   powered?: boolean;
 }
 export interface Settlement {
+  depthBlocks?: Record<string, true>;
   pieces: Record<string, PlacedPiece>;
   walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
@@ -217,6 +218,7 @@ export interface Save {
   ship: ShipState;
   minedCyberCrystals?: Record<string, number>;
   player: {
+    surfaceZ?: number;
     photonSaber?: PhotonSaber;
     hunger: number;
     sickness?: number;
@@ -229,6 +231,7 @@ export interface Save {
   inventory: Inventory;
   backpack: Inventory;
   droppedBackpacks?: {
+    z?: number;
     planetId: string;
     x: number;
     y: number;

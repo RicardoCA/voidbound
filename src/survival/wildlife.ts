@@ -156,7 +156,7 @@ export class Wildlife {
     planet: Planet,
     terrain: Terrain,
     settlement: Settlement,
-    player: { x: number; y: number; health: number },
+    player: { x: number; y: number; health: number; surfaceZ?: number },
     time: number,
     dt: number,
   ) {
@@ -201,9 +201,10 @@ export class Wildlife {
         this.animals.delete(id);
         continue;
       }
-      const distance = Math.hypot(player.x - animal.x, player.y - animal.y);
+      const distance = Math.hypot(player.x - animal.x, player.y - animal.y, player.surfaceZ ?? 0);
       const chasing =
         animal.hostile &&
+        Math.abs(player.surfaceZ ?? 0) < 22 &&
         distance < 115 &&
         Math.abs(player.x - animal.home) < 200 &&
         clearPath(terrain, settlement, animal.x, animal.y, player.x, player.y);

@@ -1,7 +1,7 @@
 import type { Planet, Settlement } from "../types";
 import type { Terrain } from "./terrain";
 import { hash } from "./random";
-import { solidCell } from "../physics/surface";
+import { solidSurfaceVoxel } from "../physics/surfaceDepth";
 
 export type Precipitation = "rain" | "acid" | "snow";
 export const weatherLabels: Record<Precipitation, string> = {
@@ -49,8 +49,9 @@ export function weatherCeiling(
   settlement: Settlement,
   column: number,
   limit = 64,
+  depth = 0,
 ) {
   for (let row = 0; row < limit; row++)
-    if (solidCell(terrain, settlement, column, row)) return row * 16;
+    if (solidSurfaceVoxel(terrain, settlement, column, row, depth)) return row * 16;
   return Infinity;
 }

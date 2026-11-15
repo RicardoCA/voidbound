@@ -1,3 +1,4 @@
+import { consume } from "../inventory/inventory";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
@@ -44,7 +45,7 @@ export const useConstruction = defineStore("construction", () => {
     selected = ref<BuildItem>("woodBlock"),
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
-    cursor = ref<{ x: number; y: number } | null>(null),
+    cursor = ref<{ x: number; y: number; depth?: number } | null>(null),
     activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
       null,
     ),
@@ -145,9 +146,42 @@ export const useConstruction = defineStore("construction", () => {
     )
       return "Corte a árvore antes de construir neste tronco.";
   }
-  function apply(x: number, y: number) {
+  function applyDepthBlock(x: number, y: number, depth: number) {
+    const ctx = context();
+    const key = ctx.terrain.keyAt(x, y, depth);
+    const player = g.state.player;
+    const dx = x * 16 + 8 - player.x;
+    const dy = y * 16 + 8 - player.y;
+    const dz = depth * 16 - (player.surfaceZ ?? 0);
+    let error = "";
+    const blocks = (ctx.settlement.depthBlocks ??= {});
+    if (y < 1 || y >= 63 || Math.hypot(dx, dy, dz) > 96)
+      error = "Aproxime-se para construir.";
+    else if (removing.value) {
+      if (!blocks[key]) error = "Nenhum bloco construído nesta posição.";
+      else if (!addBatch(ctx.inventory, { woodBlock: 1 }, ctx.capacity))
+        error = "Mochila cheia.";
+      else delete blocks[key];
+    } else if (selected.value !== "woodBlock")
+      error = "Esta peça usa a faixa da base. Fora dela, use blocos de madeira.";
+    else if (ctx.terrain.getAt(x, y, depth) || blocks[key])
+      error = "Este espaço já está ocupado.";
+    else if (Math.abs(dx) < 12 && Math.abs(dy) < 20 && Math.abs(dz) < 12)
+      error = "Saia da posição antes de construir.";
+    else if (!consume(ctx.inventory, { woodBlock: 1 }))
+      error = "Você precisa de um bloco de madeira.";
+    else blocks[key] = true;
+    lastError.value = error;
+    if (error) { g.notify(error); return false; }
+    g.worldChanged();
+    audio.play(removing.value ? 260 : 520, .08);
+    void g.save();
+    return true;
+  }
+  function apply(x: number, y: number, depth = 0) {
     if (g.state.mode !== "surface" || g.paused || g.panel || !enabled.value)
       return false;
+    if (depth) return applyDepthBlock(x, y, depth);
     g.refreshHabitat();
     let error: string | undefined;
     if (removing.value) {
@@ -484,9 +518,9 @@ export const useConstruction = defineStore("construction", () => {
     void g.save();
     return true;
   }
-  function setCursor(x: number, y: number) {
-    if (cursor.value?.x !== x || cursor.value?.y !== y) lastError.value = "";
-    cursor.value = { x, y };
+  function setCursor(x: number, y: number, depth = 0) {
+    if (cursor.value?.x !== x || cursor.value?.y !== y || cursor.value?.depth !== depth) lastError.value = "";
+    cursor.value = { x, y, depth };
   }
   function cabinetAt(x: number, y: number) {
     return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);

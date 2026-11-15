@@ -78,7 +78,7 @@ export class HabitatSystem {
           .filter((b) => keys.has(b.key))
           .reduce((sum, b) => sum + b.panels, 0);
     }
-    if (state.mode !== "surface") return report;
+    if (state.mode !== "surface" || Math.abs(state.player.surfaceZ ?? 0) >= 8) return report;
     const player = state.player,
       px = Math.floor(player.x / 16),
       py = Math.floor(player.y / 16),

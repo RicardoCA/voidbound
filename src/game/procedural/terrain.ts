@@ -1,4 +1,4 @@
-import { createNoise2D } from "simplex-noise";
+import { createNoise2D, createNoise3D } from "simplex-noise";
 import { random, LRU, hash } from "./random";
 import type { Planet, Item } from "../types";
 export const TILE = 16,
@@ -20,12 +20,15 @@ export const tileItems: Record<number, Item> = {
 };
 export class Terrain {
   private noise;
+  private depthNoise;
+  private depthHeights = new LRU<string, number>(1200);
   private cache = new LRU<number, Uint8Array>(12);
   constructor(
     readonly planet: Planet,
     readonly changes: Record<string, number>,
   ) {
     this.noise = createNoise2D(random(planet.seed));
+    this.depthNoise = createNoise3D(random(planet.seed ^ 0x63b12a7));
   }
   height(x: number) {
     if (Math.abs(x) < 9) return 29;
@@ -85,8 +88,39 @@ export class Terrain {
     const cx = Math.floor(x / CHUNK_W);
     return this.chunk(cx)[y * CHUNK_W + (((x % 32) + 32) % 32)]!;
   }
-  remove(x: number, y: number) {
-    this.changes[`${x},${y}`] = 0;
+  heightAt(x: number, depth: number) {
+    if (depth === 0) return this.height(x);
+    const key = `${x},${depth}`;
+    const cached = this.depthHeights.get(key);
+    if (cached !== undefined) return cached;
+    const amplitude = Math.min(1, Math.abs(depth) / 10);
+    const height = this.height(x) + Math.round(amplitude * (
+      this.depthNoise(x / 26, depth / 18, .6) * 5 +
+      this.depthNoise(x / 8, depth / 9, 4) * 1.5
+    ));
+    return this.depthHeights.set(key, height);
+  }
+
+  keyAt(x: number, y: number, depth = 0) {
+    return depth === 0 ? `${x},${y}` : `${x},${y},${depth}`;
+  }
+
+  getAt(x: number, y: number, depth = 0) {
+    if (depth === 0) return this.get(x, y);
+    if (y < 0) return 0;
+    if (y >= CHUNK_H) return 1;
+    const key = this.keyAt(x, y, depth);
+    const changed = this.changes[key];
+    if (changed !== undefined) return changed;
+    if (y < this.heightAt(x, depth)) return 0;
+    const seed = hash(`${this.planet.seed}:${key}`);
+    if (seed % 4 !== 0) return 1;
+    const veins = [[2, 3, 4, STONE_TILE], [4, 5, 7], [8, 7, 2], [9, 10, 3], [6, 5, 11], [8, 4, 9]][this.planet.kind]!;
+    return veins[(seed >>> 8) % veins.length]!;
+  }
+
+  remove(x: number, y: number, depth = 0) {
+    this.changes[this.keyAt(x, y, depth)] = 0;
   }
   get cachedChunks() {
     return this.cache.size;
