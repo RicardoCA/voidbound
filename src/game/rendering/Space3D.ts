@@ -70,6 +70,9 @@ export class Space3D {
     fog: T.Fog;
   };
   private jumpScene?: T.Scene;
+  private jumpFallback?: T.Group;
+  private jumpModel?: T.Group;
+  private jumpAnimation?: { mixer: T.AnimationMixer; duration: number };
   private routeScene?: T.Scene;
   private routeModel?: T.Group;
   private jumpTrails?: T.BufferGeometry;
@@ -129,6 +132,13 @@ export class Space3D {
     const sun = new T.DirectionalLight(0xffe3b9, 2.8);
     sun.position.set(300, 450, -500);
     this.scene.add(sun, this.flightFill);
+    void this.loadEnvironmentAsset("cockpit-salto-luz")
+      .then((model) => {
+        if (!this.disposed) this.jumpModel = model;
+      })
+      .catch((error: unknown) =>
+        console.warn("Cockpit do salto 3D indisponível.", error),
+      );
     void this.loadEnvironmentAsset("computador-de-rota")
       .then((model) => {
         if (!this.disposed) this.routeModel = model;
@@ -803,7 +813,8 @@ export class Space3D {
     if (!asset) {
       asset = new GLTFLoader()
         .loadAsync(import.meta.env.BASE_URL + "models/" + file + ".glb")
-        .then(({ scene }) => {
+        .then(({ scene, animations }) => {
+          scene.animations = animations;
           if (this.disposed) this.disposeEnvironmentAsset(scene);
           else this.environmentTemplates.add(scene);
           return scene;
@@ -1902,6 +1913,7 @@ export class Space3D {
           );
       }
       scene.add(cockpit);
+      this.jumpFallback = cockpit;
       this.jumpTrails = new T.BufferGeometry();
       this.jumpTrails.setAttribute(
         "position",
@@ -1938,10 +1950,30 @@ export class Space3D {
       this.landingPlanet.visible = false;
     }
     const t = T.MathUtils.clamp(progress, 0, 1);
-    const power = Math.sin(t * Math.PI) ** 0.6;
+    if (this.jumpModel && !this.jumpModel.parent) {
+      const clips = this.jumpModel.animations;
+      if (clips.length) {
+        const mixer = new T.AnimationMixer(this.jumpModel);
+        for (const clip of clips) mixer.clipAction(clip).play();
+        this.jumpAnimation = {
+          mixer,
+          duration: Math.max(...clips.map((clip) => clip.duration)),
+        };
+      }
+      this.jumpScene.add(this.jumpModel);
+    }
+    if (this.jumpModel) this.jumpModel.visible = !planet;
+    if (this.jumpFallback) this.jumpFallback.visible = !!planet || !this.jumpModel;
+    if (!planet && this.jumpAnimation)
+      this.jumpAnimation.mixer.setTime(t * this.jumpAnimation.duration * 0.9999);
+
+    const power =
+      T.MathUtils.smoothstep(t, 0.08, 0.34) *
+      (1 - T.MathUtils.smoothstep(t, 0.70, 0.99));
+    const travel = 7200 * (t - Math.sin(t * 2 * Math.PI) / (2 * Math.PI));
     const position = this.jumpTrails!.getAttribute("position");
     this.jumpSeeds.forEach(({ x, y, depth }, i) => {
-      const z = -55 - ((depth + 1200 - ((t * t * 5400) % 1200)) % 1200);
+      const z = -55 - ((depth + 1200 - (travel % 1200)) % 1200);
       position.setXYZ(i * 2, x, y, z);
       position.setXYZ(i * 2 + 1, x, y, z - (3 + 230 * power));
     });
@@ -2353,6 +2385,7 @@ export class Space3D {
       }
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
+    this.jumpAnimation?.mixer.stopAllAction();
     this.jumpTrails?.dispose();
     this.surfaceCinematic?.terrain.dispose();
     this.renderer.dispose();
