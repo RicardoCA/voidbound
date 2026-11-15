@@ -1809,6 +1809,7 @@ export const useGame = defineStore("game", () => {
   return {
     state,
     habitat,
+    planetTerrain,
     worldChanged,
     worldRevision,
     refreshHabitat,

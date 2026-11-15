@@ -163,10 +163,7 @@ watch(
           routeComputerReady.value = space!.drawRouteComputer();
           if (!routeComputerReady.value) space!.draw(g);
         } else if (inCabin.value)
-          cabinLoading.value = !space!.drawCabin(
-            g.flightCabin,
-            g.state.wardrobe?.equipped,
-          );
+          cabinLoading.value = !space!.drawCabin(g);
         else if (inColossal.value) {
           if (flight3D.colossalBoarding) space!.draw(g);
           else space!.drawColossalInterior(g);

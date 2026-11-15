@@ -1,6 +1,8 @@
 import { SurfaceWorld3D } from "./SurfaceWorld3D";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
-import { daylight } from "../../construction/habitat";
+import { emptySettlement } from "../../construction/building";
+import { fruitsNear, Wildlife, type Fruit } from "../../survival/wildlife";
+import { daylight, solarPhase } from "../../construction/habitat";
 import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
@@ -133,6 +135,17 @@ export class Space3D {
   private readonly walkAxis = new T.Vector3(1, 0, 0);
   private readonly walkRotation = new T.Quaternion();
   private cabinScene?: T.Scene;
+  private cabinSpaceBackdrop?: T.Group;
+  private readonly cabinImportedBackdrop: T.Object3D[] = [];
+  private cabinSurface?: {
+    world: SurfaceWorld3D;
+    wildlife: Wildlife;
+    site: string;
+    time: number;
+    revision: number;
+    fruit: Fruit[];
+  };
+  private readonly emptyCabinSettlement = emptySettlement();
   private cabinLoading = false;
   private readonly loadingPilots = new WeakSet<T.Group>();
   private outfitKey = "";
@@ -1018,7 +1031,10 @@ export class Space3D {
     const starlight = this.scene.children.find(
       (object) => object instanceof T.Points,
     );
-    if (starlight) scene.add(starlight.clone());
+    const spaceBackdrop = new T.Group();
+    if (starlight) spaceBackdrop.add(starlight.clone());
+    this.cabinSpaceBackdrop = spaceBackdrop;
+    scene.add(spaceBackdrop);
     const vista = new T.Group();
     vista.position.set(66, 106, -420);
     this.part(
@@ -1043,7 +1059,7 @@ export class Space3D {
       29,
       29,
     );
-    scene.add(vista);
+    spaceBackdrop.add(vista);
 
     const consoleShape = this.armor(
       "cabin-console",
@@ -1151,6 +1167,10 @@ export class Space3D {
           return;
         }
         this.textureImportedCabin(model);
+        model.traverse((object) => {
+          if (/^(Estrela exterior|Fundo da vigia|Lua gelada|Planeta na vigia)(?:[ .]*[0-9]+)?$/.test(object.name.replaceAll("_", " ")))
+            this.cabinImportedBackdrop.push(object);
+        });
         // Fit the authored deck to the cabin's existing walk and equipment coordinates.
         const widthScale = 145 / 6.94;
         const depthScale = 58 / (2.49 + 1.5);
@@ -1638,9 +1658,10 @@ export class Space3D {
     }
   }
 
-  drawCabin(inFlight: boolean, outfit?: Outfit) {
+  drawCabin(g: Game) {
     if (!this.resize()) return false;
-    this.prepareCabin(outfit);
+    const inFlight = g.flightCabin;
+    this.prepareCabin(g.state.wardrobe?.equipped);
     if (this.cabinLoading || !this.cabinActor || this.loadingPilots.has(this.cabinActor))
       return false;
     const { x, z, stride, heading } = flight3D.cabin;
@@ -1656,8 +1677,66 @@ export class Space3D {
     this.cabinCamera.position.set(x * 0.78, 60, z * 0.25 + distance);
     this.cabinCamera.lookAt(x * 0.73, 15, -15);
     this.cabinCamera.updateProjectionMatrix();
-    this.renderer.render(this.cabinScene!, this.cabinCamera);
+    const landed = !inFlight && g.state.mode === "interior";
+    this.cabinSpaceBackdrop!.visible = !landed;
+    for (const object of this.cabinImportedBackdrop) object.visible = !landed;
+    if (landed) {
+      this.drawCabinExterior(g, x);
+      const scene = this.cabinScene!;
+      const background = scene.background;
+      const autoClear = this.renderer.autoClear;
+      scene.background = null;
+      this.renderer.autoClear = false;
+      try {
+        this.renderer.clearDepth();
+        this.renderer.render(scene, this.cabinCamera);
+      } finally {
+        scene.background = background;
+        this.renderer.autoClear = autoClear;
+      }
+    } else this.renderer.render(this.cabinScene!, this.cabinCamera);
     return true;
+  }
+
+  private drawCabinExterior(g: Game, cabinX: number) {
+    const { landingX, time } = g.state;
+    const { planet, planetTerrain: terrain, weather } = g;
+    const settlement = g.state.settlements[planet.id] ?? this.emptyCabinSettlement;
+    const site = `${planet.id}:${landingX}`;
+    const exterior = this.cabinSurface ??= {
+      world: new SurfaceWorld3D((asset) => this.loadEnvironmentAsset(asset)),
+      wildlife: new Wildlife(),
+      site: "",
+      time: -Infinity,
+      revision: -1,
+      fruit: [],
+    };
+    if (site !== exterior.site || time < exterior.time) {
+      exterior.site = site;
+      exterior.time = -Infinity;
+      exterior.wildlife.animals.clear();
+    }
+    const padX = landingX * 16;
+    const ground = terrain.height(landingX) * 16;
+    if (time - exterior.time >= .12 || exterior.revision !== g.worldRevision) {
+      const dt = Number.isFinite(exterior.time) ? Math.min(.15, Math.max(0, time - exterior.time)) : 0;
+      exterior.wildlife.update(planet, terrain, settlement,
+        { x: padX, y: ground - 12, health: 100, surfaceZ: 30 }, time, dt);
+      exterior.fruit = fruitsNear(planet, terrain, settlement, padX, time, 0);
+      exterior.time = time;
+      exterior.revision = g.worldRevision;
+    }
+    const viewX = padX + cabinX * .21;
+    const viewGround = terrain.heightAt(Math.floor(viewX / 16), 3) * 16;
+    exterior.world.update({
+      terrain, settlement, revision: g.worldRevision,
+      camera: { x: viewX, y: Math.min(ground, viewGround) - 21, z: 42, yaw: 0, pitch: -.24 },
+      elapsed: time, light: daylight(time) * (1 - .32 * (weather?.intensity ?? 0)),
+      sunPhase: solarPhase(time), facing: 1, stride: 0,
+      animals: [...exterior.wildlife.animals.values()], fruit: exterior.fruit,
+      drops: g.surfaceBackpacks(), ruin: g.surfaceRuin, storm: weather,
+    }, this.width, this.height);
+    this.renderer.render(exterior.world.scene, exterior.world.camera);
   }
 
   drawColossalInterior(g: Game) {
@@ -2646,6 +2725,7 @@ export class Space3D {
     this.stationFloor.dispose();
     this.exploration?.saber.material.dispose();
     this.exploration?.world.dispose();
+    this.cabinSurface?.world.dispose();
     this.surfaceFlight?.mixer.stopAllAction();
     if (this.showroomRoom) {
       for (const map of this.showroomRoom.signs) map.dispose();
