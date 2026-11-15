@@ -1358,12 +1358,13 @@ export class WorldScene extends Phaser.Scene {
       }));
     g.radarShips = [
       ...traffic,
-      ...this.combat.escorts.map(({ pilot, x, y }) => ({
+      ...this.combat.escorts.map(({ pilot, x, y, angle }) => ({
         id: pilot.id,
         name: pilot.name,
         model: pilot.model,
         x,
         y,
+        angle,
         role: "ally" as const,
         engaged: false,
       })),

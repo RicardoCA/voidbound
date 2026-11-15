@@ -2172,6 +2172,8 @@ export class Space3D {
         () => {
           const ship = this.shipForModel(npc.model, false);
           ship.scale.multiplyScalar(0.7);
+          ship.position.set(npc.x, npc.role === "ally" ? altitude + 12 : npc.altitude ?? 0, npc.y);
+          if (npc.angle !== undefined) ship.rotation.y = -Math.PI / 2 - npc.angle;
           return ship;
         },
         seen,
@@ -2190,10 +2192,18 @@ export class Space3D {
           );
       const planarSpeed = Math.hypot(dx, dz) > 0.02 ? 85 : 25;
       const bank = Math.atan2(climb, Math.max(0.01, dt) * planarSpeed);
+      const yaw = model.rotation.y;
+      const heading = npc.angle !== undefined
+        ? -Math.PI / 2 - npc.angle
+        : Math.hypot(dx, dz) > 0.02 ? Math.atan2(-dx, -dz) : yaw;
+      const difference = Math.atan2(Math.sin(heading - yaw), Math.cos(heading - yaw));
+      const blend = 1 - Math.exp(-6 * dt);
       model.rotation.set(
-        T.MathUtils.lerp(model.rotation.x, bank, 1 - Math.exp(-8 * dt)),
-        Math.hypot(dx, dz) > 0.02 ? Math.atan2(-dx, -dz) : model.rotation.y,
-        0,
+        T.MathUtils.lerp(model.rotation.x, bank, blend),
+        yaw + difference * blend,
+        npc.role === "ally"
+          ? T.MathUtils.lerp(model.rotation.z, T.MathUtils.clamp(-difference * 0.25, -0.3, 0.3), blend)
+          : 0,
         "YXZ",
       );
       model.position.set(npc.x, model.position.y + climb, npc.y);

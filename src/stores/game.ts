@@ -250,7 +250,7 @@ export const useGame = defineStore("game", () => {
       (Pick<
         SpaceNpc,
         "id" | "name" | "x" | "y" | "engaged" | "bountyTarget" | "altitude" | "model"
-      > & { role: SpaceNpc["role"] | "ally" })[]
+      > & { role: SpaceNpc["role"] | "ally"; angle?: number })[]
     >([]),
     stationContact = ref<string>(),
     cabinContact = ref<CabinEquipment>(),

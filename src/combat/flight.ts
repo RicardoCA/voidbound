@@ -52,6 +52,9 @@ function launch(
 
 interface EscortFlight extends Point {
   pilot: EscortContract;
+  vx: number;
+  vy: number;
+  formationAngle: number;
   angle: number;
   fireAt: number;
 }
@@ -366,24 +369,37 @@ export class SpaceCombat {
 
   private flyEscorts(state: Save, dt: number) {
     const ship = state.ship;
-    const active = (state.escorts ?? []).filter(
-      (pilot) => pilot.remaining > 0 && !pilot.repairUntil,
-    );
-    this.escorts = active.map((pilot, index) => {
-      const bearing = ship.angle + Math.PI + (index === 0 ? -0.65 : 0.65);
-      const x = ship.x + Math.cos(bearing) * 58;
-      const y = ship.y + Math.sin(bearing) * 58;
-      const previous = this.escorts.find(
-        (escort) => escort.pilot.id === pilot.id,
-      );
-      const blend = 1 - Math.exp(-dt * 5);
-      return {
+    this.escorts = (state.escorts ?? []).flatMap((pilot, index) => {
+      if (pilot.remaining <= 0 || pilot.repairUntil) return [];
+      const previous = this.escorts.find((escort) => escort.pilot.id === pilot.id);
+      const oldAngle = previous?.formationAngle ?? ship.angle;
+      const turn = ship.angle - oldAngle;
+      const formationAngle =
+        oldAngle + Math.atan2(Math.sin(turn), Math.cos(turn)) * (1 - Math.exp(-3 * dt));
+      const bearing = formationAngle + Math.PI + (index % 2 === 0 ? -0.65 : 0.65);
+      const spacing = 64 + Math.floor(index / 2) * 30;
+      const targetX = ship.x + Math.cos(bearing) * spacing;
+      const targetY = ship.y + Math.sin(bearing) * spacing;
+      const x = previous?.x ?? targetX;
+      const y = previous?.y ?? targetY;
+      const oldVX = previous?.vx ?? ship.vx;
+      const oldVY = previous?.vy ?? ship.vy;
+      const blend = 1 - Math.exp(-4.5 * dt);
+      const dx = targetX - x;
+      const dy = targetY - y;
+      const catchUp = Math.min(2.5, 145 / Math.max(1, Math.hypot(dx, dy)));
+      const vx = oldVX + (ship.vx + dx * catchUp - oldVX) * blend;
+      const vy = oldVY + (ship.vy + dy * catchUp - oldVY) * blend;
+      return [{
         pilot,
-        x: previous ? previous.x + (x - previous.x) * blend : x,
-        y: previous ? previous.y + (y - previous.y) * blend : y,
-        angle: ship.angle,
+        x: x + vx * dt,
+        y: y + vy * dt,
+        vx,
+        vy,
+        formationAngle,
+        angle: Math.hypot(vx, vy) > 10 ? Math.atan2(vy, vx) : formationAngle,
         fireAt: previous?.fireAt ?? 0,
-      };
+      }];
     });
   }
 
