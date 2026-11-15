@@ -1,4 +1,4 @@
-"""Generate the editable base equipment collection and the six game GLBs."""
+"""Generate the editable base equipment collection and the game GLBs."""
 from pathlib import Path
 from random import Random
 from math import pi
@@ -190,10 +190,71 @@ def chest(bays):
             box("Trilho da tampa", (x+side*.40, 0, .984), (.11, .75, .05), light)
 
 
+wood = material("Madeira alienígena", (.34, .175, .085), rough=.78, texture=True)
+wood_light = material("Madeira clara", (.46, .254, .126), rough=.72, texture=True)
+wood_dark = material("Juntas de madeira", (.17, .084, .044), rough=.85, texture=True)
+stone = material("Pedra da fogueira", (.28, .26, .25), rough=.9, texture=True)
+flame = material("Chama exterior", (1, .22, .024), glow=1.4)
+ember = material("Chama interior", (1, .66, .11), glow=2.2)
+
+
+def timber(width, depth):
+    # A continuous core closes the footprint. Each plank wraps around all four sides.
+    box("Núcleo de madeira", (0, 0, .5), (width, depth, 1), wood_dark, 0)
+    for row in range(5):
+        z = (row + .5) / 5
+        box("Tábua contínua", (0, 0, z), (width+.006, depth+.006, .186),
+            wood_light if row % 3 == 0 else wood, .005)
+
+
+def ladder():
+    for x in [-.37, .37]:
+        box("Montante", (x, 0, .5), (.13, .13, 1), wood, .012)
+    for i in range(4):
+        z = .125 + i*.25
+        cylinder("Degrau torneado", (0, 0, z), .049, .78, wood_light, "x", 10)
+        for x in [-.36, .36]:
+            box("Amarração", (x, 0, z), (.155, .155, .07), wood_dark, .013)
+
+
+def stairs():
+    for i in range(4):
+        h = (i+1)/4
+        x = (i-1.5)/4
+        box("Corpo do degrau", (x, 0, h/2), (.25, .76, h), wood, 0)
+        box("Piso do degrau", (x, 0, h-.035), (.25, .764, .07), wood_light, .005)
+
+
+def campfire():
+    from math import cos, sin
+    rng = Random(47)
+    for i in range(9):
+        angle = i * 2*pi/9
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=.17,
+            location=(.48*cos(angle), .48*sin(angle), .115))
+        rock = mesh("Pedra do anel", stone)
+        rock.scale = (rng.uniform(.9, 1.18), rng.uniform(.9, 1.18), .85)
+    for i in range(3):
+        angle = i*pi/3
+        log = cylinder("Lenha", (0, 0, .19+i*.042), .085, .81, wood, "x", 9)
+        log.rotation_euler.z = angle
+    for i in range(6):
+        angle = i*pi/3
+        bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=.17, depth=.44,
+            location=(.13*cos(angle), .13*sin(angle), .44))
+        tongue = mesh("Língua de fogo", flame if i % 2 else ember)
+        tongue.rotation_euler = (.24*sin(angle), -.24*cos(angle), angle)
+    bpy.ops.mesh.primitive_cone_add(vertices=7, radius1=.13, depth=.64, location=(0, 0, .55))
+    mesh("Núcleo incandescente", ember)
+
+
 for index, (name, build) in enumerate([
     ("bateria", battery), ("gerador-oxigenio", oxygen), ("placa-solar", solar),
     ("bau", lambda: chest(1)), ("bau-duplo", lambda: chest(2)),
-    ("bau-triplo", lambda: chest(3)),
+    ("bau-triplo", lambda: chest(3)), ("fogueira", campfire),
+    ("escada-vertical", ladder), ("escada-madeira", stairs),
+    ("parede-madeira", lambda: timber(1, .19)),
+    ("bloco-madeira", lambda: timber(1, 1)),
 ]):
     before = set(bpy.data.objects)
     build()

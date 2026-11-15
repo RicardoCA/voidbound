@@ -9,6 +9,11 @@ import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Settlement } from "../types";
 
 const equipmentModels = {
+  campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
+  stickLadder: { file: "escada-vertical", width: 12, height: 16, depth: 3, center: -2 },
+  woodStairs: { file: "escada-madeira", width: 16, height: 16, depth: 12, center: -6 },
+  woodWall: { file: "parede-madeira", width: 16, height: 16, depth: surfaceWallThickness, center: surfaceWallZ - 8 },
+  woodBlock: { file: "bloco-madeira", width: 16, height: 16, depth: 16, center: -8 },
   battery: { file: "bateria", width: 13, height: 12, depth: 9, center: -5 },
   oxygenGenerator: { file: "gerador-oxigenio", width: 13, height: 12, depth: 9, center: -5 },
   solarPanel: { file: "placa-solar", width: 15, height: 11, depth: 10, center: -6 },
@@ -168,7 +173,7 @@ export class SurfaceWorld3D {
 
   private attachSurfaceModel(
     group: T.Group, file: string, width: number, height: number, depth: number,
-    centerZ = 0,
+    centerZ = 0, mirrorX = false,
   ) {
     void this.loadModel?.(file)
       .then((asset) => {
@@ -178,7 +183,7 @@ export class SurfaceWorld3D {
         const size = bounds.getSize(new T.Vector3());
         if (!size.x || !size.y || !size.z) return;
         const center = bounds.getCenter(new T.Vector3());
-        model.scale.set(width / size.x, height / size.y, depth / size.z);
+        model.scale.set((mirrorX ? -width : width) / size.x, height / size.y, depth / size.z);
         model.position.set(
           -center.x * model.scale.x,
           -bounds.min.y * model.scale.y,
@@ -613,7 +618,7 @@ export class SurfaceWorld3D {
       const wall = settlement.depthWalls?.[key];
       if (wall) this.putWall(put, settlement, key, wall, tx, ty, depth);
       else put("depthBlock:" + key + ":" + kind, (tx + 0.5) * TILE,
-        (ty + 1) * TILE, depth * TILE, () => this.piece("woodBlock", false, 1, false));
+        (ty + 1) * TILE, depth * TILE, () => this.orientedPiece("woodBlock", false, 1, false));
     }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
@@ -705,6 +710,7 @@ export class SurfaceWorld3D {
     const model = equipmentModels[kind as keyof typeof equipmentModels];
     if (model) this.attachSurfaceModel(
       piece, "equipamentos-base/" + model.file, model.width, model.height, model.depth, model.center,
+      kind === "woodStairs" && facing === -1,
     );
     if (rotation === undefined) return piece;
     const group = new T.Group();
