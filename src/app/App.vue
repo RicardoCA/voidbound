@@ -1053,7 +1053,7 @@ function minutes() {
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
         ><template v-if="flight3D.surfaceView">
-          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> MOVIMENTAR <kbd>MOUSE</kbd> OLHAR
+          <kbd>W</kbd><kbd>S</kbd> ANDAR <kbd>A</kbd><kbd>D</kbd> GIRAR <kbd>MOUSE</kbd> OLHAR
         </template>
         <template v-else>
           <kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>W</kbd><kbd>S</kbd> ESCALAR

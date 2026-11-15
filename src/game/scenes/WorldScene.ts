@@ -1620,7 +1620,13 @@ export class WorldScene extends Phaser.Scene {
     const direction =
       (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
       (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
-    if (direction) this.facing = direction;
+    if (flight3D.surfaceView && direction) {
+      const look = flight3D.surfaceLook;
+      flight3D.surfaceLook = {
+        ...look,
+        yaw: Phaser.Math.Angle.Wrap(look.yaw - direction * 2.2 * dt),
+      };
+    } else if (direction) this.facing = direction;
     const pulse = takePulse("jump");
     const jumping = this.down("SPACE") || controls.jump;
     const jump = this.jumpBuffer.take(
@@ -1646,20 +1652,23 @@ export class WorldScene extends Phaser.Scene {
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
     const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
     const yaw = flight3D.surfaceLook.yaw;
-    const step = 90 * dt / Math.max(1, Math.hypot(direction, vertical));
+    const step = 90 * dt * vertical;
     const spatialMove = !climb && flight3D.surfaceView
       ? stepSurfaceDepth(
           { ...actor, z: p.surfaceZ ?? 0 },
-          (direction * Math.cos(yaw) + vertical * Math.sin(yaw)) * step,
-          (-direction * Math.sin(yaw) + vertical * Math.cos(yaw)) * step,
+          Math.sin(yaw) * step,
+          Math.cos(yaw) * step,
           jump, g.planet.gravity, dt,
           (x, y, depth) => solidSurfaceVoxel(t, this.building.settlement, x, y, depth),
         )
       : undefined;
     const movement = climb ?? spatialMove ??
       stepSurface(actor, direction, jump, g.planet.gravity, dt, t, this.building.settlement);
+    const depthTravel = spatialMove ? spatialMove.z - (p.surfaceZ ?? 0) : 0;
     if (spatialMove) p.surfaceZ = spatialMove.z;
-    const travel = climb ? Math.abs(movement.y - p.y) : Math.abs(movement.x - p.x);
+    const travel = climb
+      ? Math.abs(movement.y - p.y)
+      : Math.hypot(movement.x - p.x, depthTravel);
     this.surfaceStride =
       travel > 0.01 && (movement.grounded || climb)
         ? this.surfaceStride + travel * 0.19
