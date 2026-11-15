@@ -70,6 +70,13 @@ it.each([
       terrain.remove(0, 9, -2);
       world.update(frame, width, height);
       expect(hasBlockMesh()).toBe(false);
+      frame.cursor = { x: 0, y: 9, depth: -1, valid: true, kind: "woodBlock" };
+      world.update(frame, width, height);
+      expect(world.pointAt(0, 0, false)).toBeUndefined();
+      expect(world.pointAt(0, 0, false, true)).toMatchObject({ x: 0, y: 9, depth: -1 });
+      frame.cursor.valid = false;
+      world.update(frame, width, height);
+      expect(world.pointAt(0, 0, false, true)).toBeUndefined();
       expect(world.pointAt(0, 0, true)).toBeUndefined();
     } finally {
       world.dispose();

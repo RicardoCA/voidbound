@@ -224,9 +224,9 @@ export class WorldScene extends Phaser.Scene {
       !this.store.paused &&
       !this.store.busy &&
       !this.store.inSequence;
-    const targetSurface = (event: PointerEvent) => {
+    const targetSurface = (event: PointerEvent, confirm = false) => {
       if (!onSurface()) return;
-      const target = this.surfacePoint(event);
+      const target = this.surfacePoint(event, confirm);
       if (target && this.building.enabled) this.building.setCursor(target.x, target.y, target.depth);
       return target;
     };
@@ -264,7 +264,7 @@ export class WorldScene extends Phaser.Scene {
           return;
         }
       }
-      this.surfaceTap = targetSurface(event);
+      this.surfaceTap = targetSurface(event, true);
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
@@ -291,7 +291,7 @@ export class WorldScene extends Phaser.Scene {
     canvas.addEventListener("pointermove", move);
     const finish = (event: PointerEvent) => {
       if (touchLook?.id === event.pointerId) {
-        if (!touchLook.drag) this.surfaceTap = targetSurface(event);
+        if (!touchLook.drag) this.surfaceTap = targetSurface(event, true);
         touchLook = undefined;
       }
       clearMouse();
@@ -487,7 +487,7 @@ export class WorldScene extends Phaser.Scene {
   private get centerY() {
     return this.viewHeight / 2;
   }
-  private surfacePoint(event: PointerEvent): SurfaceTarget | undefined {
+  private surfacePoint(event: PointerEvent, confirm = false): SurfaceTarget | undefined {
     if (flight3D.surfaceView && this.store.state.mode === "surface") {
       const canvas = this.game.canvas;
       const locked = document.pointerLockElement === canvas;
@@ -496,6 +496,7 @@ export class WorldScene extends Phaser.Scene {
         rect ? rect.left + rect.width / 2 : event.clientX,
         rect ? rect.top + rect.height / 2 : event.clientY,
         !this.building.enabled || this.building.removing,
+        confirm || (!locked && !(event.buttons & 2)),
       );
     }
     const rect = this.game.canvas.getBoundingClientRect();

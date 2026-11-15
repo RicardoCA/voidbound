@@ -141,7 +141,7 @@ watch(
       flight3D.stationView = inStation.value;
       flight3D.surfaceView = surfaceExploration.value;
       if (surfaceExploration.value)
-        flight3D.surfacePointer = (x, y, snap) => space?.surfacePointAt(x, y, snap);
+        flight3D.surfacePointer = (x, y, snap, pickPreview) => space?.surfacePointAt(x, y, snap, pickPreview);
       flight3D.colossalView = inColossal.value;
       if (freeFlight.value && !g.aboardColossal)
         cabinPreload = window.setTimeout(

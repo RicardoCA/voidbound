@@ -705,7 +705,7 @@ export class SurfaceWorld3D {
     ).userData.cell = { x, y, depth, wall: true, rotation };
   }
 
-  pointAt(nx: number, ny: number, hitSolid: boolean): SurfaceTarget | undefined {
+  pointAt(nx: number, ny: number, hitSolid: boolean, pickPreview = false): SurfaceTarget | undefined {
     const frame = this.targetFrame;
     if (!frame) return;
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
@@ -733,6 +733,9 @@ export class SurfaceWorld3D {
         picked = { point: hit.clone(), distance, object: group };
       }
     }
+    const preview = !hitSolid && pickPreview && frame.cursor?.valid && this.cursor.visible
+      ? this.ray.intersectObject(this.cursor, false)[0]
+      : undefined;
     let lastAir: SurfaceTarget | undefined;
     for (let distance = 0.5; distance <= this.ray.far; distance += 0.65) {
       const position = this.ray.ray.at(distance, this.rayPoint);
@@ -741,6 +744,10 @@ export class SurfaceWorld3D {
       const x = Math.floor(wx / TILE),
         y = Math.floor(wy / TILE),
         depth = surfaceLayer(position.z);
+      if (preview && distance >= preview.distance && preview.distance <= (picked?.distance ?? Infinity)) {
+        const { x, y, depth = 0 } = frame.cursor!;
+        return { x, y, depth, wx: preview.point.x, wy: -preview.point.y };
+      }
       if (picked && distance >= picked.distance) {
         let node: T.Object3D | null = picked.object;
         while (node?.parent && node.parent !== this.scene) node = node.parent;

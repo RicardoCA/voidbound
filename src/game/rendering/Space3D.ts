@@ -1839,13 +1839,14 @@ export class Space3D {
     this.renderer.render(scene, this.cabinCamera);
   }
 
-  surfacePointAt(clientX: number, clientY: number, snapTerrain: boolean) {
+  surfacePointAt(clientX: number, clientY: number, snapTerrain: boolean, pickPreview = false) {
     const bounds = this.canvas.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     return this.exploration?.world.pointAt(
       ((clientX - bounds.left) / bounds.width) * 2 - 1,
       1 - ((clientY - bounds.top) / bounds.height) * 2,
       snapTerrain,
+      pickPreview,
     );
   }
 
