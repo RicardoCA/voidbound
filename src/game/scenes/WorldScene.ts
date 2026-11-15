@@ -17,6 +17,7 @@ import {
   starClasses,
   starKinds,
   spatialStar,
+  spatialThermalDepth,
 } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
@@ -943,15 +944,19 @@ export class WorldScene extends Phaser.Scene {
 
   private followRoute(
     dt: number,
-    target: { x: number; y: number; name: string; stopDistance: number },
+    target: { x: number; y: number; altitude?: number; name: string; stopDistance: number },
+    spatial: boolean,
   ) {
     const g = this.store,
       ship = g.state.ship;
     const dx = target.x - ship.x,
       dy = target.y - ship.y;
-    const distance = Math.hypot(dx, dy);
-    const speed = Math.hypot(ship.vx, ship.vy);
+    const dz = spatial ? (target.altitude ?? 0) - flight3D.altitude : 0;
+    const verticalSpeed = spatial ? flight3D.velocity : 0;
+    const distance = Math.hypot(dx, dy, dz);
+    const speed = Math.hypot(ship.vx, ship.vy, verticalSpeed);
     if (distance <= target.stopDistance + 13 && speed < 5) {
+      if (spatial) flight3D.velocity = 0;
       ship.vx = 0;
       ship.vy = 0;
       g.clearRoute("Destino alcançado: " + target.name + ".");
@@ -971,16 +976,18 @@ export class WorldScene extends Phaser.Scene {
       ),
     );
     const velocity = avoidRouteObstacles(
-      ship,
+      spatial ? { ...ship, z: flight3D.altitude, vz: verticalSpeed } : ship,
       {
         x: (dx / Math.max(1, distance)) * cruise,
         y: (dy / Math.max(1, distance)) * cruise,
+        z: (dz / Math.max(1, distance)) * cruise,
       },
       acceleration,
       [
         ...g.asteroids.map((rock) => ({
           x: rock.x,
           y: rock.y,
+          z: spatial ? spaceAltitude("asteroid", rock.id) : undefined,
           vx: 0,
           vy: 0,
           radius: Math.min(
@@ -995,19 +1002,50 @@ export class WorldScene extends Phaser.Scene {
           .map((npc) => ({
             x: npc.x,
             y: npc.y,
+            z: spatial ? npc.altitude ?? 0 : undefined,
+            vz: spatial
+              ? Phaser.Math.Clamp(((npc.engaged ? flight3D.altitude : 0) - (npc.altitude ?? 0)) * 2.6, -160, 160)
+              : undefined,
             vx: npc.vx,
             vy: npc.vy,
             radius: 52,
           })),
+        ...(spatial ? [
+          ...g.system.planets.map((planet, index) => {
+            const { x, y, altitude, radius } = spatialPlanet(index, planet.id);
+            return { x, y, z: altitude, vx: 0, vy: 0, radius: radius + 70 };
+          }),
+          ...g.system.stars.map((star, index) => {
+            const { x, y, altitude, radius } = spatialStar(star, index);
+            return {
+              x, y, z: altitude, vx: 0, vy: 0,
+              radius: radius + spatialThermalDepth(star, radius) + 60,
+            };
+          }),
+          ...this.combat.escorts.map((escort) => ({
+            x: escort.x, y: escort.y, z: flight3D.altitude + 12,
+            vx: escort.vx, vy: escort.vy, vz: verticalSpeed, radius: 42,
+          })),
+        ] : []),
       ],
     );
-    this.routeBraking = Math.hypot(velocity.x, velocity.y) < speed - 2;
+    const vz = spatial ? velocity.z ?? 0 : 0;
+    this.routeBraking = Math.hypot(velocity.x, velocity.y, vz) < speed - 2;
     const changeX = velocity.x - ship.vx;
     const changeY = velocity.y - ship.vy;
-    const change = Math.hypot(changeX, changeY);
+    const changeZ = vz - verticalSpeed;
+    const change = Math.hypot(changeX, changeY, changeZ);
     const fraction = Math.min(1, (acceleration * dt) / Math.max(0.001, change));
     ship.vx += changeX * fraction;
     ship.vy += changeY * fraction;
+    if (spatial) {
+      flight3D.velocity += changeZ * fraction;
+      if (Math.hypot(velocity.x, velocity.y, vz) > 1) {
+        const pitch = Math.atan2(vz, Math.hypot(velocity.x, velocity.y));
+        const desiredPitch = Phaser.Math.Clamp(pitch, -1.2, 1.2);
+        flight3D.pitch += Phaser.Math.Clamp(desiredPitch - flight3D.pitch, -2 * dt, 2 * dt);
+      }
+    }
     if (Math.hypot(velocity.x, velocity.y) > 1) {
       const turn = Phaser.Math.Angle.Wrap(
         Math.atan2(velocity.y, velocity.x) - ship.angle,
@@ -1047,7 +1085,7 @@ export class WorldScene extends Phaser.Scene {
     if (g.routeDestination && (rotate || thrust || brake || pitchInput)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
-    if (g.routeDestination) this.followRoute(dt, g.routeDestination);
+    if (g.routeDestination) this.followRoute(dt, g.routeDestination, spatial);
     s.angle += rotate * 2.5 * dt;
     if (thrust && s.fuel > 0) {
       const acceleration =

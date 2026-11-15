@@ -1,4 +1,4 @@
-import { flight3D } from "../game/rendering/flight3D";
+import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
 import {
   regrowTerrain,
   TERRAIN_REGROWTH_SECONDS,
@@ -291,10 +291,7 @@ export const useGame = defineStore("game", () => {
       const position = flight3D.enabled
         ? spatialPlanet(index, planet.id)
         : undefined;
-      const separation = position ? flight3D.altitude - position.altitude : 0;
-      const stopDistance = position
-        ? Math.sqrt(Math.max(0, (position.radius + 135) ** 2 - separation ** 2))
-        : 135;
+      const stopDistance = position ? position.radius + 135 : 135;
       return {
         ...(position ?? planetPosition(index)),
         name: planet.name,
@@ -308,7 +305,8 @@ export const useGame = defineStore("game", () => {
         x: asteroid.x,
         y: asteroid.y,
         name: asteroid.name,
-        stopDistance: 68,
+        altitude: flight3D.enabled ? spaceAltitude("asteroid", asteroid.id) : undefined,
+        stopDistance: flight3D.enabled ? Math.max(68, asteroid.r + 30) : 68,
       };
     return undefined;
   });

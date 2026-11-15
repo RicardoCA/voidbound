@@ -117,6 +117,11 @@ export function spatialStar(star: StellarBody, index: number) {
   };
 }
 
+export function spatialThermalDepth(star: StellarBody, radius: number) {
+  const { danger, radius: baseRadius } = starClasses[star.kind];
+  return Math.max((danger - baseRadius) * 3, radius * 0.36);
+}
+
 export function stellarExposure(
   stars: readonly StellarBody[],
   ship: { x: number; y: number },
@@ -133,7 +138,7 @@ export function stellarExposure(
       const thermalDepth =
         altitude === undefined
           ? data.danger - data.radius
-          : Math.max((data.danger - data.radius) * 3, position.radius * 0.36);
+          : spatialThermalDepth(star, position.radius);
       const danger = position.radius + thermalDepth;
       const distance = Math.hypot(
         ship.x - position.x,
