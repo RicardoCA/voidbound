@@ -101,7 +101,7 @@ export class Space3D {
   private cabinActor?: T.Group;
   private cabinHatch?: T.Group;
   private readonly cabinCamera = new T.PerspectiveCamera(57, 1, 1, 1900);
-  private readonly camera = new T.PerspectiveCamera(65, 1, 1, 700_000);
+  private readonly camera = new T.PerspectiveCamera(65, 1, 1, 45_000);
   private readonly objects = new Map<string, T.Object3D>();
   private readonly sphere = new T.SphereGeometry(1, 32, 20);
   private readonly rock = new T.IcosahedronGeometry(1, 1);
