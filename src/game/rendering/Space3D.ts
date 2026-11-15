@@ -568,6 +568,20 @@ export class Space3D {
     const variant = new T.Group();
     variant.add(...body.children);
     variant.scale.copy(body.scale);
+    void this.loadEnvironmentAsset("naves/" + id)
+      .then((asset) => {
+        if (this.disposed) return;
+        const exhausts = variant.children.filter((part) => part.name === "exhaust");
+        variant.clear();
+        variant.add(asset.clone(), ...exhausts);
+        for (const [index, exhaust] of exhausts.entries()) {
+          exhaust.position.x = index === 0 ? -4.7 : 4.7;
+          exhaust.position.y = -1;
+        }
+      })
+      .catch((error: unknown) =>
+        console.warn("Modelo de nave indisponível.", id, error),
+      );
     return variant;
   }
 
