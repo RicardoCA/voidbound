@@ -23,7 +23,7 @@ import { MOBILE_LAYOUT, logicalViewport } from "../game/rendering/viewport";
 const props = defineProps<{ playing: boolean; expanded?: boolean }>();
 const host = ref<HTMLDivElement>();
 const spaceCanvas = ref<HTMLCanvasElement>();
-const use3D = ref(true);
+const use3D = computed(() => g.betaMode);
 const gpuFailed = ref(false);
 watch(
   [use3D, gpuFailed],
@@ -258,7 +258,6 @@ onBeforeUnmount(() => {
       aria-label="Visão 3D do jogo"
       @webglcontextlost="
         gpuFailed = true;
-        use3D = false;
       "
     />
     <div v-if="surfaceControls" class="surface-reticle" aria-hidden="true">+</div>
@@ -273,20 +272,6 @@ onBeforeUnmount(() => {
     <div v-if="inCabin && show3D && cabinLoading" class="cabin-loading" role="status">
       Carregando cabine…
     </div>
-    <button
-      v-if="
-        (freeFlight || inCabin || inStation || surfaceExploration) &&
-        !inShowroom &&
-        !gpuFailed &&
-        !g.panel &&
-        !g.paused
-      "
-      type="button"
-      class="space-view-toggle"
-      @click="use3D = !use3D"
-    >
-      {{ use3D ? "Vista 2D" : "Vista 3D" }}
-    </button>
     <div
       v-if="
         freeFlight &&
@@ -434,14 +419,6 @@ onBeforeUnmount(() => {
   background: #080f20;
   color: #a7dedb;
   pointer-events: none;
-}
-.space-view-toggle {
-  position: absolute;
-  z-index: 2;
-  top: 8px;
-  right: 8px;
-  padding: 7px 10px;
-  font-size: 11px;
 }
 .pitch-controls {
   display: none;

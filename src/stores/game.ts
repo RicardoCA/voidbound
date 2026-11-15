@@ -222,6 +222,7 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const betaMode = gameplayPreference("beta-mode", false);
   const thirdPersonSurface = gameplayPreference("surface-third-person", false);
   const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
@@ -1830,6 +1831,7 @@ export const useGame = defineStore("game", () => {
     survivorEnabled,
     hungerEnabled,
     oxygenEnabled,
+    betaMode,
     thirdPersonSurface,
     autosaveEnabled,
     saveRevision,
