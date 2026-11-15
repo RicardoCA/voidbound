@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useGame } from "../stores/game";
-import { astronautArt } from "../wardrobe/astronautArt";
 import {
   buyClothing,
   clothing,
@@ -26,6 +25,8 @@ const choices = computed(() =>
     (id) => clothing[id].slot === selectedSlot.value,
   ),
 );
+const previewUrl = (id: ClothingId) =>
+  `${import.meta.env.BASE_URL}wardrobe/${id}.webp`;
 const owned = (id: ClothingId) => g.state.wardrobe?.owned.includes(id) ?? false;
 const equipped = (id: ClothingId) =>
   g.state.wardrobe?.equipped[clothing[id].slot] === id;
@@ -69,24 +70,15 @@ async function equip(id: ClothingId) {
         :key="id"
         class="dealer-card wardrobe-card"
       >
-        <svg
-          viewBox="-12 -23 25 38"
-          aria-hidden="true"
-          shape-rendering="crispEdges"
-        >
-          <rect
-            v-for="(pixel, index) in astronautArt({
-              ...g.state.wardrobe?.equipped,
-              [selectedSlot]: id,
-            })"
-            :key="index"
-            :x="pixel.x"
-            :y="pixel.y"
-            :width="pixel.w"
-            :height="pixel.h"
-            :fill="'#' + pixel.color.toString(16).padStart(6, '0')"
-          />
-        </svg>
+        <img
+          class="wardrobe-preview"
+          :src="previewUrl(id)"
+          alt=""
+          width="64"
+          height="84"
+          loading="lazy"
+          decoding="async"
+        />
         <div>
           <h3>{{ clothing[id].name }}</h3>
           <p v-if="equipped(id)">Equipada</p>
@@ -124,7 +116,8 @@ async function equip(id: ClothingId) {
   align-items: center;
   gap: 10px;
 }
-.wardrobe-card svg {
+.wardrobe-preview {
+  object-fit: contain;
   width: 64px;
   height: 84px;
   background: linear-gradient(#1b3b4b, #0a1827);
