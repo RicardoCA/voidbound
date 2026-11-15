@@ -75,3 +75,35 @@ it("preserva as escavações antigas e isola os blocos construídos por profundi
   );
   expect(move.z).toBe(actor.z);
 });
+
+it("identifica a face minerável na faixa original sem perder a profundidade zero", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, { "0,9": 3 });
+  try {
+    world.update(
+      {
+        terrain,
+        settlement: emptySettlement(),
+        camera: { x: 8, y: 153, z: 24, yaw: 0, pitch: 0 },
+        revision: 0,
+        light: 1,
+        elapsed: 0,
+        sunPhase: 0,
+        facing: 1,
+        stride: 0,
+        animals: [],
+        fruit: [],
+        drops: [],
+      },
+      960,
+      540,
+    );
+    const hit = world.pointAt(0, 0, true);
+    expect(hit).toMatchObject({ x: 0, y: 9, depth: 0, terrain: true });
+    expect(hit!.distance).toBeGreaterThanOrEqual(16);
+    expect(hit!.distance).toBeLessThan(16.7);
+  } finally {
+    world.dispose();
+  }
+});

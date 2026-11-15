@@ -9,6 +9,13 @@ import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Settlement } from "../types";
 
 type Point = { x: number; y: number };
+export interface SurfaceTarget extends Point {
+  wx: number;
+  wy: number;
+  depth: number;
+  terrain?: boolean;
+  distance?: number;
+}
 export interface SurfaceFrame {
   terrain: Terrain;
   settlement: Settlement;
@@ -658,7 +665,7 @@ export class SurfaceWorld3D {
     };
   }
 
-  pointAt(nx: number, ny: number, hitSolid: boolean) {
+  pointAt(nx: number, ny: number, hitSolid: boolean): SurfaceTarget | undefined {
     const frame = this.targetFrame;
     if (!frame) return;
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
@@ -673,9 +680,7 @@ export class SurfaceWorld3D {
         )
       : [];
     const picked = objects[0];
-    let lastAir:
-      | { wx: number; wy: number; x: number; y: number; depth: number }
-      | undefined;
+    let lastAir: SurfaceTarget | undefined;
     for (let distance = 0.5; distance <= this.ray.far; distance += 0.65) {
       const position = this.ray.ray.at(distance, this.rayPoint);
       const wx = position.x,
@@ -695,7 +700,9 @@ export class SurfaceWorld3D {
       }
       const target = { wx, wy, x, y, depth };
       if (solidSurfaceVoxel(frame.terrain, frame.settlement, x, y, depth))
-        return hitSolid ? target : lastAir;
+        return hitSolid
+          ? { ...target, terrain: frame.terrain.getAt(x, y, depth) !== 0, distance }
+          : lastAir;
       lastAir = target;
     }
   }

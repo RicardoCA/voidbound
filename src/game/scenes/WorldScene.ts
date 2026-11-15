@@ -1,3 +1,4 @@
+import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
 import { solidSurfaceVoxel, stepSurfaceDepth } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
@@ -119,8 +120,7 @@ export class WorldScene extends Phaser.Scene {
   private wildlife = new Wildlife();
   private fruit: Fruit[] = [];
   private surfaceMouse?: PointerEvent;
-  private surfaceTap:
-    { x: number; y: number; wx: number; wy: number; depth: number } | undefined;
+  private surfaceTap?: SurfaceTarget;
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
@@ -478,7 +478,7 @@ export class WorldScene extends Phaser.Scene {
   private get centerY() {
     return this.viewHeight / 2;
   }
-  private surfacePoint(event: PointerEvent) {
+  private surfacePoint(event: PointerEvent): SurfaceTarget | undefined {
     if (flight3D.surfaceView && this.store.state.mode === "surface") {
       const canvas = this.game.canvas;
       const locked = document.pointerLockElement === canvas;
@@ -877,7 +877,7 @@ export class WorldScene extends Phaser.Scene {
           s.player.y =
             this.terrain!.height(Math.floor(s.player.x / 16)) * 16 - 13;
         }
-        flight3D.surfaceLook = { yaw: -Math.PI / 2, pitch: -.12 };
+        flight3D.surfaceLook = { yaw: -Math.PI / 2, pitch: -.36 };
         this.camX = s.player.x;
         this.camY = s.player.y - 32;
       }
@@ -1567,6 +1567,44 @@ export class WorldScene extends Phaser.Scene {
     }
     void g.save();
   }
+  private mineSurfaceVoxel(target: SurfaceTarget, notify: boolean) {
+    const g = this.store;
+    const player = g.state.player;
+    const terrain = this.terrain!;
+    const { x, y, depth, distance } = target;
+    if ((distance ?? Infinity) > 77) {
+      if (notify) g.notify("Aproxime-se do bloco para minerar.");
+      return;
+    }
+    const saber = g.equippedSaber;
+    const drill = g.state.upgrades.includes("drill");
+    const radius = saber ? 1 : 0;
+    const mine = (tx: number, ty: number, tz: number) => {
+      if (!terrain.getAt(tx, ty, tz)) return false;
+      if (tz === 0) {
+        const rooted = treesInRange(g.planet, terrain, tx, tx, this.building.settlement.cutTrees)
+          .find((tree) => tree.x === tx && tree.ground === ty);
+        if (rooted && !this.building.harvest(rooted)) return false;
+      }
+      return g.mineTerrain(terrain, tx, ty, tz);
+    };
+    if (!mine(x, y, depth)) return;
+    for (let dz = -radius; dz <= radius; dz++)
+      for (let dy = -radius; dy <= radius; dy++)
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) continue;
+          if (Math.hypot((x + dx + .5) * 16 - player.x,
+                         (y + dy + .5) * 16 - player.y,
+                         (depth + dz) * 16 - (player.surfaceZ ?? 0)) > 77) continue;
+          mine(x + dx, y + dy, depth + dz);
+        }
+    const efficiency = 1 - g.extractionEfficiency;
+    player.energy = Math.max(0, player.energy - (saber ? 1 : (drill ? .5 : 1) * efficiency));
+    this.mineTime = saber ? .45 : (drill ? .10 : .22) * efficiency;
+    this.beam = { x: player.x, y: player.y - 3, tx: target.wx, ty: target.wy, depth, life: .15 };
+    audio.play(saber ? 225 : 145, .09);
+    if (saber) void g.save();
+  }
   private representativePosition() {
     if (!this.store.civilization || !this.terrain) return;
     return representativePosition(
@@ -1716,11 +1754,11 @@ export class WorldScene extends Phaser.Scene {
     if (
       tap &&
       (g.recoverBackpack(tap) ||
-        (tap.depth === 0 && Math.abs(p.surfaceZ ?? 0) < 38 &&
+        (!tap.terrain && tap.depth === 0 && Math.abs(p.surfaceZ ?? 0) < 38 &&
           (this.talkToRepresentative(tap) || this.building.interactAt(tap.x, tap.y))))
     )
       return;
-    if (tap && !tap.depth && Math.abs(p.surfaceZ ?? 0) < 32) {
+    if (tap && !tap.terrain && !tap.depth && Math.abs(p.surfaceZ ?? 0) < 32) {
       const fruit = this.fruit.find(
         (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
       );
@@ -1738,19 +1776,8 @@ export class WorldScene extends Phaser.Scene {
       tap ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
-    if (aim?.depth && this.mineTime <= 0 && p.energy >= 1) {
-      const { x, y, depth } = aim;
-      if (Math.hypot(x * 16 + 8 - p.x, y * 16 + 8 - p.y, depth * 16 - (p.surfaceZ ?? 0)) >= 77) {
-        if (tap) g.notify("Aproxime-se do bloco para minerar.");
-        return;
-      }
-      if (g.mineTerrain(t, x, y, depth)) {
-        const drill = g.state.upgrades.includes("drill");
-        p.energy -= (drill ? .5 : 1) * (1 - g.extractionEfficiency);
-        this.mineTime = (drill ? .1 : .22) * (1 - g.extractionEfficiency);
-        this.beam = { x: p.x, y: p.y - 3, tx: x * 16 + 8, ty: y * 16 + 8, depth, life: .12 };
-        audio.play(145, .09);
-      }
+    if (aim?.terrain && flight3D.surfaceView) {
+      if (this.mineTime <= 0 && p.energy >= 1) this.mineSurfaceVoxel(aim, !!tap);
       return;
     }
     if (Math.abs(p.surfaceZ ?? 0) > 72) return;

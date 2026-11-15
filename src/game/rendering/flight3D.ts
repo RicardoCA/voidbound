@@ -1,4 +1,4 @@
-import type { SurfaceFrame } from "./SurfaceWorld3D";
+import type { SurfaceFrame, SurfaceTarget } from "./SurfaceWorld3D";
 import { showroomSpawn } from "../station/showroom";
 import { shallowReactive } from "vue";
 import { hash } from "../procedural/random";
@@ -27,11 +27,11 @@ export const flight3D = shallowReactive({
   colossalView: false,
   stationView: false,
   surfaceView: false,
-  surfaceLook: { yaw: -Math.PI / 2, pitch: -.12 },
+  surfaceLook: { yaw: -Math.PI / 2, pitch: -.36 },
   surface: undefined as SurfaceFrame | undefined,
   surfacePointer: undefined as (
     (clientX: number, clientY: number, snapTerrain: boolean) =>
-      { wx: number; wy: number; x: number; y: number; depth: number } | undefined
+      SurfaceTarget | undefined
   ) | undefined,
   showroom: { ...showroomSpawn },
   station: { x: -274, z: -38, heading: -Math.PI / 2, stride: 0 },
