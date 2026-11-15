@@ -70,6 +70,9 @@ const routeComputer = computed(
 );
 const routeComputerReady = ref(false);
 const surfaceCinematic = computed(() => !!g.surfaceSequence);
+const surfaceExploration = computed(
+  () => props.playing && g.state.mode === "surface" && !g.inSequence && !g.busy,
+);
 const landingComputer = computed(
   () => props.playing && g.state.mode === "orbit" && !g.inSequence && !g.busy,
 );
@@ -83,6 +86,7 @@ const show3D = computed(
       lightJump.value ||
       landingComputer.value ||
       surfaceCinematic.value ||
+      surfaceExploration.value ||
       !!g.dockingSequence) &&
     use3D.value &&
     !gpuFailed.value,
@@ -98,6 +102,7 @@ watch(
     freeFlight,
     inColossal,
     lightJump,
+    surfaceExploration,
     () => g.dockingSequence?.kind,
   ],
   () => {
@@ -107,6 +112,9 @@ watch(
     routeComputerReady.value = false;
     flight3D.enabled = false;
     flight3D.stationView = false;
+    flight3D.surfaceView = false;
+    flight3D.surface = undefined;
+    flight3D.surfacePointer = undefined;
     flight3D.colossalView = false;
     flight3D.reset();
     if (!spaceCanvas.value || !show3D.value) return;
@@ -114,6 +122,9 @@ watch(
       space ??= new Space3D(spaceCanvas.value);
       flight3D.enabled = freeFlight.value;
       flight3D.stationView = inStation.value;
+      flight3D.surfaceView = surfaceExploration.value;
+      if (surfaceExploration.value)
+        flight3D.surfacePointer = (x, y, snap) => space?.surfacePointAt(x, y, snap);
       flight3D.colossalView = inColossal.value;
       if (freeFlight.value && !g.aboardColossal)
         cabinPreload = window.setTimeout(
@@ -128,6 +139,7 @@ watch(
               (g.colossalJumpMs ?? JUMP_DURATION_MS),
           );
         else if (surfaceCinematic.value) space!.drawSurfaceCinematic(g);
+        else if (surfaceExploration.value) space!.drawSurfaceExploration(g);
         else if (landingComputer.value) space!.drawLandingComputer(g.planet);
         else if (routeComputer.value) {
           routeComputerReady.value = space!.drawRouteComputer();
@@ -203,6 +215,9 @@ onBeforeUnmount(() => {
   flight3D.selected = false;
   flight3D.enabled = false;
   flight3D.stationView = false;
+  flight3D.surfaceView = false;
+  flight3D.surface = undefined;
+  flight3D.surfacePointer = undefined;
   flight3D.colossalView = false;
   flight3D.reset();
   space?.destroy();
@@ -215,7 +230,7 @@ onBeforeUnmount(() => {
   <div ref="host" class="game-canvas" aria-label="Universo de Voidbound">
     <canvas
       ref="spaceCanvas"
-      v-show="show3D"
+      v-show="show3D && (!surfaceExploration || !!flight3D.surface)"
       class="space-3d"
       :class="{
         'light-jump-3d': lightJump && show3D,
@@ -233,7 +248,7 @@ onBeforeUnmount(() => {
     </div>
     <button
       v-if="
-        (freeFlight || inCabin || inStation) &&
+        (freeFlight || inCabin || inStation || surfaceExploration) &&
         !inShowroom &&
         !gpuFailed &&
         !g.panel &&

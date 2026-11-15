@@ -1,3 +1,4 @@
+import { SurfaceWorld3D } from "./SurfaceWorld3D";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { daylight } from "../../construction/habitat";
 import { systemWrecks } from "../../combat/traffic";
@@ -5,7 +6,7 @@ import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { landingTerrain } from "./planetTerrain3D";
-import { biomes } from "../types";
+import { biomes, items } from "../types";
 import { SURFACE_SEQUENCE_DURATION } from "../../stores/game";
 import {
   BAY_WIDTH,
@@ -75,6 +76,16 @@ export class Space3D {
   private jumpFallback?: T.Group;
   private jumpModel?: T.Group;
   private jumpAnimation?: { mixer: T.AnimationMixer; duration: number };
+  private exploration?: {
+    world: SurfaceWorld3D;
+    outfit?: string;
+    actor?: T.Group;
+    representative: T.Group;
+    shipModel?: ShipModelId;
+    ship?: T.Group;
+    saber: T.Mesh<T.BoxGeometry, T.MeshBasicMaterial>;
+    saberLight: T.PointLight;
+  };
   private surfaceFlight?: {
     mixer: T.AnimationMixer;
     duration: number;
@@ -1830,6 +1841,74 @@ export class Space3D {
     this.renderer.render(scene, this.cabinCamera);
   }
 
+  surfacePointAt(clientX: number, clientY: number, snapTerrain: boolean) {
+    const bounds = this.canvas.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    return this.exploration?.world.pointAt(
+      ((clientX - bounds.left) / bounds.width) * 2 - 1,
+      1 - ((clientY - bounds.top) / bounds.height) * 2,
+      snapTerrain,
+    );
+  }
+
+  drawSurfaceExploration(g: Game) {
+    const frame = flight3D.surface;
+    if (!frame || frame.terrain.planet.id !== g.planet.id || !this.resize()) return;
+    if (!this.exploration) {
+      const world = new SurfaceWorld3D();
+      const representative = this.dressedPilot();
+      const saber = new T.Mesh(this.box, new T.MeshBasicMaterial());
+      const saberLight = new T.PointLight(0xffffff, 145, 45);
+      world.scene.add(representative, saber, saberLight);
+      this.exploration = { world, representative, saber, saberLight };
+    }
+    const view = this.exploration;
+    const outfit = g.state.wardrobe?.equipped;
+    const key = JSON.stringify(outfit ?? {});
+    if (!view.actor || view.outfit !== key) {
+      view.actor?.removeFromParent();
+      view.actor = this.dressedPilot(outfit);
+      view.outfit = key;
+      view.world.scene.add(view.actor);
+    }
+    const player = g.state.player;
+    view.actor.position.set(player.x, -player.y - 12, 2);
+    const heading = frame.facing > 0 ? -Math.PI / 2 : Math.PI / 2;
+    const turn = heading - view.actor.rotation.y;
+    view.actor.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * .22;
+    this.animatePilot(view.actor, frame.stride);
+    const model = g.state.activeShip.model;
+    if (!view.ship || view.shipModel !== model) {
+      view.ship?.removeFromParent();
+      view.ship = this.shipForModel(model, false);
+      view.shipModel = model;
+      view.ship.rotation.y = -Math.PI / 2;
+      view.world.scene.add(view.ship);
+    }
+    const pad = g.state.landingX;
+    view.ship.position.set(pad * 16, -frame.terrain.height(pad) * 16 + 10, -26);
+    view.representative.visible = !!frame.representative;
+    if (frame.representative)
+      view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 2);
+    const saberItem = g.equippedSaber;
+    view.saber.visible = view.saberLight.visible = !!saberItem;
+    if (saberItem) {
+      view.saber.material.color.set(items[saberItem].color);
+      view.saberLight.color.copy(view.saber.material.color);
+      view.saber.position.set(player.x + frame.facing * 11, -player.y + 1, 7);
+      view.saber.scale.set(2, 19, 2);
+      view.saber.rotation.z = -frame.facing * (frame.beam ? 1.12 : .51);
+      view.saberLight.position.copy(view.saber.position);
+    }
+    view.world.update(frame, this.width, this.height);
+    if (frame.representative && g.panel === "government") {
+      const anchor = view.world.project(frame.representative.x, frame.representative.y - 14, 2, this.width, this.height);
+      if (anchor.x !== g.governmentAnchor.x || anchor.y !== g.governmentAnchor.y)
+        g.governmentAnchor = anchor;
+    }
+    this.renderer.render(view.world.scene, view.world.camera);
+  }
+
   drawSurfaceCinematic(g: Game) {
     const sequence = g.surfaceSequence;
     if (!sequence || !this.resize()) return;
@@ -2555,6 +2634,8 @@ export class Space3D {
       }
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
+    this.exploration?.saber.material.dispose();
+    this.exploration?.world.dispose();
     this.surfaceFlight?.mixer.stopAllAction();
     if (this.showroomRoom) {
       for (const map of this.showroomRoom.signs) map.dispose();

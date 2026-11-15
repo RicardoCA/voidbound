@@ -439,6 +439,14 @@ export class WorldScene extends Phaser.Scene {
     return this.viewHeight / 2;
   }
   private surfacePoint(event: PointerEvent) {
+    if (flight3D.surfaceView && this.store.state.mode === "surface") {
+      const target = flight3D.surfacePointer?.(
+        event.clientX,
+        event.clientY,
+        !this.building.enabled || this.building.removing,
+      );
+      if (target) return target;
+    }
     const rect = this.game.canvas.getBoundingClientRect();
     const wx =
       ((event.clientX - rect.left) * this.viewWidth) / rect.width -
@@ -1550,6 +1558,8 @@ export class WorldScene extends Phaser.Scene {
     g.notify("Duas frutas coletadas. Abra a mochila para comer.");
     void g.save();
   }
+  private surfaceStride = 0;
+
   private surfacePhysics(dt: number) {
     const g = this.store,
       p = g.state.player,
@@ -1591,6 +1601,11 @@ export class WorldScene extends Phaser.Scene {
         t,
         this.building.settlement,
       );
+    const travel = climb ? Math.abs(movement.y - p.y) : Math.abs(movement.x - p.x);
+    this.surfaceStride =
+      travel > 0.01 && (movement.grounded || climb)
+        ? this.surfaceStride + travel * 0.19
+        : 0;
     p.x = movement.x;
     p.y = movement.y;
     p.health -= movement.fallDamage;
@@ -1811,6 +1826,29 @@ export class WorldScene extends Phaser.Scene {
     const light = surface
       ? daylight(s.time) * (1 - 0.32 * (storm?.intensity ?? 0))
       : 0;
+    if (flight3D.surfaceView && surface && !g.surfaceSequence && this.terrain) {
+      const cursor = this.building.enabled && !g.panel ? this.building.cursor : undefined;
+      flight3D.surface = {
+        terrain: this.terrain,
+        settlement: this.building.settlement,
+        camera: { x: this.camX, y: this.camY },
+        light,
+        elapsed: this.elapsed,
+        sunPhase: solarPhase(s.time),
+        facing: this.facing,
+        stride: this.surfaceStride,
+        animals: [...this.wildlife.animals.values()],
+        fruit: this.fruit,
+        drops: g.surfaceBackpacks(),
+        ruin: g.surfaceRuin,
+        representative: this.representativePosition(),
+        storm,
+        cursor: cursor ? { ...cursor, valid: !this.building.lastError } : undefined,
+        beam: this.beam,
+      };
+      this.particles = [];
+      return;
+    }
     const biome = biomes[g.planet.kind]!;
     const sky = surface
       ? Phaser.Display.Color.GetColor(
