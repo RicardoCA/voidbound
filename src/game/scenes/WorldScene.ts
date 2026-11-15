@@ -2016,6 +2016,7 @@ export class WorldScene extends Phaser.Scene {
         terrain: this.terrain,
         settlement: this.building.settlement,
         camera: { x: s.player.x, y: s.player.y, z: s.player.surfaceZ ?? 0, ...flight3D.surfaceLook },
+        thirdPerson: g.thirdPersonSurface,
         revision: g.worldRevision,
         light,
         elapsed: this.elapsed,

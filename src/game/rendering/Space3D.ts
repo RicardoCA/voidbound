@@ -79,6 +79,8 @@ export class Space3D {
   private exploration?: {
     world: SurfaceWorld3D;
     representative: T.Group;
+    pilot?: T.Group;
+    pilotOutfit?: string;
     shipModel?: ShipModelId;
     ship?: T.Group;
     saber: T.Mesh<T.BoxGeometry, T.MeshBasicMaterial>;
@@ -1876,6 +1878,22 @@ export class Space3D {
     if (frame.representative)
       view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 8);
     view.world.update(frame, this.width, this.height);
+    const outfit = g.state.wardrobe?.equipped;
+    if (frame.thirdPerson) {
+      const key = JSON.stringify(outfit ?? {});
+      if (!view.pilot || view.pilotOutfit !== key) {
+        view.pilot?.removeFromParent();
+        view.pilot = this.dressedPilot(outfit);
+        view.pilot.scale.setScalar(1.15);
+        view.world.scene.add(view.pilot);
+        view.pilotOutfit = key;
+      }
+      view.pilot.position.set(frame.camera.x, -frame.camera.y - 12, frame.camera.z);
+      view.pilot.rotation.y = frame.camera.yaw;
+      this.animatePilot(view.pilot, frame.stride);
+    }
+    if (view.pilot) view.pilot.visible = view.world.showPilot;
+
     const saberItem = g.equippedSaber;
     view.saber.visible = view.saberLight.visible = !!saberItem;
     if (saberItem) {
@@ -1886,6 +1904,10 @@ export class Space3D {
         .applyQuaternion(camera.quaternion).add(camera.position);
       view.saber.scale.set(1.2, 13, 1.2);
       view.saber.quaternion.copy(camera.quaternion);
+      if (view.world.showPilot && view.pilot) {
+        view.saber.position.set(6, 12, -3).applyEuler(view.pilot.rotation).add(view.pilot.position);
+        view.saber.quaternion.copy(view.pilot.quaternion);
+      }
       view.saber.rotateZ(frame.beam ? .94 : .34);
       view.saberLight.position.copy(view.saber.position);
     }

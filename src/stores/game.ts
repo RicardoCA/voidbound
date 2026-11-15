@@ -188,13 +188,14 @@ function initial(seed: string): Save {
     landingX: 0,
   };
 }
-function gameplayPreference(name: string) {
+function gameplayPreference(name: string, defaultEnabled = true) {
   const key = `voidbound:option:${name}`;
-  let enabled = true;
+  let enabled = defaultEnabled;
   try {
     enabled =
-      typeof window === "undefined" ||
-      window.localStorage.getItem(key) !== "off";
+      typeof window === "undefined"
+        ? defaultEnabled
+        : (window.localStorage.getItem(key) ?? (defaultEnabled ? "on" : "off")) !== "off";
   } catch {
     // The preference can still be changed for the current session.
   }
@@ -221,6 +222,7 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const thirdPersonSurface = gameplayPreference("surface-third-person", false);
   const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
   const oxygenEnabled = gameplayPreference("oxygen");
@@ -1827,6 +1829,7 @@ export const useGame = defineStore("game", () => {
     survivorEnabled,
     hungerEnabled,
     oxygenEnabled,
+    thirdPersonSurface,
     autosaveEnabled,
     saveRevision,
     hasSave,

@@ -1,4 +1,4 @@
-import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness } from "../physics/surfaceDepth";
+import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
 import { cabinetWidths, isCabinet, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
@@ -44,6 +44,7 @@ export interface SurfaceFrame {
   terrain: Terrain;
   settlement: Settlement;
   camera: Point & { z: number; yaw: number; pitch: number };
+  thirdPerson?: boolean;
   revision: number;
   light: number;
   elapsed: number;
@@ -65,6 +66,11 @@ const terrainRadius = 13;
 export class SurfaceWorld3D {
   readonly scene = new T.Scene();
   readonly camera = new T.PerspectiveCamera(68, 1, 0.22, 380);
+  private readonly cameraEye = new T.Vector3();
+  private readonly cameraOffset = new T.Vector3();
+  private readonly cameraTarget = new T.Vector3();
+  private readonly cameraProbe = new T.Vector3();
+  showPilot = false;
   private readonly colors = new Map<number, T.MeshStandardMaterial>();
   private readonly meshes = new Map<string, T.Group>();
   private readonly ground = new T.Group();
@@ -386,6 +392,42 @@ export class SurfaceWorld3D {
     return group;
   }
 
+  private placeCamera(frame: SurfaceFrame) {
+    const { x, y, z, yaw, pitch } = frame.camera;
+    const eye = this.cameraEye.set(x, -y + 7.5, z);
+    this.camera.position.copy(eye);
+    this.camera.rotation.set(pitch, yaw, 0, "YXZ");
+    this.showPilot = false;
+    if (!frame.thirdPerson) return;
+
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const behind = 39 * Math.cos(pitch);
+    const offset = this.cameraOffset.set(
+      sin * behind + cos * 9,
+      13 - Math.sin(pitch) * 29,
+      cos * behind - sin * 9,
+    );
+    const { terrain, settlement } = frame;
+    const samples = Math.ceil(offset.length() / 1.5);
+    const initialWall = surfaceWallPenetration(settlement, x, y, z);
+    for (let step = 1; step <= samples; step++) {
+      const probe = this.cameraProbe.copy(eye).addScaledVector(offset, step / samples);
+      const depth = surfaceLayer(probe.z);
+      if (solidSurfaceVoxel(terrain, settlement, Math.floor(probe.x / TILE),
+          Math.floor(-probe.y / TILE), depth) ||
+          surfaceWallPenetration(settlement, probe.x, -probe.y + 7.5, probe.z) > initialWall)
+        break;
+      this.camera.position.copy(probe);
+    }
+    if (this.camera.position.distanceToSquared(eye) < 10 ** 2) {
+      this.camera.position.copy(eye);
+      return;
+    }
+    this.showPilot = true;
+    this.cameraTarget.set(0, 0, -62).applyEuler(this.camera.rotation).add(eye);
+    this.camera.lookAt(this.cameraTarget);
+  }
+
   update(frame: SurfaceFrame, width: number, height: number) {
     const { terrain, settlement, light, elapsed } = frame;
     const planet = terrain.planet;
@@ -419,11 +461,10 @@ export class SurfaceWorld3D {
     const aspect = width / height;
     const spanY = 172;
     const spanX = Math.min(380, spanY * aspect);
-    const { x, y, z, yaw, pitch } = frame.camera;
+    const { x, y, z, yaw } = frame.camera;
     this.camera.aspect = aspect;
     this.camera.fov = aspect < 1 ? 76 : 67;
-    this.camera.position.set(x, -y + 7.5, z);
-    this.camera.rotation.set(pitch, yaw, 0, "YXZ");
+    this.placeCamera(frame);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
     this.mountains.position.set(x, -y - 75, z);
@@ -777,7 +818,7 @@ export class SurfaceWorld3D {
     const frame = this.targetFrame;
     if (!frame) return;
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
-    this.ray.far = 112;
+    this.ray.far = 112 + this.camera.position.distanceTo(this.cameraEye);
     this.scene.updateMatrixWorld();
     const objects = this.ray.intersectObjects(
           [...this.meshes]

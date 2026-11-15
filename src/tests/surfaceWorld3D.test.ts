@@ -327,3 +327,30 @@ it("instancia o kit Blender na superfície e atualiza a célula depois de minera
     material.dispose();
   }
 });
+
+it("aproxima a câmera de terceira pessoa quando há terreno atrás do jogador", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, {});
+  const frame: SurfaceFrame = {
+    terrain, settlement: emptySettlement(), thirdPerson: true,
+    camera: { x: 8, y: 153, z: 0, yaw: 0, pitch: 0 },
+    revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+    animals: [], fruit: [], drops: [],
+  };
+  try {
+    world.update(frame, 960, 540);
+    expect(world.showPilot).toBe(true);
+    expect(world.camera.position.z).toBeGreaterThan(30);
+    terrain.changes["0,8,1"] = 2;
+    terrain.changes["0,9,1"] = 2;
+    world.update(frame, 960, 540);
+    expect(world.camera.position.z).toBeLessThan(8);
+    frame.thirdPerson = false;
+    world.update(frame, 960, 540);
+    expect(world.camera.position.toArray()).toEqual([8, -145.5, 0]);
+    expect(world.showPilot).toBe(false);
+  } finally {
+    world.dispose();
+  }
+});
