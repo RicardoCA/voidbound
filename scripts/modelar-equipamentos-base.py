@@ -248,6 +248,32 @@ def campfire():
     mesh("Núcleo incandescente", ember)
 
 
+def door(opened):
+    for x in [-.44, .44]:
+        box("Batente de madeira", (x, 0, 1), (.12, .24, 2), wood_dark, .015)
+    box("Travessa superior", (0, 0, 1.94), (1, .24, .12), wood_light)
+    bpy.ops.object.empty_add(location=(-.38, 0, 0))
+    hinge = bpy.context.object
+    hinge.name = "Eixo da porta"
+    leaf = [box("Folha maciça", (.38, 0, .94), (.76, .09, 1.84), wood_dark, .008)]
+    for side in [-1, 1]:
+        for j in range(4):
+            leaf.append(box("Tábua vertical", (.095 + j*.19, side*.053, .94),
+                            (.176, .018, 1.80), wood, .006))
+        for z in [.24, 1.61]:
+            leaf.append(box("Travessa da folha", (.38, side*.069, z),
+                            (.73, .03, .109), wood_light, .009))
+        leaf.append(box("Chapa da maçaneta", (.62, side*.069, .92),
+                        (.13, .034, .23), dark))
+        leaf.append(cylinder("Maçaneta", (.62, side*.108, .94), .049, .07, copper, "y"))
+    for z in [.37, 1.48]:
+        cylinder("Dobradiça", (-.38, 0, z), .034, .22, copper, vertices=10)
+    for obj in leaf:
+        obj.parent = hinge
+    if opened:
+        hinge.rotation_euler.z = pi/2
+
+
 for index, (name, build) in enumerate([
     ("bateria", battery), ("gerador-oxigenio", oxygen), ("placa-solar", solar),
     ("bau", lambda: chest(1)), ("bau-duplo", lambda: chest(2)),
@@ -255,6 +281,7 @@ for index, (name, build) in enumerate([
     ("escada-vertical", ladder), ("escada-madeira", stairs),
     ("parede-madeira", lambda: timber(1, .19)),
     ("bloco-madeira", lambda: timber(1, 1)),
+    ("porta-fechada", lambda: door(False)), ("porta-aberta", lambda: door(True)),
 ]):
     before = set(bpy.data.objects)
     build()

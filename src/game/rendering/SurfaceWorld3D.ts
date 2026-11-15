@@ -707,7 +707,10 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number) {
     const piece = this.piece(kind, open, facing, powered);
-    const model = equipmentModels[kind as keyof typeof equipmentModels];
+    const model = kind === "woodDoor"
+      ? { file: open ? "porta-aberta" : "porta-fechada", width: 16, height: 32,
+          depth: open ? 15 : 5, center: open ? -7 : -2 }
+      : equipmentModels[kind as keyof typeof equipmentModels];
     if (model) this.attachSurfaceModel(
       piece, "equipamentos-base/" + model.file, model.width, model.height, model.depth, model.center,
       kind === "woodStairs" && facing === -1,
