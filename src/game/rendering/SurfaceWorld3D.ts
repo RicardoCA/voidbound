@@ -8,6 +8,11 @@ import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Settlement } from "../types";
 
+const terrainKits = [
+  "rochoso", "desertico", "gelado", "florestal", "vulcanico", "oceanico",
+] as const;
+const surfaceTileOffset = 16;
+
 const equipmentModels = {
   campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
   stickLadder: { file: "escada-vertical", width: 12, height: 16, depth: 3, center: -2 },
@@ -101,6 +106,9 @@ export class SurfaceWorld3D {
   private readonly ray = new T.Raycaster();
   private readonly rayPoint = new T.Vector3();
   private groundKey = "";
+  private readonly terrainModels = new Map<number, Map<number, T.Mesh>>();
+  private readonly requestedTerrainKits = new Set<number>();
+  private disposed = false;
   private groundTerrain?: Terrain;
   private planetKey = "";
   private targetFrame?: SurfaceFrame;
@@ -197,8 +205,30 @@ export class SurfaceWorld3D {
       );
   }
 
+  private loadTerrainKit(kind: number) {
+    const file = terrainKits[kind];
+    if (!file || !this.loadModel || this.requestedTerrainKits.has(kind)) return;
+    this.requestedTerrainKits.add(kind);
+    void this.loadModel("terreno/" + file).then((asset) => {
+      if (this.disposed) return;
+      const models = new Map<number, T.Mesh>();
+      asset.traverse((object) => {
+        if (!(object instanceof T.Mesh)) return;
+        const name = /^voxel_(\d+)_(0|1)$/.exec(object.name);
+        if (name) models.set(Number(name[1]) + Number(name[2]) * surfaceTileOffset, object);
+      });
+      this.terrainModels.set(kind, models);
+      if (this.groundTerrain?.planet.kind === kind) this.groundKey = "";
+    }).catch((error: unknown) => {
+      console.warn("Kit de terreno indisponível.", file, error);
+    });
+  }
+
   private updateTerrain(frame: SurfaceFrame) {
     const { terrain } = frame;
+    const kind = terrain.planet.kind;
+    this.loadTerrainKit(kind);
+    const models = this.terrainModels.get(kind);
     const centerX = Math.floor(frame.camera.x / (3 * TILE)) * 3;
     const centerZ = Math.floor(surfaceLayer(frame.camera.z) / 3) * 3;
     const playerRow = Math.floor(frame.camera.y / (4 * TILE)) * 4;
@@ -237,9 +267,11 @@ export class SurfaceWorld3D {
           )
             continue;
           const type = tile >= 1 && tile <= 12 ? tile : 1;
-          const group = solidTiles.get(type) ?? [];
+          const surfaceType = type + surfaceTileOffset;
+          const model = y === top && models?.has(surfaceType) ? surfaceType : type;
+          const group = solidTiles.get(model) ?? [];
           group.push({ x, y, z });
-          solidTiles.set(type, group);
+          solidTiles.set(model, group);
         }
       }
     for (const child of [...this.ground.children]) {
@@ -248,9 +280,10 @@ export class SurfaceWorld3D {
     }
     const matrix = new T.Matrix4();
     for (const [tile, positions] of solidTiles) {
+      const model = models?.get(tile);
       const surface = new T.InstancedMesh(
-        this.box,
-        this.rock(terrain.planet.kind, tile),
+        model?.geometry ?? this.box,
+        model?.material ?? this.rock(kind, tile),
         positions.length,
       );
       positions.forEach(({ x, y, z }, index) => {
@@ -827,6 +860,8 @@ export class SurfaceWorld3D {
   }
 
   dispose() {
+    this.disposed = true;
+    this.terrainModels.clear();
     for (const child of this.ground.children)
       if (child instanceof T.InstancedMesh) child.dispose();
     for (const material of [

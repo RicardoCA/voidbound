@@ -1,6 +1,6 @@
 import { advancePowerNetwork, powerNetwork } from "../construction/habitat";
 import { treeAt } from "../game/procedural/trees";
-import { InstancedMesh, Matrix4, Texture, TextureLoader } from "three";
+import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildItems, emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
@@ -278,4 +278,52 @@ it("alimenta geladeira e gerador numa base cercada em três dimensões", () => {
   expect(settlement.pieces["1,8,3"]?.powered).toBe(true);
   delete settlement.cornerWalls["0,8,3"]![3];
   expect(powerNetwork(terrain, settlement).generators[0]?.room.sealed).toBe(false);
+});
+
+it("instancia o kit Blender na superfície e atualiza a célula depois de minerar", async () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const template = new Group();
+  const geometry = new BoxGeometry();
+  const material = new MeshStandardMaterial();
+  const voxel = new Mesh(geometry, material);
+  voxel.name = "voxel_2_1";
+  template.add(voxel);
+  const load = vi.fn(async (_name: string) => template);
+  const world = new SurfaceWorld3D(load);
+  const terrain = new Terrain(planet, {});
+  const row = terrain.heightAt(0, -2);
+  terrain.changes[terrain.keyAt(0, row, -2)] = 2;
+  const frame: SurfaceFrame = {
+    terrain, settlement: emptySettlement(),
+    camera: { x: 8, y: 460, z: 16, yaw: 0, pitch: 0 },
+    revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+    animals: [], fruit: [], drops: [],
+  };
+  const hasInstance = () => {
+    let found = false;
+    const matrix = new Matrix4();
+    world.scene.traverse((object) => {
+      if (!(object instanceof InstancedMesh) || object.geometry !== geometry) return;
+      for (let i = 0; i < object.count; i++) {
+        object.getMatrixAt(i, matrix);
+        if (matrix.elements[12] === 8 && matrix.elements[13] === -(row + .5) * 16 && matrix.elements[14] === -32)
+          found = true;
+      }
+    });
+    return found;
+  };
+  try {
+    world.update(frame, 960, 540);
+    await Promise.resolve();
+    world.update(frame, 960, 540);
+    expect(load.mock.calls.filter(([name]) => name === "terreno/rochoso")).toHaveLength(1);
+    expect(hasInstance()).toBe(true);
+    terrain.remove(0, row, -2);
+    world.update(frame, 960, 540);
+    expect(hasInstance()).toBe(false);
+  } finally {
+    world.dispose();
+    geometry.dispose();
+    material.dispose();
+  }
 });
