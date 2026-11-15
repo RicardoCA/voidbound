@@ -1,3 +1,4 @@
+import { daylight } from "../../construction/habitat";
 import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
@@ -73,6 +74,12 @@ export class Space3D {
   private jumpFallback?: T.Group;
   private jumpModel?: T.Group;
   private jumpAnimation?: { mixer: T.AnimationMixer; duration: number };
+  private surfaceFlight?: {
+    mixer: T.AnimationMixer;
+    duration: number;
+    landing: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
+    takeoff: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
+  };
   private routeScene?: T.Scene;
   private routeModel?: T.Group;
   private jumpTrails?: T.BufferGeometry;
@@ -132,6 +139,28 @@ export class Space3D {
     const sun = new T.DirectionalLight(0xffe3b9, 2.8);
     sun.position.set(300, 450, -500);
     this.scene.add(sun, this.flightFill);
+    void this.loadEnvironmentAsset("voo-planetario")
+      .then((rig) => {
+        if (this.disposed) return;
+        const tracking = (prefix: string) => ({
+          ship: rig.getObjectByName(prefix + "Ship")!,
+          camera: rig.getObjectByName(prefix + "Camera")!,
+          target: rig.getObjectByName(prefix + "Target")!,
+        });
+        const clips = rig.animations;
+        if (!clips.length) return;
+        const mixer = new T.AnimationMixer(rig);
+        for (const clip of clips) mixer.clipAction(clip).play();
+        this.surfaceFlight = {
+          mixer,
+          duration: Math.max(...clips.map((clip) => clip.duration)),
+          landing: tracking("Landing"),
+          takeoff: tracking("Takeoff"),
+        };
+      })
+      .catch((error: unknown) =>
+        console.warn("Animação 3D de voo planetário indisponível.", error),
+      );
     void this.loadEnvironmentAsset("cockpit-salto-luz")
       .then((model) => {
         if (!this.disposed) this.jumpModel = model;
@@ -1749,6 +1778,7 @@ export class Space3D {
       };
     }
     const { scene, craft, ramp, astronaut, sky, fog } = this.surfaceCinematic;
+    const sunlight = daylight(g.state.time);
     const progress = T.MathUtils.clamp(
       sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind],
       0,
@@ -1768,7 +1798,7 @@ export class Space3D {
       astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
       astronaut.rotation.y = -Math.PI / 2;
       this.animatePilot(astronaut, walk * Math.PI * 6);
-      sky.setHex(biome.daySky);
+      sky.setHex(biome.sky).lerp(new T.Color(biome.daySky), sunlight);
       fog.color.copy(sky);
       this.cabinCamera.aspect = this.width / this.height;
       this.cabinCamera.position.set(44 + walk * 10, 30, 63);
@@ -1786,11 +1816,18 @@ export class Space3D {
       takingOff ? 0 : Math.PI,
       0,
     );
+    const rig = this.surfaceFlight;
+    const track = takingOff ? rig?.takeoff : rig?.landing;
+    if (rig && track) {
+      rig.mixer.setTime(progress * rig.duration * 0.9999);
+      craft.position.copy(track.ship.position);
+      craft.quaternion.copy(track.ship.quaternion);
+    }
     for (const part of craft.children) {
       if (part.name !== "exhaust") continue;
-      const power = takingOff
+      const power = track?.ship.scale.x ?? (takingOff
         ? Math.min(1, progress * 12)
-        : Math.min(1, (1 - progress) * 8);
+        : Math.min(1, (1 - progress) * 8));
       const length =
         (21 + Math.sin(sequence.elapsed * 43 + part.position.x) * 4) * power;
       part.visible = power > 0.03;
@@ -1798,8 +1835,9 @@ export class Space3D {
       part.position.z = 21 + length / 2;
     }
     sky
-      .setHex(biome.daySky)
-      .lerp(new T.Color(0x080e21), Math.min(1, altitude / 420));
+      .setHex(biome.sky)
+      .lerp(new T.Color(biome.daySky), sunlight)
+      .lerp(new T.Color(0x080e21), Math.min(1, (craft.position.y - 6) / 420));
     fog.color.copy(sky);
     this.cabinCamera.aspect = this.width / this.height;
     this.cabinCamera.position.set(
@@ -1807,7 +1845,12 @@ export class Space3D {
       craft.position.y + 48,
       craft.position.z + 118,
     );
-    this.cabinCamera.lookAt(0, craft.position.y - 9, craft.position.z - 16);
+    if (track) {
+      this.cabinCamera.position.copy(track.camera.position);
+      this.cabinCamera.lookAt(track.target.position);
+    } else {
+      this.cabinCamera.lookAt(0, craft.position.y - 9, craft.position.z - 16);
+    }
     this.cabinCamera.updateProjectionMatrix();
     this.renderer.render(scene, this.cabinCamera);
   }
@@ -2385,6 +2428,7 @@ export class Space3D {
       }
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
+    this.surfaceFlight?.mixer.stopAllAction();
     this.jumpAnimation?.mixer.stopAllAction();
     this.jumpTrails?.dispose();
     this.surfaceCinematic?.terrain.dispose();
