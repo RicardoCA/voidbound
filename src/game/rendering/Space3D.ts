@@ -70,6 +70,8 @@ export class Space3D {
     fog: T.Fog;
   };
   private jumpScene?: T.Scene;
+  private routeScene?: T.Scene;
+  private routeModel?: T.Group;
   private jumpTrails?: T.BufferGeometry;
   private jumpSeeds = Array.from({ length: 230 }, (_, i) => {
     const rng = random(hash("jump:" + i));
@@ -127,6 +129,13 @@ export class Space3D {
     const sun = new T.DirectionalLight(0xffe3b9, 2.8);
     sun.position.set(300, 450, -500);
     this.scene.add(sun, this.flightFill);
+    void this.loadEnvironmentAsset("computador-de-rota")
+      .then((model) => {
+        if (!this.disposed) this.routeModel = model;
+      })
+      .catch((error: unknown) =>
+        console.warn("Computador de navegação 3D indisponível.", error),
+      );
     const rng = random(hash("voidbound-3d"));
     const points = new Float32Array(4800);
     for (let i = 0; i < points.length; i++) points[i] = (rng() - 0.5) * 15000;
@@ -1790,6 +1799,25 @@ export class Space3D {
     this.cabinCamera.lookAt(0, craft.position.y - 9, craft.position.z - 16);
     this.cabinCamera.updateProjectionMatrix();
     this.renderer.render(scene, this.cabinCamera);
+  }
+
+  drawRouteComputer() {
+    if (!this.routeModel || !this.resize()) return false;
+    if (!this.routeScene) {
+      const scene = new T.Scene();
+      scene.background = this.scene.background;
+      scene.add(new T.HemisphereLight(0xd7eaff, 0x5b627f, 1.85));
+      const light = new T.DirectionalLight(0xc4e7ff, 2.1);
+      light.position.set(-25, 24, 12);
+      scene.add(light, this.routeModel.clone());
+      this.routeScene = scene;
+    }
+    this.cabinCamera.aspect = this.width / this.height;
+    this.cabinCamera.position.set(0, 0, this.cabinCamera.aspect < 1 ? 15 : 0);
+    this.cabinCamera.lookAt(0, 2, -45);
+    this.cabinCamera.updateProjectionMatrix();
+    this.renderer.render(this.routeScene, this.cabinCamera);
+    return true;
   }
 
   drawLandingComputer(planet: Planet) {

@@ -1941,3 +1941,11 @@ kbd {
 .flight-deck:has(.landing-computer-3d) .dialog.orbit-console {
   max-height: 57%;
 }
+
+.flight-deck:has(.route-computer-3d) .flight-route-frame {
+  display: none;
+}
+
+.flight-deck:has(.route-computer-3d) .game-canvas {
+  inset: 0;
+}

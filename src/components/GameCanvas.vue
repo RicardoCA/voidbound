@@ -52,6 +52,10 @@ const inStation = computed(
 const inColossal = computed(
   () => props.playing && g.aboardColossal && !g.colossalHelm && !g.busy,
 );
+const routeComputer = computed(
+  () => freeFlight.value && !g.aboardColossal && g.panel === "route" && !g.paused,
+);
+const routeComputerReady = ref(false);
 const surfaceCinematic = computed(() => !!g.surfaceSequence);
 const landingComputer = computed(
   () => props.playing && g.state.mode === "orbit" && !g.inSequence && !g.busy,
@@ -87,6 +91,7 @@ watch(
     cancelAnimationFrame(frame);
     clearTimeout(cabinPreload);
     cabinLoading.value = false;
+    routeComputerReady.value = false;
     flight3D.enabled = false;
     flight3D.stationView = false;
     flight3D.colossalView = false;
@@ -111,7 +116,10 @@ watch(
           );
         else if (surfaceCinematic.value) space!.drawSurfaceCinematic(g);
         else if (landingComputer.value) space!.drawLandingComputer(g.planet);
-        else if (inCabin.value)
+        else if (routeComputer.value) {
+          routeComputerReady.value = space!.drawRouteComputer();
+          if (!routeComputerReady.value) space!.draw(g);
+        } else if (inCabin.value)
           cabinLoading.value = !space!.drawCabin(
             g.flightCabin,
             g.state.wardrobe?.equipped,
@@ -198,6 +206,7 @@ onBeforeUnmount(() => {
       :class="{
         'light-jump-3d': lightJump && show3D,
         'landing-computer-3d': landingComputer && show3D,
+        'route-computer-3d': routeComputer && routeComputerReady && show3D,
       }"
       aria-label="Visão 3D do jogo"
       @webglcontextlost="
