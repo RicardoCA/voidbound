@@ -367,7 +367,7 @@ export class SpaceCombat {
         this.npcs.push(target);
   }
 
-  private flyEscorts(state: Save, dt: number) {
+  private flyEscorts(state: Save, dt: number, spatial: boolean) {
     const ship = state.ship;
     this.escorts = (state.escorts ?? []).flatMap((pilot, index) => {
       if (pilot.remaining <= 0 || pilot.repairUntil) return [];
@@ -376,8 +376,10 @@ export class SpaceCombat {
       const turn = ship.angle - oldAngle;
       const formationAngle =
         oldAngle + Math.atan2(Math.sin(turn), Math.cos(turn)) * (1 - Math.exp(-3 * dt));
-      const bearing = formationAngle + Math.PI + (index % 2 === 0 ? -0.65 : 0.65);
-      const spacing = 64 + Math.floor(index / 2) * 30;
+      const spread = spatial ? 0.35 : 0.65;
+      const bearing =
+        formationAngle + Math.PI + (index % 2 === 0 ? -spread : spread);
+      const spacing = (spatial ? 180 : 64) + Math.floor(index / 2) * 30;
       const targetX = ship.x + Math.cos(bearing) * spacing;
       const targetY = ship.y + Math.sin(bearing) * spacing;
       const x = previous?.x ?? targetX;
@@ -409,7 +411,7 @@ export class SpaceCombat {
     this.updateTraffic(state, system);
     this.updateEnforcement(state, system, level);
     this.updateBountyTargets(state, system);
-    this.flyEscorts(state, dt);
+    this.flyEscorts(state, dt, altitude !== undefined);
     this.inspectPlayer(state, level, dt);
     const retreated: string[] = [];
     let crimeReported = false;
