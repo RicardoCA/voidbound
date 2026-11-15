@@ -1,5 +1,5 @@
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
-import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision } from "../physics/surfaceDepth";
+import { solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallBlocks, surfaceWallZ } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -1713,13 +1713,8 @@ export class WorldScene extends Phaser.Scene {
     const settlement = this.building.settlement;
     this.fruit = fruitsNear(g.planet, t, settlement, p.x, g.state.time, spatial ? z : undefined);
     const spatialMove = !climb && spatial
-      ? stepSurfaceDepth(
-          { ...actor, z },
-          Math.sin(yaw) * step,
-          Math.cos(yaw) * step,
-          jump, g.planet.gravity, dt,
-          (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
-          surfaceFloraCollision(
+      ? (() => {
+          const flora = surfaceFloraCollision(
             { x: p.x, y: p.y, z },
             [
               ...treesInRange(g.planet, t, Math.floor(p.x / 16) - 2,
@@ -1727,8 +1722,19 @@ export class WorldScene extends Phaser.Scene {
               ...spatialTreesNear(t, p.x, z, settlement.cutTrees),
             ],
             this.fruit,
-          ),
-        )
+          );
+          const insideWall = surfaceWallBlocks(settlement, p.x, p.y, z);
+          return stepSurfaceDepth(
+            { ...actor, z },
+            Math.sin(yaw) * step,
+            Math.cos(yaw) * step,
+            jump, g.planet.gravity, dt,
+            (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
+            (x, y, depth) => flora(x, y, depth) ||
+              ((!insideWall || Math.abs(depth - surfaceWallZ) <= Math.abs(z - surfaceWallZ)) &&
+                surfaceWallBlocks(settlement, x, y, depth)),
+          );
+        })()
       : undefined;
     const movement = climb ?? spatialMove ??
       stepSurface(actor, direction, jump, g.planet.gravity, dt, t, this.building.settlement);

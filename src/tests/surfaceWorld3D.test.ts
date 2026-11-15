@@ -5,6 +5,7 @@ import { emptySettlement } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
 import {
   solidSurfaceVoxel,
+  surfaceWallBlocks,
   stepSurfaceDepth,
 } from "../game/physics/surfaceDepth";
 import {
@@ -170,3 +171,24 @@ it("seleciona o tronco pela mira 3D e remove o alvo após o corte", () => {
     world.dispose();
   }
 });
+
+it.each([true, "stoneWall", "metalWall"] as const)(
+  "impede atravessar a parede %s na posição da malha",
+  (wall) => {
+    const settlement = emptySettlement();
+    settlement.walls["0,9"] = wall;
+    const actor = { x: 8, y: 148, z: 2, vy: 0, grounded: true };
+    const step = stepSurfaceDepth(
+      actor,
+      0,
+      -4,
+      false,
+      1,
+      0.04,
+      (_x, y) => y >= 10,
+      (x, y, z) => surfaceWallBlocks(settlement, x, y, z),
+    );
+    expect(step.z).toBe(actor.z);
+    expect(surfaceWallBlocks(settlement, 8, 148, 8)).toBe(false);
+  },
+);

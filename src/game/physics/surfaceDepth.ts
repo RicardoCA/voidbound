@@ -22,6 +22,31 @@ export function solidSurfaceVoxel(
   );
 }
 
+export const surfaceWallZ = -6;
+export const surfaceWallThickness = 3;
+
+export function surfaceWallBlocks(
+  settlement: Settlement,
+  x: number,
+  y: number,
+  z: number,
+) {
+  if (Math.abs(z - surfaceWallZ) >= surfaceWallThickness / 2 + 3.8)
+    return false;
+  for (
+    let column = Math.floor((x - 3.8) / TILE);
+    column <= Math.floor((x + 3.8) / TILE);
+    column++
+  )
+    for (
+      let row = Math.floor((y - 11.9) / TILE);
+      row <= Math.floor((y + 11.9) / TILE);
+      row++
+    )
+      if (settlement.walls[`${column},${row}`]) return true;
+  return false;
+}
+
 export function surfaceFloraCollision(
   origin: { x: number; y: number; z: number },
   trees: readonly AlienTree[],
@@ -73,11 +98,11 @@ export function stepSurfaceDepth(
   gravity: number,
   dt: number,
   solid: (x: number, y: number, depth: number) => boolean,
-  blockedByFlora?: (x: number, y: number, z: number) => boolean,
+  blockedByProps?: (x: number, y: number, z: number) => boolean,
 ) {
   const a = { ...actor };
   const clear = (x: number, y: number, z: number) => {
-    if (blockedByFlora?.(x, y, z)) return false;
+    if (blockedByProps?.(x, y, z)) return false;
     const top = Math.floor((y - 11.9) / TILE);
     const bottom = Math.floor((y + 11.9) / TILE);
     for (const wx of [x - 3.8, x + 3.8])
@@ -93,7 +118,7 @@ export function stepSurfaceDepth(
     } else if (
       a.grounded &&
       !jump &&
-      !blockedByFlora?.(x, a.y, z) &&
+      !blockedByProps?.(x, a.y, z) &&
       clear(a.x, a.y - TILE, a.z) &&
       clear(x, a.y - TILE, z) &&
       !clear(x, a.y - TILE + 1, z)

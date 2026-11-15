@@ -1,4 +1,4 @@
-import { surfaceLayer, solidSurfaceVoxel } from "../physics/surfaceDepth";
+import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness } from "../physics/surfaceDepth";
 import * as T from "three";
 import { cabinetWidths, isCabinet } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
@@ -265,7 +265,7 @@ export class SurfaceWorld3D {
           : kind === "stoneWall"
             ? 0x696f7b
             : metal;
-      block(color, 0, 8, -14, 16, 16, 3);
+      block(color, 0, 8, surfaceWallZ - 8, 16, 16, surfaceWallThickness);
       for (const y of [4, 9, 14]) block(0x343741, 0, y, -12.4, 16, 0.42, 0.2);
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
