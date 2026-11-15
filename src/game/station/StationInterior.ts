@@ -25,7 +25,7 @@ const counters = [
   { x: 124, y: 125 }, // The recruiter uses the vacant science bay.
   { x: -20, y: -71 }, // The arms dealer uses the vacant dealership bay.
 ] as const;
-function countersFor(clandestine: boolean) {
+export function countersFor(clandestine: boolean) {
   return stationServicesFor(clandestine).map((npc) => {
     const i = stationServices.indexOf(npc);
     return { ...counters[i]!, npc, i };
@@ -44,6 +44,16 @@ export class StationInterior {
   private depth: number = spawn.y;
   private facing = 1;
   private stride = 0;
+  private heading = -Math.PI / 2;
+
+  get pose() {
+    return {
+      x: this.x,
+      z: this.depth,
+      heading: this.heading,
+      stride: this.stride,
+    };
+  }
   private labels: Phaser.GameObjects.Text[] = [];
 
   reset() {
@@ -51,6 +61,7 @@ export class StationInterior {
     this.depth = spawn.y;
     this.facing = 1;
     this.stride = 0;
+    this.heading = -Math.PI / 2;
   }
 
   hide() {
@@ -72,6 +83,8 @@ export class StationInterior {
       oldDepth = this.depth;
     if (canWalk(x, this.depth)) this.x = x;
     if (canWalk(this.x, depth)) this.depth = depth;
+    if (this.x !== oldX || this.depth !== oldDepth)
+      this.heading = Math.atan2(oldX - this.x, oldDepth - this.depth);
     this.stride =
       this.x === oldX && this.depth === oldDepth ? 0 : this.stride + dt * 15;
   }

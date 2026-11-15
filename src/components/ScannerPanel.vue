@@ -2,7 +2,6 @@
 import PlanetScanProgress from "./PlanetScanProgress.vue";
 import { computed } from "vue";
 import { useGame } from "../stores/game";
-import { planetPosition } from "../universe/generator";
 import { Terrain, tileItems } from "../game/procedural/terrain";
 import { items } from "../game/types";
 import {
@@ -22,15 +21,11 @@ const planets = computed(() =>
       (mode !== "space" && index !== g.state.planetIndex)
     )
       return [];
-    const pos = planetPosition(index);
     return [
       {
         planet,
         index,
-        distance:
-          mode === "space"
-            ? Math.hypot(pos.x - g.state.ship.x, pos.y - g.state.ship.y)
-            : 0,
+        distance: mode === "space" ? g.distanceToPlanet(index) : 0,
       },
     ];
   }),

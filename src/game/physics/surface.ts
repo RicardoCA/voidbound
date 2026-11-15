@@ -39,6 +39,7 @@ export function stepClimb(
   dt: number,
   terrain: Terrain,
   settlement: Settlement,
+  depth = 0,
 ): (Actor & { fallDamage: number }) | undefined {
   if (column === undefined) {
     const center = Math.floor(actor.x / 16);
@@ -50,13 +51,14 @@ export function stepClimb(
         dt,
         terrain,
         settlement,
+        depth,
       );
       if (movement) return movement;
     }
     return undefined;
   }
   const x = column * 16 + 8;
-  const piece = (row: number) => settlement.pieces[keyAt(column, row)];
+  const piece = (row: number) => settlement.pieces[keyAt(column, row, depth)];
   const onLadder = (y: number) => {
     for (
       let row = Math.floor((y - 12) / 16);
@@ -74,8 +76,12 @@ export function stepClimb(
     }
     return false;
   };
-  const solid = (x: number, y: number) =>
-    solidCell(terrain, settlement, Math.floor(x / 16), Math.floor(y / 16));
+  const solid = (x: number, y: number) => {
+    const tx = Math.floor(x / 16), ty = Math.floor(y / 16);
+    return terrain.getAt(tx, ty, depth) !== 0 ||
+      blocksAir(settlement, tx, ty, depth) ||
+      !!settlement.depthBlocks?.[keyAt(tx, ty, depth)];
+  };
   if (
     Math.abs(actor.x - x) > 20 ||
     !onLadder(actor.y) ||

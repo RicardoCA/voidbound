@@ -70,18 +70,40 @@ const hull = [
   { x: -204, y: 35 },
 ];
 
+// Bounds in cabin coordinates, expanded by the astronaut's footprint.
+const equipmentFootprints: readonly [
+  CabinEquipment,
+  number,
+  number,
+  number,
+  number,
+][] = [
+  ["hatch", 0, -12, 16, 8],
+  ["craft", 0, -9, 18, 13],
+  ["pilot", 0, -9, 18, 13],
+  ["pilot", 0, 10, 20, 10],
+  ["solar", 0, -9, 18, 13],
+  ["inventory", 0, 6, 16, 11],
+  ["bases", 0, -9, 18, 13],
+  ["map", 0, -7, 13, 10],
+];
+
 export class CabinInterior {
   private x: number = cabinEquipment.hatch.x;
   private y: number = cabinEquipment.hatch.y;
   private facing = 1;
   private stride = 0;
+  private inFlight = false;
+  private heading = -Math.PI / 2;
   private labels = new Map<CabinEquipment, Phaser.GameObjects.Text>();
 
   reset(atPilot = false) {
+    this.inFlight = atPilot;
     const start = atPilot ? cabinEquipment.pilot : cabinEquipment.hatch;
-    this.x = start.x;
+    this.x = atPilot ? start.x - 23 : start.x;
     this.y = start.y;
     this.facing = 1;
+    this.heading = -Math.PI / 2;
     this.stride = 0;
   }
 
@@ -91,12 +113,29 @@ export class CabinInterior {
 
   walk(horizontal: number, vertical: number, dt: number) {
     const distance = (dt * 105) / Math.max(1, Math.hypot(horizontal, vertical));
-    const x = Math.max(-185, Math.min(185, this.x + horizontal * distance));
-    const y = Math.max(-37, Math.min(45, this.y + vertical * distance));
+    const blocked = (x: number, y: number) =>
+      equipmentFootprints.some(([id, offsetX, offsetY, halfX, halfY]) => {
+        if (id === "hatch" && this.inFlight) return false;
+        const fixture = cabinEquipment[id];
+        return (
+          Math.abs(x - fixture.x - offsetX) < halfX &&
+          Math.abs(y - fixture.y - offsetY) < halfY
+        );
+      });
+    const nextX = Math.max(-185, Math.min(185, this.x + horizontal * distance));
+    const x = blocked(nextX, this.y) ? this.x : nextX;
+    const nextY = Math.max(-37, Math.min(45, this.y + vertical * distance));
+    const y = blocked(x, nextY) ? this.y : nextY;
     if (horizontal) this.facing = horizontal;
+    if (x !== this.x || y !== this.y)
+      this.heading = Math.atan2(this.x - x, this.y - y);
     this.stride = x === this.x && y === this.y ? 0 : this.stride + dt * 16;
     this.x = x;
     this.y = y;
+  }
+
+  get pose() {
+    return { x: this.x, z: this.y, stride: this.stride, heading: this.heading };
   }
 
   nearby() {

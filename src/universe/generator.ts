@@ -92,3 +92,13 @@ export function nearby(seed: string, x: number, y: number, radius = 3) {
 export function planetPosition(index: number) {
   return { x: 530 + index * 860, y: 330 + Math.sin(index * 2) * 500 };
 }
+
+export function spatialPlanet(index: number, id: string) {
+  const orbit = planetPosition(index);
+  return {
+    x: 1040 + index * 5_000,
+    y: orbit.y,
+    altitude: (hash("planet:" + id) % 641) - 320,
+    radius: 395 + (hash(id) % 111),
+  };
+}

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { COLOSSAL_BOARD_RANGE } from "../fleet/colossal";
 import LocalRadar from "./LocalRadar.vue";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useGame } from "../stores/game";
@@ -30,12 +31,11 @@ const meters = computed(() => [
     value: surface.value ? g.state.player.health : g.hullPercent,
     max: 100,
   },
-  {
-    label: surface.value || cabin.value ? "O₂" : "COMB.",
-    value:
-      surface.value || cabin.value ? g.state.player.oxygen : g.state.ship.fuel,
-    max: surface.value || cabin.value ? 100 : g.maxFuel,
-  },
+  ...(surface.value || cabin.value
+    ? g.oxygenEnabled
+      ? [{ label: "O₂", value: g.state.player.oxygen, max: 100 }]
+      : []
+    : [{ label: "COMB.", value: g.state.ship.fuel, max: g.maxFuel }]),
   {
     label: "ENERGIA",
     value: surface.value ? g.state.player.energy : g.state.ship.energy,
@@ -107,13 +107,13 @@ const colossalDistance = computed(() => {
     </div>
     <div
       class="mobile-meters"
-      :class="{ 'surface-meters': surface && g.hungerEnabled }"
+      :class="{ 'surface-meters': meters.length === 4 }"
     >
       <div
         v-for="(meter, i) in meters"
         :key="meter.label"
         class="mobile-meter"
-        :class="[`meter-${i}`, { critical: meter.value < 20 }]"
+        :class="[`meter-${meter.label === 'ENERGIA' ? 2 : meter.label === 'FOME' ? 3 : i}`, { critical: meter.value < 20 }]"
         :aria-label="`${meter.label}: ${Math.ceil(meter.value)}`"
       >
         <div>
@@ -219,9 +219,16 @@ const colossalDistance = computed(() => {
     <template v-else-if="surface && g.civilization"
       >{{ g.civilization.name }} · A leste do pouso</template
     >
-    <template v-else-if="colossalDistance !== undefined && colossalDistance <= 190">
+    <template
+      v-else-if="
+        colossalDistance !== undefined &&
+        colossalDistance <= COLOSSAL_BOARD_RANGE
+      "
+    >
       Colossal · {{ Math.round(colossalDistance) }} km
-      <b v-if="g.localColossal?.stage === 3"> · Interagir para embarcar até 35 km/s</b>
+      <b v-if="g.localColossal?.stage === 3">
+        · Interagir para embarcar até 35 km/s</b
+      >
       <template v-else> · Construção {{ g.localColossal?.stage }}/3</template>
     </template>
     <template v-else-if="g.routeDestination"

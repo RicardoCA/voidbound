@@ -10,13 +10,14 @@ import ShipSprite from "./ShipSprite.vue";
 import HangarPanel from "./HangarPanel.vue";
 
 const g = useGame();
+const props = defineProps<{ previewModel?: ShipModelId }>();
 const selected = ref<ShipModelId>();
 const category = ref<ShipCategory | "all">("all");
 const models = (Object.keys(shipModels) as ShipModelId[]).filter(
   (id) => !Object.hasOwn(shipBlueprints, id),
 );
 const visibleModels = computed(() =>
-  models.filter(
+  props.previewModel ? [props.previewModel] : models.filter(
     (id) =>
       category.value === "all" || shipModels[id].category === category.value,
   ),
@@ -32,15 +33,15 @@ async function buy(model: ShipModelId) {
 </script>
 <template>
   <section class="station-form dealership" aria-label="Modelos de naves">
-    <header class="dealership-heading">
+    <header v-if="!previewModel" class="dealership-heading">
       <span class="eyebrow">VITRINE DA ESTAÇÃO</span>
       <h3>Catálogo de frota</h3>
     </header>
-    <p>
+    <p v-if="!previewModel">
       A nave comprada fica guardada nesta estação. Você pode comprar um
       cargueiro e continuar explorando com sua nave ativa, a {{ g.model.name }}.
     </p>
-    <nav class="station-actions" aria-label="Categorias de naves">
+    <nav v-if="!previewModel" class="station-actions" aria-label="Categorias de naves">
       <button
         class="secondary"
         :aria-pressed="category === 'all'"
@@ -60,7 +61,7 @@ async function buy(model: ShipModelId) {
     </nav>
     <div class="dealership-grid">
       <article v-for="id in visibleModels" :key="id" class="dealer-card">
-        <div class="dealer-bay" :data-category="shipModels[id].category">
+        <div v-if="!previewModel" class="dealer-bay" :data-category="shipModels[id].category">
           <span>{{ shipCategories[shipModels[id].category] }}</span>
           <ShipSprite :model="id" />
         </div>
@@ -117,5 +118,5 @@ async function buy(model: ShipModelId) {
       </article>
     </div>
   </section>
-  <HangarPanel dealership />
+  <HangarPanel v-if="!previewModel" dealership />
 </template>

@@ -2,7 +2,6 @@
 import { computed, ref } from "vue";
 import CockpitFrame from "./CockpitFrame.vue";
 import { useGame } from "../stores/game";
-import { planetPosition } from "../universe/generator";
 
 const g = useGame();
 const selected = ref("");
@@ -13,7 +12,7 @@ const options = computed(() => {
   const planets = g.system.planets.map((planet, index) => ({
     id: planet.id,
     label: planet.name,
-    distance: distance(planetPosition(index)),
+    distance: Math.round(g.distanceToPlanet(index)),
   }));
   const asteroids = (g.hasAsteroidRadar ? g.asteroids : [])
     .map((rock) => ({

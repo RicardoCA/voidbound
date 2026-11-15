@@ -29,6 +29,7 @@ export interface SpaceNpc extends Point {
   angle: number;
   vx: number;
   vy: number;
+  altitude?: number;
   home: Point;
   hull: number;
   maxHull: number;
@@ -48,6 +49,7 @@ export interface FlightContact {
 }
 
 export interface Wreck extends Point {
+  altitude?: number;
   id: string;
   systemId: string;
   name: string;
@@ -346,6 +348,7 @@ export function damageNpcHull(
     name: npc.name,
     x: npc.x,
     y: npc.y,
+    altitude: npc.altitude,
     cargo: { ...npc.cargo },
     recovered: false,
   };
@@ -366,17 +369,17 @@ export function systemWrecks(systemId: string, piracy: Piracy) {
 }
 
 export const SALVAGE_RANGE = 95;
-export function salvage(state: Save, wreck: Wreck, capacity: number) {
+export function salvage(state: Save, wreck: Wreck, capacity: number, flight?: { altitude: number; velocity: number }) {
   const stored = state.progression.piracy.wrecks[wreck.id];
   if (
     state.mode !== "space" ||
     !stored ||
     stored.recovered ||
     stored.systemId !== systemAt(state.seed, state.systemX, state.systemY).id ||
-    Math.hypot(state.ship.x - stored.x, state.ship.y - stored.y) > SALVAGE_RANGE
+    Math.hypot(state.ship.x - stored.x, state.ship.y - stored.y, flight ? flight.altitude - (stored.altitude ?? 0) : 0) > SALVAGE_RANGE
   )
     return "Aproxime-se de um destroço com carga.";
-  if (Math.hypot(state.ship.vx, state.ship.vy) > 50)
+  if (Math.hypot(state.ship.vx, state.ship.vy, flight?.velocity ?? 0) > 50)
     return "Freie até 50 km/s para recolher a carga.";
   if (!addBatch(state.inventory, stored.cargo, capacity))
     return "Carga cheia. Libere espaço para o saque.";

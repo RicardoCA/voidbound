@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { flight3D } from "../game/rendering/flight3D";
 import { weatherLabels } from "../game/procedural/weather";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
@@ -247,6 +248,7 @@ function minutes() {
           g.started &&
           g.state.mode === 'space' &&
           g.localColossal &&
+          !g.flightCabin &&
           !g.panel &&
           !g.busy &&
           !g.paused
@@ -413,7 +415,7 @@ function minutes() {
             <p v-if="g.routeDestination">
               Rota ativa · {{ g.routeDestination.name }}
             </p>
-            <p v-if="inShip">
+            <p v-if="inShip && g.oxygenEnabled">
               O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
               {{ Math.ceil(g.state.player.oxygen) }}%
             </p>
@@ -563,6 +565,7 @@ function minutes() {
         <p
           v-if="
             atStation &&
+            !g.showroom &&
             !g.panel &&
             !g.paused &&
             (g.stationContact || stationWalkTipVisible)
@@ -618,7 +621,7 @@ function minutes() {
                     }}<small>%</small></b
                   >
                 </div>
-                <div class="gold">
+                <div v-if="!surface || g.oxygenEnabled" class="gold">
                   <span>{{ surface ? "OXIGÊNIO" : "COMBUSTÍVEL" }}</span>
                   <div class="meter">
                     <i
@@ -731,7 +734,8 @@ function minutes() {
             (!g.inSequence &&
               ((g.panel &&
                 g.panel !== 'government' &&
-                !g.panel.startsWith('station:')) ||
+                !g.panel.startsWith('station:') &&
+                !g.panel.startsWith('showroom:')) ||
                 g.state.mode === 'orbit')))
         "
         class="overlay"
@@ -756,6 +760,12 @@ function minutes() {
             <label
               ><input v-model="g.hungerEnabled" type="checkbox" /> Fome</label
             >
+            <label><input v-model="g.oxygenEnabled" type="checkbox" /> Consumo de oxigênio</label>
+            <label><input v-model="g.betaMode" type="checkbox" /> Modo Beta</label>
+            <label v-if="g.betaMode">
+              <input v-model="g.thirdPersonSurface" type="checkbox" />
+              Câmera em terceira pessoa na superfície 3D
+            </label>
             <label
               ><input v-model="g.autosaveEnabled" type="checkbox" /> Salvamento
               automático</label
@@ -1048,8 +1058,13 @@ function minutes() {
     </footer>
     <div v-if="g.started" class="keyboard-help">
       <span v-if="surface"
-        ><kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>ESPAÇO</kbd> PULAR <kbd>W</kbd
-        ><kbd>S</kbd> ESCALAR <kbd>CLIQUE</kbd> MINERAR
+        ><template v-if="flight3D.surfaceView">
+          <kbd>W</kbd><kbd>S</kbd> ANDAR <kbd>A</kbd><kbd>D</kbd> GIRAR <kbd>MOUSE</kbd> OLHAR
+        </template>
+        <template v-else>
+          <kbd>A</kbd><kbd>D</kbd> MOVIMENTAR <kbd>W</kbd><kbd>S</kbd> ESCALAR
+        </template>
+        <kbd>ESPAÇO</kbd> PULAR <kbd>CLIQUE</kbd> MINERAR
         <kbd>B</kbd> CONSTRUIR</span
       ><span v-else-if="atStation || inShip"
         ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para

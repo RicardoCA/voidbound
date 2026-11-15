@@ -1,3 +1,6 @@
+import { surfaceLayer } from "../game/physics/surfaceDepth";
+import type { ShipModelId } from "../game/types";
+import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
 import {
   regrowTerrain,
   TERRAIN_REGROWTH_SECONDS,
@@ -7,6 +10,7 @@ import {
   parkColossal,
   COLOSSAL_RANGE,
   COLOSSAL_EXIT,
+  COLOSSAL_BOARD_RANGE,
 } from "../fleet/colossal";
 import { systemExists } from "../universe/generator";
 import { jumpFuel } from "../universe/jumpRoute";
@@ -61,7 +65,7 @@ import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import type { Item, Save, Settlement } from "../game/types";
 import { biomes, items } from "../game/types";
-import { systemAt, planetPosition } from "../universe/generator";
+import { systemAt, planetPosition, spatialPlanet } from "../universe/generator";
 import { add, consume, inventoryEntries, slots } from "../inventory/inventory";
 import { craft, recipes } from "../crafting/recipes";
 import { queueCloudSave } from "../persistence/cloudSaves";
@@ -184,13 +188,14 @@ function initial(seed: string): Save {
     landingX: 0,
   };
 }
-function gameplayPreference(name: string) {
+function gameplayPreference(name: string, defaultEnabled = true) {
   const key = `voidbound:option:${name}`;
-  let enabled = true;
+  let enabled = defaultEnabled;
   try {
     enabled =
-      typeof window === "undefined" ||
-      window.localStorage.getItem(key) !== "off";
+      typeof window === "undefined"
+        ? defaultEnabled
+        : (window.localStorage.getItem(key) ?? (defaultEnabled ? "on" : "off")) !== "off";
   } catch {
     // The preference can still be changed for the current session.
   }
@@ -217,8 +222,11 @@ export const useGame = defineStore("game", () => {
     worldRevision.value++;
   }
   const noShelter = emptySettlement();
+  const betaMode = gameplayPreference("beta-mode", false);
+  const thirdPersonSurface = gameplayPreference("surface-third-person", false);
   const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
+  const oxygenEnabled = gameplayPreference("oxygen");
   const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
@@ -247,10 +255,12 @@ export const useGame = defineStore("game", () => {
     radarShips = ref<
       (Pick<
         SpaceNpc,
-        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget"
-      > & { role: SpaceNpc["role"] | "ally" })[]
+        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget" | "altitude" | "model"
+      > & { role: SpaceNpc["role"] | "ally"; angle?: number })[]
     >([]),
     stationContact = ref<string>(),
+    showroom = ref(false),
+    showroomContact = ref<ShipModelId>(),
     cabinContact = ref<CabinEquipment>(),
     trading = ref(false);
   watch(
@@ -285,10 +295,15 @@ export const useGame = defineStore("game", () => {
     if (!id) return undefined;
     const index = system.value.planets.findIndex((planet) => planet.id === id);
     if (index >= 0) {
+      const planet = system.value.planets[index]!;
+      const position = flight3D.enabled
+        ? spatialPlanet(index, planet.id)
+        : undefined;
+      const stopDistance = position ? position.radius + 135 : 135;
       return {
-        ...planetPosition(index),
-        name: system.value.planets[index]!.name,
-        stopDistance: 135,
+        ...(position ?? planetPosition(index)),
+        name: planet.name,
+        stopDistance,
       };
     }
     const asteroid =
@@ -298,7 +313,8 @@ export const useGame = defineStore("game", () => {
         x: asteroid.x,
         y: asteroid.y,
         name: asteroid.name,
-        stopDistance: 68,
+        altitude: flight3D.enabled ? spaceAltitude("asteroid", asteroid.id) : undefined,
+        stopDistance: flight3D.enabled ? Math.max(68, asteroid.r + 30) : 68,
       };
     return undefined;
   });
@@ -398,8 +414,12 @@ export const useGame = defineStore("game", () => {
       if (mode !== "surface") return;
       const dx = landingX * 16 - player.x;
       const dy = planetTerrain.value.height(landingX) * 16 - 13 - player.y;
-      const distance = Math.round(Math.hypot(dx, dy));
-      const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+      const distance = Math.round(Math.hypot(dx, dy, player.surfaceZ ?? 0));
+      const yaw = flight3D.surfaceLook.yaw;
+      const dz = -(player.surfaceZ ?? 0);
+      const horizontal = flight3D.surfaceView ? dx * Math.cos(yaw) - dz * Math.sin(yaw) : dx;
+      const vertical = flight3D.surfaceView ? dx * Math.sin(yaw) + dz * Math.cos(yaw) : dy;
+      const octant = Math.round(Math.atan2(vertical, horizontal) / (Math.PI / 4));
       const bearing = distance
         ? ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]
         : "•";
@@ -680,7 +700,7 @@ export const useGame = defineStore("game", () => {
     progress();
     return true;
   }
-  function mineTerrain(terrain: Terrain, x: number, y: number) {
+  function mineTerrain(terrain: Terrain, x: number, y: number, depth = 0) {
     const s = state.value;
     if (
       s.mode !== "surface" ||
@@ -690,13 +710,13 @@ export const useGame = defineStore("game", () => {
       y >= 63
     )
       return false;
-    const tile = terrain.get(x, y);
+    const tile = terrain.getAt(x, y, depth);
     if (!tile) return false;
     const resource = tileItems[tile] ?? "iron";
     if (!collect(resource)) return false;
-    terrain.remove(x, y);
+    terrain.remove(x, y, depth);
     const deadlines = (s.terrainRegrowth ??= {});
-    (deadlines[terrain.planet.id] ??= {})[`${x},${y}`] =
+    (deadlines[terrain.planet.id] ??= {})[terrain.keyAt(x, y, depth)] =
       (s.activePlayTime ?? 0) + TERRAIN_REGROWTH_SECONDS;
     worldChanged();
     if (resource !== "wood" && resource !== "fiber")
@@ -998,6 +1018,7 @@ export const useGame = defineStore("game", () => {
   function land(zone: number) {
     state.value.landingX = zone * 24;
     state.value.mode = "interior";
+    state.value.player.surfaceZ = 0;
     state.value.player.x = zone * 384 + 8;
     state.value.player.y = 0;
     if (state.value.mission === 0) state.value.mission = 1;
@@ -1006,6 +1027,7 @@ export const useGame = defineStore("game", () => {
     void save();
   }
   function exit() {
+    state.value.player.surfaceZ = 0;
     state.value.player.x = state.value.landingX * 16 + 40;
     state.value.player.y = 0;
     state.value.mode = "surface";
@@ -1051,8 +1073,12 @@ export const useGame = defineStore("game", () => {
   function takeoff() {
     if (!canTakeOff()) return;
     state.value.ship.fuel -= 5;
-    const pos = planetPosition(state.value.planetIndex);
-    state.value.ship.x = pos.x - 210;
+    const index = state.value.planetIndex;
+    const spatial = flight3D.selected
+      ? spatialPlanet(index, planet.value.id)
+      : undefined;
+    const pos = spatial ?? planetPosition(index);
+    state.value.ship.x = pos.x - (spatial ? spatial.radius + 135 : 210);
     state.value.ship.y = pos.y;
     state.value.ship.vx = -25;
     state.value.ship.vy = 0;
@@ -1134,7 +1160,7 @@ export const useGame = defineStore("game", () => {
     if (
       !carrier ||
       carrier.stage < 3 ||
-      Math.hypot(ship.x - carrier.x, ship.y - carrier.y) > 190
+      Math.hypot(ship.x - carrier.x, ship.y - carrier.y) > COLOSSAL_BOARD_RANGE
     )
       return false;
     const error = parkColossal(state.value);
@@ -1264,14 +1290,29 @@ export const useGame = defineStore("game", () => {
     notify(`Salto concluído. Sistema ${system.value.name}.`);
     await save();
   }
+  function distanceToPlanet(index: number) {
+    const ship = state.value.ship;
+    if (flight3D.enabled) {
+      const { x, y, altitude, radius } = spatialPlanet(
+        index,
+        system.value.planets[index]!.id,
+      );
+      return Math.max(
+        0,
+        Math.hypot(ship.x - x, ship.y - y, flight3D.altitude - altitude) -
+          radius,
+      );
+    }
+    const pos = planetPosition(index);
+    return Math.hypot(pos.x - ship.x, pos.y - ship.y);
+  }
   const flightTarget = computed(() => {
     const s = state.value;
     const planets = system.value.planets;
     let index = 0;
     let distance = Infinity;
     for (const [i] of planets.entries()) {
-      const pos = planetPosition(i);
-      const d = Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y);
+      const d = distanceToPlanet(i);
       if (d < distance) {
         index = i;
         distance = d;
@@ -1323,8 +1364,10 @@ export const useGame = defineStore("game", () => {
         ["orbit", "interior", "surface"].includes(s.mode) &&
         s.planetIndex === index
       );
-    const pos = planetPosition(index);
-    return Math.hypot(pos.x - s.ship.x, pos.y - s.ship.y) <= scannerRange(s);
+    return (
+      !!system.value.planets[index] &&
+      distanceToPlanet(index) <= scannerRange(s)
+    );
   }
   function scanPlanet(index: number) {
     const target = system.value.planets[index];
@@ -1471,6 +1514,7 @@ export const useGame = defineStore("game", () => {
           system.value.stars,
           state.value.ship,
           state.value.upgrades,
+          flight3D.enabled ? flight3D.altitude : undefined,
         )
       : [],
   );
@@ -1594,14 +1638,14 @@ export const useGame = defineStore("game", () => {
       (drop) => drop.planetId === planet.value.id && drop.expiresAt > now,
     );
   }
-  function recoverBackpack(target?: { wx: number; wy: number }) {
+  function recoverBackpack(target?: { wx: number; wy: number; depth?: number }) {
     const s = state.value;
     if (s.mode !== "surface") return false;
     const nearby = surfaceBackpacks()
       .filter(
         (drop) =>
-          Math.hypot(drop.x - s.player.x, drop.y - s.player.y) <= 44 &&
-          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy) <= 16),
+          Math.hypot(drop.x - s.player.x, drop.y - s.player.y, (drop.z ?? 0) - (s.player.surfaceZ ?? 0)) <= 44 &&
+          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy, (drop.z ?? 0) - (target.depth ?? 0) * 16) <= 20),
       )
       .sort(
         (a, b) =>
@@ -1628,7 +1672,7 @@ export const useGame = defineStore("game", () => {
   function resolvePlayerDeath() {
     const s = state.value;
     if (s.player.health > 0) return false;
-    const deathPosition = { x: s.player.x, y: s.player.y };
+    const deathPosition = { x: s.player.x, y: s.player.y, z: s.player.surfaceZ };
     restorePlayer();
     s.ship.hull = Math.max(15, s.ship.hull - 10);
     const lostBackpack =
@@ -1725,6 +1769,7 @@ export const useGame = defineStore("game", () => {
       planet.value,
       worldRevision.value,
       dt,
+      oxygenEnabled.value,
     );
     if (s.mode === "surface") {
       const storm = weather.value;
@@ -1733,24 +1778,28 @@ export const useGame = defineStore("game", () => {
         const head = Math.floor((s.player.y - 11) / 16);
         const shelter = s.settlements[planet.value.id] ?? noShelter;
         if (
-          weatherCeiling(planetTerrain.value, shelter, column, head) ===
+          weatherCeiling(planetTerrain.value, shelter, column, head, surfaceLayer(s.player.surfaceZ ?? 0)) ===
           Infinity
         )
           s.player.health -= dt * storm.intensity * 1.5;
       }
       s.player.energy = Math.min(100, s.player.energy + dt * 1.4);
-      if (!planet.value.breathable && !habitat.value.supplied)
-        s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
-      if (s.player.oxygen <= 0) s.player.health -= dt * 7;
+      if (oxygenEnabled.value) {
+        if (!planet.value.breathable && !habitat.value.supplied)
+          s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
+        if (s.player.oxygen <= 0) s.player.health -= dt * 7;
+      }
       if (
         Math.abs(planet.value.temperature) > 55 &&
         !s.upgrades.includes("shield")
       )
         s.player.health -= dt * 0.5;
     } else if (s.mode === "interior" || flightCabin.value) {
-      const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
-      s.ship.oxygen -= amount;
-      s.player.oxygen += amount;
+      if (oxygenEnabled.value) {
+        const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
+        s.ship.oxygen -= amount;
+        s.player.oxygen += amount;
+      }
       s.player.energy = Math.min(100, s.player.energy + dt * 12);
       if ((!hungerEnabled.value || s.player.hunger > 0) && sickTime === 0)
         s.player.health = Math.min(100, s.player.health + dt * 3);
@@ -1761,7 +1810,9 @@ export const useGame = defineStore("game", () => {
   return {
     state,
     habitat,
+    planetTerrain,
     worldChanged,
+    worldRevision,
     refreshHabitat,
     started,
     surfaceSequence,
@@ -1779,6 +1830,9 @@ export const useGame = defineStore("game", () => {
     saveStatus,
     survivorEnabled,
     hungerEnabled,
+    oxygenEnabled,
+    betaMode,
+    thirdPersonSurface,
     autosaveEnabled,
     saveRevision,
     hasSave,
@@ -1794,8 +1848,11 @@ export const useGame = defineStore("game", () => {
     switchWeapon,
     uninstallWeapon,
     flightTarget,
+    distanceToPlanet,
     interactFlightTarget,
     stationContact,
+    showroom,
+    showroomContact,
     cabinContact,
     flightCabin,
     asteroids,

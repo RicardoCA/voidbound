@@ -12,6 +12,7 @@ import {
   type Room,
   type HabitatReport,
 } from "../../construction/habitat";
+import { surfaceLayer } from "../physics/surfaceDepth";
 import { keyAt } from "../../construction/pieces";
 /** Topology is cached until construction, terrain or a door changes. */
 export class HabitatSystem {
@@ -28,6 +29,7 @@ export class HabitatSystem {
     planet: Planet,
     revision: number,
     dt: number,
+    oxygenEnabled = true,
   ): HabitatReport {
     const data = state.settlements[planet.id],
       changes = state.changes[planet.id];
@@ -80,11 +82,12 @@ export class HabitatSystem {
     }
     if (state.mode !== "surface") return report;
     const player = state.player,
+      depth = surfaceLayer(player.surfaceZ ?? 0),
       px = Math.floor(player.x / 16),
       py = Math.floor(player.y / 16),
-      cell = keyAt(px, py),
-      head = keyAt(px, Math.floor((player.y - 10) / 16)),
-      feet = keyAt(px, Math.floor((player.y + 10) / 16));
+      cell = keyAt(px, py, depth),
+      head = keyAt(px, Math.floor((player.y - 10) / 16), depth),
+      feet = keyAt(px, Math.floor((player.y + 10) / 16), depth);
     const inside = network.generators.filter(
       (g) =>
         g.room.sealed &&
@@ -102,10 +105,11 @@ export class HabitatSystem {
         report.energy += piece.energy ?? 0;
         const oxygen = piece.oxygen ?? 0;
         if (oxygen <= 0) continue;
-        const breathable = Math.max(0, oxygen - 0.38 * dt),
+        const oxygenTime = oxygenEnabled ? dt : 0;
+        const breathable = Math.max(0, oxygen - 0.38 * oxygenTime),
           requested = Math.min(
             Math.max(0, 100 - player.oxygen),
-            REFILL_RATE * dt,
+            REFILL_RATE * oxygenTime,
           ),
           gain = Math.min(requested, breathable);
         player.oxygen = Math.min(100, player.oxygen + gain);
@@ -121,9 +125,9 @@ export class HabitatSystem {
       return report;
     }
     const nearest = [...network.generators].sort(
-      (a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py),
+      (a, b) => Math.hypot(a.x - px, a.y - py, a.depth - depth) - Math.hypot(b.x - px, b.y - py, b.depth - depth),
     )[0];
-    if (nearest && Math.hypot(nearest.x - px, nearest.y - py) <= 16) {
+    if (nearest && Math.hypot(nearest.x - px, nearest.y - py, nearest.depth - depth) <= 16) {
       const piece = data.pieces[nearest.key]!;
       report.hasGenerator = true;
       report.reason = nearest.room.sealed ? "outside" : nearest.room.reason;

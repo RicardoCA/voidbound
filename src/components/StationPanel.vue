@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { flight3D } from "../game/rendering/flight3D";
+import { showroomSpawn } from "../game/station/showroom";
+import { releaseControls } from "../game/input";
 import EscortContracts from "./EscortContracts.vue";
 import ColossalPanel from "./ColossalPanel.vue";
 import DialogueBubble from "./DialogueBubble.vue";
@@ -22,7 +25,14 @@ const confirmed = ref(false);
 const section = computed(() => props.npc.id);
 function accept() {
   if (section.value === "airlock") g.undock();
-  else confirmed.value = true;
+  else if (section.value === "dealer" && flight3D.stationView) {
+    releaseControls();
+    flight3D.showroom = { ...showroomSpawn };
+    g.showroomContact = undefined;
+    g.stationContact = undefined;
+    g.showroom = true;
+    g.panel = "";
+  } else confirmed.value = true;
 }
 const fuelAmount = computed(() =>
   Math.max(0, Math.min(20, g.maxFuel - g.state.ship.fuel)),
@@ -69,7 +79,9 @@ async function service(kind: "fuel" | "hull", amount: number, rate: number) {
       <template v-if="!confirmed">
         <p>{{ npc.dialogue }}</p>
         <div class="station-actions">
-          <button class="primary" @click="accept">Sim</button>
+          <button class="primary" @click="accept">
+            {{ section === "dealer" && flight3D.stationView ? "Visitar showroom" : "Sim" }}
+          </button>
           <button class="secondary" @click="g.panel = ''">Não</button>
         </div>
       </template>

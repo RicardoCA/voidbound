@@ -138,12 +138,17 @@ export type BuildItem =
 export interface PlacedPiece {
   kind: Exclude<BuildItem, "woodWall" | "stoneWall" | "metalWall">;
   facing: 1 | -1;
+  rotation?: number;
   open?: boolean;
   energy?: number;
   oxygen?: number;
   powered?: boolean;
 }
 export interface Settlement {
+  cornerWalls?: Record<string, Settlement["walls"]>;
+  wallRotations?: Record<string, number>;
+  depthWalls?: Settlement["walls"];
+  depthBlocks?: Record<string, true>;
   pieces: Record<string, PlacedPiece>;
   walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
@@ -217,6 +222,7 @@ export interface Save {
   ship: ShipState;
   minedCyberCrystals?: Record<string, number>;
   player: {
+    surfaceZ?: number;
     photonSaber?: PhotonSaber;
     hunger: number;
     sickness?: number;
@@ -229,6 +235,7 @@ export interface Save {
   inventory: Inventory;
   backpack: Inventory;
   droppedBackpacks?: {
+    z?: number;
     planetId: string;
     x: number;
     y: number;

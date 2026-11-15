@@ -1,3 +1,4 @@
+import { flight3D } from "../game/rendering/flight3D";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
@@ -8,6 +9,7 @@ import { items } from "../game/types";
 import { Terrain } from "../game/procedural/terrain";
 import {
   treeAt,
+  spatialTreeAt,
   treesInRange,
   treeContains,
   treeNames,
@@ -42,13 +44,14 @@ export const useConstruction = defineStore("construction", () => {
     removing = ref(false),
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
+    rotation = ref(0),
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
-    cursor = ref<{ x: number; y: number } | null>(null),
-    activeCampfire = ref<{ planetId: string; x: number; y: number } | null>(
+    cursor = ref<{ x: number; y: number; depth?: number } | null>(null),
+    activeCampfire = ref<{ planetId: string; x: number; y: number; depth: number } | null>(
       null,
     ),
-    activeBed = ref<{ planetId: string; x: number; y: number }>(),
+    activeBed = ref<{ planetId: string; x: number; y: number; depth: number }>(),
     activeCabinet = ref<{ planetId: string; key: string } | null>(null);
   const blank = emptySettlement();
   const settlement = computed(() => g.state.settlements[g.planet.id] ?? blank);
@@ -75,8 +78,8 @@ export const useConstruction = defineStore("construction", () => {
   function cabinetInReach(key: string) {
     const kind = settlement.value.pieces[key]?.kind;
     if (!isCabinet(kind)) return false;
-    const [x, y] = key.split(",").map(Number);
-    return inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
+    const [x, y, depth = 0] = key.split(",").map(Number);
+    return Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) <= 24 && inReach(g.state.player, x! + (cabinetWidths[kind] - 1) / 2, y!, 76);
   }
   const container = computed(() =>
     activeCabinet.value?.planetId === g.planet.id
@@ -84,13 +87,16 @@ export const useConstruction = defineStore("construction", () => {
       : undefined,
   );
   const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
-  function context() {
+  const canRotate = computed(() => flight3D.surfaceView ? selected.value !== "woodBlock" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
+  function context(depth?: number) {
     return {
       terrain: terrain.value,
       settlement: settlementFor(g.state, g.planet.id),
       inventory: g.state.backpack,
       capacity: BACKPACK_SLOTS,
       player: g.state.player,
+      depth,
+      rotation: depth === undefined ? undefined : rotation.value,
       landingX: g.state.landingX,
     };
   }
@@ -122,15 +128,18 @@ export const useConstruction = defineStore("construction", () => {
     releaseControls();
   }
   function rotate() {
-    facing.value = facing.value === 1 ? -1 : 1;
+    if (!canRotate.value) return;
+    lastError.value = "";
+    if (flight3D.surfaceView) rotation.value = (rotation.value + 1) % 4;
+    else facing.value = facing.value === 1 ? -1 : 1;
   }
-  function errorAt(x: number, y: number) {
-    const ctx = context(),
+  function errorAt(x: number, y: number, depth?: number) {
+    const ctx = context(depth),
       error = placementError(ctx, selected.value, x, y, facing.value);
     if (error) return error;
     const cells = footprint(selected.value, x, y);
     if (
-      !isWall(selected.value) &&
+      !depth && !isWall(selected.value) &&
       treesInRange(
         g.planet,
         terrain.value,
@@ -145,25 +154,31 @@ export const useConstruction = defineStore("construction", () => {
     )
       return "Corte a árvore antes de construir neste tronco.";
   }
-  function apply(x: number, y: number) {
+  function apply(x: number, y: number, depth = 0, wallFace?: number) {
     if (g.state.mode !== "surface" || g.paused || g.panel || !enabled.value)
       return false;
+    const buildDepth = flight3D.surfaceView || depth ? depth : undefined;
     g.refreshHabitat();
     let error: string | undefined;
     if (removing.value) {
-      const ctx = context();
-      const wall = ctx.settlement.walls[`${x},${y}`];
-      const foreground = pieceAt(ctx.settlement, x, y);
-      error = removePiece(
-        ctx,
-        x,
-        y,
-        Boolean(wall && (isWall(selected.value) || !foreground)),
-      );
+      const ctx = context(buildDepth);
+      const key = ctx.terrain.keyAt(x, y, depth);
+      const wall = (depth ? ctx.settlement.depthWalls : ctx.settlement.walls)?.[key];
+      const foreground = pieceAt(ctx.settlement, x, y, depth);
+      if (depth && ctx.settlement.depthBlocks?.[key]) {
+        if (!addBatch(ctx.inventory, { woodBlock: 1 }, ctx.capacity)) {
+          lastError.value = "Mochila cheia.";
+          g.notify(lastError.value);
+          return false;
+        }
+        delete ctx.settlement.depthBlocks[key];
+      } else {
+        error = removePiece(ctx, x, y, Boolean(wallFace !== undefined || (wall && (isWall(selected.value) || !foreground))), wallFace);
+      }
     } else {
-      error = errorAt(x, y);
+      error = errorAt(x, y, buildDepth);
       if (!error)
-        error = placePiece(context(), selected.value, x, y, facing.value);
+        error = placePiece(context(buildDepth), selected.value, x, y, facing.value);
     }
     if (error) {
       lastError.value = error;
@@ -185,17 +200,17 @@ export const useConstruction = defineStore("construction", () => {
   }
   function harvest(tree: AlienTree) {
     if (g.state.mode !== "surface" || g.state.player.energy < 3) return false;
-    const current = treeAt(
-      g.planet,
-      terrain.value,
-      Number(tree.id.split(":")[1]),
-    );
+    const [, cell, layer] = tree.id.split(":");
+    const current = tree.depth
+      ? spatialTreeAt(g.planet, terrain.value, Number(cell), Number(layer))
+      : treeAt(g.planet, terrain.value, Number(cell));
     if (
       !current ||
       current.id !== tree.id ||
       Math.hypot(
         current.x * 16 + 8 - g.state.player.x,
         current.ground * 16 - 8 - g.state.player.y,
+        (current.depth ?? 0) * 16 - (g.state.player.surfaceZ ?? 0),
       ) > 96
     )
       return false;
@@ -208,7 +223,7 @@ export const useConstruction = defineStore("construction", () => {
     data.cutTrees.push(current.id);
     g.state.player.energy -= 3;
     audio.play(170, 0.15);
-    g.notify(`${treeNames[current.kind]}: +${current.wood} madeiras.`);
+    g.notify(`${treeNames[current.kind]}: +${current.wood} de madeira alienígena.`);
     void g.save();
     return true;
   }
@@ -232,8 +247,8 @@ export const useConstruction = defineStore("construction", () => {
     const piece = settlement.value.pieces[key];
     if (g.state.mode !== "surface" || !piece || !isOpening(piece.kind))
       return false;
-    const [x, y] = key.split(",").map(Number);
-    if (!inReach(g.state.player, x!, y!, 76)) {
+    const [x, y, depth = 0] = key.split(",").map(Number);
+    if (Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24 || !inReach(g.state.player, x!, y!, 76)) {
       g.notify("Aproxime-se da porta para interagir.");
       return false;
     }
@@ -267,23 +282,24 @@ export const useConstruction = defineStore("construction", () => {
       g.paused ||
       g.state.mode !== "surface" ||
       bed.planetId !== g.planet.id ||
+      Math.abs(bed.depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24 ||
       !inReach(g.state.player, bed.x, bed.y, 76) ||
-      pieceAt(settlement.value, bed.x, bed.y)?.piece.kind !== "bed"
+      pieceAt(settlement.value, bed.x, bed.y, bed.depth)?.piece.kind !== "bed"
     )
       return false;
     activeBed.value = undefined;
     g.sleepInBed();
     return true;
   }
-  function interactAt(x: number, y: number) {
-    const found = pieceAt(settlement.value, x, y);
-    if (!found) return false;
+  function interactAt(x: number, y: number, depth = 0) {
+    const found = pieceAt(settlement.value, x, y, depth);
+    if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
     if (found.piece.kind === "bed") {
       if (
         g.state.mode === "surface" &&
         inReach(g.state.player, found.x, found.y, 76)
       ) {
-        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y };
+        activeBed.value = { planetId: g.planet.id, x: found.x, y: found.y, depth };
         releaseControls();
         g.panel = "sleep";
       } else g.notify("Aproxime-se da cama para dormir.");
@@ -298,6 +314,7 @@ export const useConstruction = defineStore("construction", () => {
           planetId: g.planet.id,
           x: found.x,
           y: found.y,
+          depth,
         };
         releaseControls();
         g.panel = "cook";
@@ -366,8 +383,9 @@ export const useConstruction = defineStore("construction", () => {
       !g.paused &&
       g.panel === "cook" &&
       fire.planetId === g.planet.id &&
+      Math.abs(fire.depth * 16 - (g.state.player.surfaceZ ?? 0)) <= 24 &&
       inReach(g.state.player, fire.x, fire.y, 76) &&
-      pieceAt(settlement.value, fire.x, fire.y)?.piece.kind === "campfire"
+      pieceAt(settlement.value, fire.x, fire.y, fire.depth)?.piece.kind === "campfire"
     );
   }
   function cookMeat() {
@@ -427,11 +445,14 @@ export const useConstruction = defineStore("construction", () => {
         ].includes(piece.kind)
       )
         continue;
-      const [x, y] = id.split(",").map(Number),
-        d = Math.hypot(
+      const [x, y, depth = 0] = id.split(",").map(Number);
+      const depthDistance = depth * 16 - (g.state.player.surfaceZ ?? 0);
+      if (Math.abs(depthDistance) > 24) continue;
+      const d = Math.hypot(
           x! * 16 +
             (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
             g.state.player.x,
+          depthDistance,
           y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
         );
       if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
@@ -484,9 +505,9 @@ export const useConstruction = defineStore("construction", () => {
     void g.save();
     return true;
   }
-  function setCursor(x: number, y: number) {
-    if (cursor.value?.x !== x || cursor.value?.y !== y) lastError.value = "";
-    cursor.value = { x, y };
+  function setCursor(x: number, y: number, depth = 0) {
+    if (cursor.value?.x !== x || cursor.value?.y !== y || cursor.value?.depth !== depth) lastError.value = "";
+    cursor.value = { x, y, depth };
   }
   function cabinetAt(x: number, y: number) {
     return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);
@@ -509,6 +530,8 @@ export const useConstruction = defineStore("construction", () => {
     removing,
     selected,
     facing,
+    rotation,
+    canRotate,
     cursor,
     settlement,
     terrain,

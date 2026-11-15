@@ -52,6 +52,9 @@ function launch(
 
 interface EscortFlight extends Point {
   pilot: EscortContract;
+  vx: number;
+  vy: number;
+  formationAngle: number;
   angle: number;
   fireAt: number;
 }
@@ -315,7 +318,7 @@ export class SpaceCombat {
     return true;
   }
 
-  private collide(state: Save, npc: SpaceNpc) {
+  private collide(state: Save, npc: SpaceNpc, altitude?: number) {
     const ship = state.ship;
     const dx = npc.x - ship.x;
     const dy = npc.y - ship.y;
@@ -326,7 +329,9 @@ export class SpaceCombat {
     const extent = (angle: number) =>
       Math.hypot(19 * Math.cos(bearing - angle), 9 * Math.sin(bearing - angle));
     const shipRadius = extent(ship.angle);
-    const overlap = shipRadius + extent(npc.angle) - separation;
+    const verticalOffset = altitude === undefined ? 0 : altitude - (npc.altitude ?? 0);
+    const heightFactor = Math.sqrt(Math.max(0, 1 - (verticalOffset / 14) ** 2));
+    const overlap = (shipRadius + extent(npc.angle)) * heightFactor - separation;
     if (overlap <= 0) return;
 
     const correction = (overlap + 0.5) / 2;
@@ -362,36 +367,51 @@ export class SpaceCombat {
         this.npcs.push(target);
   }
 
-  private flyEscorts(state: Save, dt: number) {
+  private flyEscorts(state: Save, dt: number, spatial: boolean) {
     const ship = state.ship;
-    const active = (state.escorts ?? []).filter(
-      (pilot) => pilot.remaining > 0 && !pilot.repairUntil,
-    );
-    this.escorts = active.map((pilot, index) => {
-      const bearing = ship.angle + Math.PI + (index === 0 ? -0.65 : 0.65);
-      const x = ship.x + Math.cos(bearing) * 58;
-      const y = ship.y + Math.sin(bearing) * 58;
-      const previous = this.escorts.find(
-        (escort) => escort.pilot.id === pilot.id,
-      );
-      const blend = 1 - Math.exp(-dt * 5);
-      return {
+    this.escorts = (state.escorts ?? []).flatMap((pilot, index) => {
+      if (pilot.remaining <= 0 || pilot.repairUntil) return [];
+      const previous = this.escorts.find((escort) => escort.pilot.id === pilot.id);
+      const oldAngle = previous?.formationAngle ?? ship.angle;
+      const turn = ship.angle - oldAngle;
+      const formationAngle =
+        oldAngle + Math.atan2(Math.sin(turn), Math.cos(turn)) * (1 - Math.exp(-3 * dt));
+      const spread = spatial ? 0.35 : 0.65;
+      const bearing =
+        formationAngle + Math.PI + (index % 2 === 0 ? -spread : spread);
+      const spacing = (spatial ? 180 : 64) + Math.floor(index / 2) * 30;
+      const targetX = ship.x + Math.cos(bearing) * spacing;
+      const targetY = ship.y + Math.sin(bearing) * spacing;
+      const x = previous?.x ?? targetX;
+      const y = previous?.y ?? targetY;
+      const oldVX = previous?.vx ?? ship.vx;
+      const oldVY = previous?.vy ?? ship.vy;
+      const blend = 1 - Math.exp(-4.5 * dt);
+      const dx = targetX - x;
+      const dy = targetY - y;
+      const catchUp = Math.min(2.5, 145 / Math.max(1, Math.hypot(dx, dy)));
+      const vx = oldVX + (ship.vx + dx * catchUp - oldVX) * blend;
+      const vy = oldVY + (ship.vy + dy * catchUp - oldVY) * blend;
+      return [{
         pilot,
-        x: previous ? previous.x + (x - previous.x) * blend : x,
-        y: previous ? previous.y + (y - previous.y) * blend : y,
-        angle: ship.angle,
+        x: x + vx * dt,
+        y: y + vy * dt,
+        vx,
+        vy,
+        formationAngle,
+        angle: Math.hypot(vx, vy) > 10 ? Math.atan2(vy, vx) : formationAngle,
         fireAt: previous?.fireAt ?? 0,
-      };
+      }];
     });
   }
 
-  update(state: Save, system: StarSystem, dt: number) {
+  update(state: Save, system: StarSystem, dt: number, altitude?: number) {
     const ship = state.ship;
     const { level } = wantedStatus(state, system);
     this.updateTraffic(state, system);
     this.updateEnforcement(state, system, level);
     this.updateBountyTargets(state, system);
-    this.flyEscorts(state, dt);
+    this.flyEscorts(state, dt, altitude !== undefined);
     this.inspectPlayer(state, level, dt);
     const retreated: string[] = [];
     let crimeReported = false;
@@ -536,7 +556,12 @@ export class SpaceCombat {
     }
     for (const npc of this.npcs) {
       if (npc.hull <= 0) continue;
-      const impact = this.collide(state, npc);
+      if (altitude !== undefined) {
+        const height = npc.altitude ?? 0;
+        const climb = ((npc.engaged ? altitude : 0) - height) * dt * 2.6;
+        npc.altitude = height + Math.max(-160 * dt, Math.min(160 * dt, climb));
+      }
+      const impact = this.collide(state, npc, altitude);
       if (!impact) continue;
       impacts.push(impact);
       ship.hull = Math.max(0, ship.hull - impact.damage);

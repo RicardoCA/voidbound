@@ -99,25 +99,63 @@ export function starSystemLabel(stars: readonly StellarBody[]) {
       : "Sistema triplo";
 }
 
+const spatialRadii: Record<StarKind, number> = {
+  neutron: 440,
+  white: 540,
+  red: 720,
+  yellow: 980,
+  blue: 1260,
+  giant: 1700,
+};
+
+export function spatialStar(star: StellarBody, index: number) {
+  return {
+    x: -3800 - index * 4700,
+    y: star.y + (index % 2 ? 1500 : -630),
+    altitude: (hash(star.id) % 601) - 300,
+    radius: spatialRadii[star.kind],
+  };
+}
+
+export function spatialThermalDepth(star: StellarBody, radius: number) {
+  const { danger, radius: baseRadius } = starClasses[star.kind];
+  return Math.max((danger - baseRadius) * 3, radius * 0.36);
+}
+
 export function stellarExposure(
   stars: readonly StellarBody[],
   ship: { x: number; y: number },
   upgrades: readonly string[],
+  altitude?: number,
 ) {
   return stars
-    .flatMap((star) => {
+    .flatMap((star, index) => {
       const data = starClasses[star.kind];
-      const distance = Math.hypot(ship.x - star.x, ship.y - star.y);
-      if (distance > data.danger) return [];
+      const position =
+        altitude === undefined
+          ? { ...star, altitude: 0, radius: data.radius }
+          : spatialStar(star, index);
+      const thermalDepth =
+        altitude === undefined
+          ? data.danger - data.radius
+          : spatialThermalDepth(star, position.radius);
+      const danger = position.radius + thermalDepth;
+      const distance = Math.hypot(
+        ship.x - position.x,
+        ship.y - position.y,
+        altitude === undefined ? 0 : altitude - position.altitude,
+      );
+      if (distance > danger) return [];
       const protectedByDeflector = upgrades.includes(deflectorFor(star.kind));
       const intensity = Math.min(
         1,
-        Math.max(0.2, (data.danger - distance) / (data.danger - data.radius)),
+        Math.max(0.2, (danger - distance) / thermalDepth),
       );
       return [
         {
           star,
           data,
+          position,
           distance,
           protectedByDeflector,
           damage: protectedByDeflector ? 0 : data.damage * intensity,

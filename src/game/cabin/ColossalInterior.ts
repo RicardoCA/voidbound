@@ -4,14 +4,15 @@ import type { ShipModelId } from "../types";
 const assets = ["console", "bay", "bulkhead", "reactor", "bridge"] as const;
 type Art = (typeof assets)[number];
 type Room = "hangar" | "reactor" | "bridge";
-const CONSOLE_WIDTH = 122;
-const BAY_WIDTH = 79;
+export const CONSOLE_WIDTH = 122;
+export const BAY_WIDTH = 79;
 const BULKHEAD_WIDTH = 102;
 const ROOM_WIDTH = 480;
-const hangarDoor = (slots: number) =>
+export const hangarDoor = (slots: number) =>
   CONSOLE_WIDTH + slots * BAY_WIDTH + BULKHEAD_WIDTH / 2;
 
-const reactorDoor = (slots: number) => hangarDoor(slots) + BULKHEAD_WIDTH;
+export const reactorDoor = (slots: number) =>
+  hangarDoor(slots) + BULKHEAD_WIDTH;
 
 export class ColossalInterior {
   private room: Room = "hangar";
@@ -19,6 +20,17 @@ export class ColossalInterior {
   private y = 16;
   private facing = 1;
   private stride = 0;
+  private heading = -Math.PI / 2;
+
+  get pose() {
+    return {
+      room: this.room,
+      x: this.x,
+      z: this.y,
+      stride: this.stride,
+      heading: this.heading,
+    };
+  }
   private images: Phaser.GameObjects.Image[] = [];
   private visible = 0;
   private doorSigns: Phaser.GameObjects.Text[] = [];
@@ -44,12 +56,17 @@ export class ColossalInterior {
     for (const sign of this.doorSigns) sign.setVisible(false);
   }
 
-  walk(x: number, y: number, dt: number, slots: number) {
+  walk(x: number, y: number, dt: number, slots: number, spacious = false) {
     const step = (140 * dt) / Math.max(1, Math.hypot(x, y));
     const right =
       this.room === "hangar" ? reactorDoor(slots) + 35 : ROOM_WIDTH - 18;
     const nextX = Math.max(18, Math.min(right, this.x + x * step));
-    const nextY = Math.max(4, Math.min(24, this.y + y * step));
+    const nextY = Math.max(
+      spacious ? -1 : 4,
+      Math.min(spacious ? 44 : 24, this.y + y * step),
+    );
+    if (nextX !== this.x || nextY !== this.y)
+      this.heading = Math.atan2(this.x - nextX, this.y - nextY);
     this.stride =
       nextX === this.x && nextY === this.y ? 0 : this.stride + dt * 16;
     this.x = nextX;

@@ -1,4 +1,14 @@
-import { COLOSSAL_SPEED, steerColossal } from "../../fleet/colossal";
+import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
+import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
+import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
+import { resolveStellarCollision } from "../physics/stellarCollision";
+import { resolveSpaceHull } from "../physics/spaceHull";
+import { flight3D, spaceAltitude } from "../rendering/flight3D";
+import {
+  COLOSSAL_MODEL_SCALE,
+  COLOSSAL_SPEED,
+  steerColossal,
+} from "../../fleet/colossal";
 import { supplierApproach } from "../../economy/market";
 import { avoidRouteObstacles } from "../physics/routeAvoidance";
 import { ColossalInterior } from "../cabin/ColossalInterior";
@@ -9,6 +19,8 @@ import {
   saberSpriteUrl,
   starClasses,
   starKinds,
+  spatialStar,
+  spatialThermalDepth,
 } from "../../universe/stars";
 import { astronautArt } from "../../wardrobe/astronautArt";
 import {
@@ -54,7 +66,7 @@ import {
   useGame,
 } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
-import { treesInRange, treeContains } from "../procedural/trees";
+import { spatialTreeAt, spatialTreesNear, treeAt, treesInRange, treeContains } from "../procedural/trees";
 import {
   drawAlienTree,
   drawSettlement,
@@ -87,7 +99,7 @@ import { daylight, solarPhase } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
-import { planetPosition } from "../../universe/generator";
+import { planetPosition, spatialPlanet } from "../../universe/generator";
 import {
   controls,
   takePulse,
@@ -108,8 +120,7 @@ export class WorldScene extends Phaser.Scene {
   private wildlife = new Wildlife();
   private fruit: Fruit[] = [];
   private surfaceMouse?: PointerEvent;
-  private surfaceTap:
-    { x: number; y: number; wx: number; wy: number } | undefined;
+  private surfaceTap?: SurfaceTarget;
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
@@ -157,7 +168,16 @@ export class WorldScene extends Phaser.Scene {
     color: number;
   }[] = [];
   private beam:
-    { x: number; y: number; tx: number; ty: number; life: number } | undefined;
+    | {
+        x: number;
+        y: number;
+        tx: number;
+        ty: number;
+        life: number;
+        targetAltitude?: number;
+        depth?: number;
+      }
+    | undefined;
   private cabin = new CabinInterior();
   private wasInCabin = false;
   private station = new StationInterior();
@@ -204,14 +224,36 @@ export class WorldScene extends Phaser.Scene {
       !this.store.paused &&
       !this.store.busy &&
       !this.store.inSequence;
-    const targetSurface = (event: PointerEvent) => {
+    const targetSurface = (event: PointerEvent, confirm = false) => {
       if (!onSurface()) return;
-      const target = this.surfacePoint(event);
-      if (this.building.enabled) this.building.setCursor(target.x, target.y);
+      const target = this.surfacePoint(event, confirm);
+      if (target && this.building.enabled) this.building.setCursor(target.x, target.y, target.depth);
       return target;
+    };
+    let touchLook: { id: number; x: number; y: number; drag: boolean } | undefined;
+    const turning = (dx: number, dy: number) => {
+      const look = flight3D.surfaceLook;
+      flight3D.surfaceLook = {
+        yaw: Phaser.Math.Angle.Wrap(look.yaw - dx * .0038),
+        pitch: Phaser.Math.Clamp(look.pitch - dy * .0038, -1.48, 1.48),
+      };
     };
     const press = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
+        touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
+        canvas.setPointerCapture(event.pointerId);
+        return;
+      }
+      if (
+        flight3D.surfaceView && onSurface() && event.pointerType === "mouse" &&
+        document.pointerLockElement !== canvas && canvas.requestPointerLock
+      ) {
+        void Promise.resolve(canvas.requestPointerLock()).catch(() => {
+          this.store.notify("Use Controlar câmera ou arraste com o botão direito.");
+        });
+        return;
+      }
       const g = this.store;
       if (
         g.started &&
@@ -221,7 +263,7 @@ export class WorldScene extends Phaser.Scene {
         !g.busy &&
         !g.inSequence
       ) {
-        const { wx, wy } = this.surfacePoint(event);
+        const { wx, wy } = this.surfacePoint(event)!;
         const escort = this.combat.escorts.find(
           (ally) => Math.hypot(ally.x - wx, ally.y - wy) <= 21,
         );
@@ -231,10 +273,22 @@ export class WorldScene extends Phaser.Scene {
           return;
         }
       }
-      this.surfaceTap = targetSurface(event);
+      this.surfaceTap = targetSurface(event, true);
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
+      if (flight3D.surfaceView && onSurface()) {
+        if (touchLook?.id === event.pointerId) {
+          const dx = event.clientX - touchLook.x, dy = event.clientY - touchLook.y;
+          if (touchLook.drag || Math.hypot(dx, dy) > 5) {
+            touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: true };
+            turning(dx, dy);
+          }
+          return;
+        }
+        if (document.pointerLockElement === canvas || (event.buttons & 2))
+          turning(event.movementX, event.movementY);
+      }
       if (event.pointerType !== "mouse") return;
       this.surfaceMouse = event;
       targetSurface(event);
@@ -244,18 +298,31 @@ export class WorldScene extends Phaser.Scene {
     };
     canvas.addEventListener("pointerdown", press);
     canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", clearMouse);
+    const finish = (event: PointerEvent) => {
+      if (touchLook?.id === event.pointerId) {
+        if (!touchLook.drag) this.surfaceTap = targetSurface(event, true);
+        touchLook = undefined;
+      }
+      clearMouse();
+    };
+    const cancel = () => { touchLook = undefined; clearMouse(); };
+    const contextMenu = (event: MouseEvent) => {
+      if (onSurface() && flight3D.surfaceView) event.preventDefault();
+    };
+    canvas.addEventListener("contextmenu", contextMenu);
+    canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointerleave", clearMouse);
-    canvas.addEventListener("pointercancel", clearMouse);
+    canvas.addEventListener("pointercancel", cancel);
     const silenceEngine = () => audio.flightEngine("idle");
     this.game.events.on("blur", clearMouse);
     this.game.events.on("blur", silenceEngine);
     this.events.once("shutdown", () => {
       canvas.removeEventListener("pointerdown", press);
       canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", clearMouse);
+      canvas.removeEventListener("pointerup", finish);
+      canvas.removeEventListener("contextmenu", contextMenu);
       canvas.removeEventListener("pointerleave", clearMouse);
-      canvas.removeEventListener("pointercancel", clearMouse);
+      canvas.removeEventListener("pointercancel", cancel);
       this.game.events.off("blur", clearMouse);
       this.game.events.off("blur", silenceEngine);
       silenceEngine();
@@ -300,8 +367,17 @@ export class WorldScene extends Phaser.Scene {
         !this.store.paused &&
         !isEditing(event.target) &&
         ["Space", "ArrowUp", "ArrowDown"].includes(event.code)
-      )
+      ) {
         event.preventDefault();
+        if (
+          event.code === "Space" &&
+          !event.repeat &&
+          this.store.state.mode === "surface" &&
+          !this.store.busy &&
+          !this.store.inSequence
+        )
+          queuePulse("jump");
+      }
     };
     const focusInput = (event: FocusEvent) => {
       if (isEditing(event.target)) {
@@ -402,6 +478,10 @@ export class WorldScene extends Phaser.Scene {
       )
         this.store.panel = this.store.panel === "craft" ? "" : "craft";
       if (e.code === "Escape") {
+        if (document.pointerLockElement === canvas) {
+          document.exitPointerLock();
+          return;
+        }
         if (this.store.panel) this.store.panel = "";
         else if (this.building.enabled) this.building.disable();
         else this.store.paused = !this.store.paused;
@@ -420,7 +500,18 @@ export class WorldScene extends Phaser.Scene {
   private get centerY() {
     return this.viewHeight / 2;
   }
-  private surfacePoint(event: PointerEvent) {
+  private surfacePoint(event: PointerEvent, confirm = false): SurfaceTarget | undefined {
+    if (flight3D.surfaceView && this.store.state.mode === "surface") {
+      const canvas = this.game.canvas;
+      const locked = document.pointerLockElement === canvas;
+      const rect = locked ? canvas.getBoundingClientRect() : undefined;
+      return flight3D.surfacePointer?.(
+        rect ? rect.left + rect.width / 2 : event.clientX,
+        rect ? rect.top + rect.height / 2 : event.clientY,
+        !this.building.enabled || this.building.removing,
+        confirm || (!locked && !(event.buttons & 2)),
+      );
+    }
     const rect = this.game.canvas.getBoundingClientRect();
     const wx =
       ((event.clientX - rect.left) * this.viewWidth) / rect.width -
@@ -428,7 +519,7 @@ export class WorldScene extends Phaser.Scene {
     const wy =
       ((event.clientY - rect.top) * this.viewHeight) / rect.height -
       Math.floor(this.centerY - this.camY);
-    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16) };
+    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16), depth: 0 };
   }
   private down(key: string) {
     return this.keys[key]?.isDown ?? false;
@@ -540,6 +631,23 @@ export class WorldScene extends Phaser.Scene {
         g.policeAnswer = undefined;
         this.wasAtStation = true;
       }
+      if (g.showroom && flight3D.stationView) {
+        this.station.hide();
+        this.gfx.clear();
+        for (const label of this.planetLabels.values()) label.setVisible(false);
+        const held = this.down("E") || controls.interact;
+        if (!g.paused && !g.panel && !g.trading) {
+          const { x, y } = this.walkingDirection();
+          flight3D.showroom = walkShowroom(flight3D.showroom, x, y, dt);
+          g.showroomContact = nearbyShowroomPlaque(flight3D.showroom);
+          if ((takePulse("interact") || (held && !this.interactHeld)) && g.showroomContact) {
+            releaseControls();
+            g.panel = "showroom:ship";
+          }
+        }
+        this.interactHeld = held;
+        return;
+      }
       const clandestine = hasBlackMarket(g.system);
       if (!g.paused && !g.panel && !g.trading) {
         const { x, y } = this.walkingDirection();
@@ -562,6 +670,11 @@ export class WorldScene extends Phaser.Scene {
       }
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
+      flight3D.station = this.station.pose;
+      if (flight3D.stationView) {
+        this.station.hide();
+        return;
+      }
       const dialoguePosition = this.station.draw(
         this,
         this.gfx,
@@ -598,17 +711,25 @@ export class WorldScene extends Phaser.Scene {
     if (this.wasAtStation) {
       this.station.hide();
       g.stationContact = undefined;
+      g.showroom = false;
+      g.showroomContact = undefined;
       this.wasAtStation = false;
     }
     if (g.started && g.aboardColossal && g.localColossal) {
       const carrier = g.localColossal;
       if (!this.wasAboardColossal) {
         this.colossalInterior.reset();
+        if (flight3D.colossalBoarding) audio.playStation(2.4, false);
         this.combat.clearPoliceContact();
         this.wasAboardColossal = true;
       }
+      if (flight3D.colossalBoarding) {
+        if (!g.paused) flight3D.colossalBoarding.elapsed += dt;
+        if (flight3D.colossalBoarding.elapsed >= 2.4)
+          flight3D.colossalBoarding = undefined;
+      }
       const held = this.down("E") || controls.interact;
-      if (!g.paused && !g.panel && !g.busy) {
+      if (!g.paused && !g.panel && !g.busy && !flight3D.colossalBoarding) {
         const direction = this.walkingDirection();
         const interact = takePulse("interact") || (held && !this.interactHeld);
         if (g.colossalHelm) {
@@ -616,6 +737,7 @@ export class WorldScene extends Phaser.Scene {
             g.colossalHelm = false;
             void g.save();
           } else if (carrierHelm) {
+            flight3D.thrust = !!thrusting;
             steerColossal(
               carrier,
               dt,
@@ -624,6 +746,23 @@ export class WorldScene extends Phaser.Scene {
               !!thrusting,
               this.down("S") || this.down("DOWN") || controls.down,
             );
+            const station = g.system.station;
+            if (flight3D.enabled && station) {
+              const body = {
+                x: carrier.x,
+                y: carrier.y,
+                vx: carrier.vx ?? 0,
+                vy: carrier.vy ?? 0,
+              };
+              resolveSpaceHull(
+                body,
+                station,
+                Math.PI / 2,
+                77 + 79 * COLOSSAL_MODEL_SCALE,
+                113 + 56 * COLOSSAL_MODEL_SCALE,
+              );
+              Object.assign(carrier, body);
+            }
           }
         } else {
           this.colossalInterior.walk(
@@ -631,6 +770,7 @@ export class WorldScene extends Phaser.Scene {
             direction.y,
             dt,
             carrier.slots,
+            flight3D.colossalView,
           );
           const contact = this.colossalInterior.contact(carrier.slots);
           if (contact && interact) {
@@ -642,6 +782,7 @@ export class WorldScene extends Phaser.Scene {
         }
       }
       this.interactHeld = held;
+      flight3D.colossal = this.colossalInterior.pose;
       s.ship.x = carrier.x;
       s.ship.y = carrier.y;
       for (const label of this.planetLabels.values()) label.setVisible(false);
@@ -672,6 +813,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.wasAboardColossal = false;
+    flight3D.colossalBoarding = undefined;
     if (
       g.started &&
       (s.mode === "interior" || g.flightCabin) &&
@@ -697,6 +839,7 @@ export class WorldScene extends Phaser.Scene {
       this.interactHeld = held;
       for (const label of this.planetLabels.values()) label.setVisible(false);
       this.gfx.clear();
+      flight3D.cabin = this.cabin.pose;
       this.cabin.draw(this, this.gfx, (x, y, step, facing) =>
         this.drawAstronaut(x, y, step, facing),
       );
@@ -757,6 +900,7 @@ export class WorldScene extends Phaser.Scene {
           s.player.y =
             this.terrain!.height(Math.floor(s.player.x / 16)) * 16 - 13;
         }
+        flight3D.surfaceLook = { yaw: -Math.PI / 2, pitch: -.36 };
         this.camX = s.player.x;
         this.camY = s.player.y - 32;
       }
@@ -835,30 +979,50 @@ export class WorldScene extends Phaser.Scene {
         s.mode === "surface" && Phaser.Input.Keyboard.JustDown(this.keys.E!);
       if (pressed || surfacePress || (held && !this.interactHeld)) {
         if (s.mode === "space") {
-          if (!g.boardColossal() && !this.recoverWreck() && !g.dock())
+          const origin = {
+            x: s.ship.x,
+            y: s.ship.y,
+            altitude: flight3D.altitude,
+            elapsed: 0,
+          };
+          const animate = flight3D.enabled;
+          if (g.boardColossal()) {
+            if (animate && g.aboardColossal) flight3D.colossalBoarding = origin;
+          } else if (!this.recoverWreck() && !g.dock())
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
-          if (g.recoverBackpack() || this.talkToRepresentative()) return;
+          if (g.recoverBackpack()) return;
+          if (Math.abs(s.player.surfaceZ ?? 0) > 38) {
+            if (cabinet.key) {
+              const [x, y, depth] = cabinet.key.split(",").map(Number);
+              if (this.building.interactAt(x!, y!, depth)) return;
+            }
+            const fruit = this.fruit.find((candidate) => this.canReachFruit(candidate));
+            if (fruit) this.gatherFruit(fruit);
+            else g.notify("Aproxime-se da base, da nave ou de frutas para interagir.");
+            return;
+          }
+          if (this.talkToRepresentative()) return;
           if (g.nearbyUnscannedRuin && !this.building.enabled) {
             g.scanSignal();
           } else if (
             cabinet.key &&
             cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
           ) {
-            const [x, y] = cabinet.key.split(",").map(Number);
-            this.building.interactAt(x!, y!);
+            const [x, y, depth] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!, depth);
           } else if (
             Math.abs(s.player.x - s.landingX * 16) < 90 &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
             g.enter();
           else if (cabinet.key) {
-            const [x, y] = cabinet.key.split(",").map(Number);
-            this.building.interactAt(x!, y!);
+            const [x, y, depth] = cabinet.key.split(",").map(Number);
+            this.building.interactAt(x!, y!, depth);
           } else {
             const fruit = this.fruit.find((target) =>
-              this.canReachFood(target.x, target.y),
+              this.canReachFruit(target),
             );
             if (fruit) this.gatherFruit(fruit);
             else
@@ -885,15 +1049,19 @@ export class WorldScene extends Phaser.Scene {
 
   private followRoute(
     dt: number,
-    target: { x: number; y: number; name: string; stopDistance: number },
+    target: { x: number; y: number; altitude?: number; name: string; stopDistance: number },
+    spatial: boolean,
   ) {
     const g = this.store,
       ship = g.state.ship;
     const dx = target.x - ship.x,
       dy = target.y - ship.y;
-    const distance = Math.hypot(dx, dy);
-    const speed = Math.hypot(ship.vx, ship.vy);
+    const dz = spatial ? (target.altitude ?? 0) - flight3D.altitude : 0;
+    const verticalSpeed = spatial ? flight3D.velocity : 0;
+    const distance = Math.hypot(dx, dy, dz);
+    const speed = Math.hypot(ship.vx, ship.vy, verticalSpeed);
     if (distance <= target.stopDistance + 13 && speed < 5) {
+      if (spatial) flight3D.velocity = 0;
       ship.vx = 0;
       ship.vy = 0;
       g.clearRoute("Destino alcançado: " + target.name + ".");
@@ -913,16 +1081,18 @@ export class WorldScene extends Phaser.Scene {
       ),
     );
     const velocity = avoidRouteObstacles(
-      ship,
+      spatial ? { ...ship, z: flight3D.altitude, vz: verticalSpeed } : ship,
       {
         x: (dx / Math.max(1, distance)) * cruise,
         y: (dy / Math.max(1, distance)) * cruise,
+        z: (dz / Math.max(1, distance)) * cruise,
       },
       acceleration,
       [
         ...g.asteroids.map((rock) => ({
           x: rock.x,
           y: rock.y,
+          z: spatial ? spaceAltitude("asteroid", rock.id) : undefined,
           vx: 0,
           vy: 0,
           radius: Math.min(
@@ -937,29 +1107,58 @@ export class WorldScene extends Phaser.Scene {
           .map((npc) => ({
             x: npc.x,
             y: npc.y,
+            z: spatial ? npc.altitude ?? 0 : undefined,
+            vz: spatial
+              ? Phaser.Math.Clamp(((npc.engaged ? flight3D.altitude : 0) - (npc.altitude ?? 0)) * 2.6, -160, 160)
+              : undefined,
             vx: npc.vx,
             vy: npc.vy,
             radius: 52,
           })),
+        ...(spatial ? [
+          ...g.system.planets.map((planet, index) => {
+            const { x, y, altitude, radius } = spatialPlanet(index, planet.id);
+            return { x, y, z: altitude, vx: 0, vy: 0, radius: radius + 70 };
+          }),
+          ...g.system.stars.map((star, index) => {
+            const { x, y, altitude, radius } = spatialStar(star, index);
+            return {
+              x, y, z: altitude, vx: 0, vy: 0,
+              radius: radius + spatialThermalDepth(star, radius) + 60,
+            };
+          }),
+          ...this.combat.escorts.map((escort) => ({
+            x: escort.x, y: escort.y, z: flight3D.altitude + 12,
+            vx: escort.vx, vy: escort.vy, vz: verticalSpeed, radius: 42,
+          })),
+        ] : []),
       ],
     );
-    this.routeBraking = Math.hypot(velocity.x, velocity.y) < speed - 2;
+    const vz = spatial ? velocity.z ?? 0 : 0;
+    this.routeBraking = Math.hypot(velocity.x, velocity.y, vz) < speed - 2;
     const changeX = velocity.x - ship.vx;
     const changeY = velocity.y - ship.vy;
-    const change = Math.hypot(changeX, changeY);
+    const changeZ = vz - verticalSpeed;
+    const change = Math.hypot(changeX, changeY, changeZ);
     const fraction = Math.min(1, (acceleration * dt) / Math.max(0.001, change));
     ship.vx += changeX * fraction;
     ship.vy += changeY * fraction;
+    if (spatial) {
+      flight3D.velocity += changeZ * fraction;
+      if (Math.hypot(velocity.x, velocity.y, vz) > 1) {
+        const pitch = Math.atan2(vz, Math.hypot(velocity.x, velocity.y));
+        const desiredPitch = Phaser.Math.Clamp(pitch, -1.2, 1.2);
+        flight3D.pitch += Phaser.Math.Clamp(desiredPitch - flight3D.pitch, -2 * dt, 2 * dt);
+      }
+    }
     if (Math.hypot(velocity.x, velocity.y) > 1) {
       const turn = Phaser.Math.Angle.Wrap(
         Math.atan2(velocity.y, velocity.x) - ship.angle,
       );
       ship.angle += Phaser.Math.Clamp(turn, -2.5 * dt, 2.5 * dt);
     }
-    ship.fuel = Math.max(
-      0,
-      ship.fuel - dt * g.model.consumption * Math.min(1, change / acceleration),
-    );
+    if (Math.hypot(ship.vx, ship.vy, spatial ? flight3D.velocity : 0) > 0.01)
+      ship.fuel = Math.max(0, ship.fuel - dt * g.model.consumption);
   }
   private spacePhysics(dt: number, piloting = true) {
     const g = this.store,
@@ -970,17 +1169,36 @@ export class WorldScene extends Phaser.Scene {
       : 0;
     const thrust = piloting && (this.down("W") || controls.up);
     const brake = piloting && (this.down("S") || controls.down);
-    if (g.routeDestination && (rotate || thrust || brake)) {
+    const spatial = piloting && flight3D.enabled;
+    const pitchInput = spatial
+      ? Number(this.down("UP")) -
+        Number(this.down("DOWN")) +
+        flight3D.touchPitch
+      : 0;
+    if (spatial)
+      flight3D.pitch = Phaser.Math.Clamp(
+        flight3D.pitch + pitchInput * dt,
+        -1.2,
+        1.2,
+      );
+    flight3D.thrust =
+      spatial &&
+      ((thrust && s.fuel > 0) ||
+        (!!g.routeDestination && s.fuel > 0 && !this.routeBraking));
+    if (g.routeDestination && (rotate || thrust || brake || pitchInput)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
-    if (g.routeDestination) this.followRoute(dt, g.routeDestination);
+    if (g.routeDestination) this.followRoute(dt, g.routeDestination, spatial);
     s.angle += rotate * 2.5 * dt;
     if (thrust && s.fuel > 0) {
       const acceleration =
         g.model.acceleration *
         (g.state.upgrades.includes("engine") ? 105 / 65 : 1);
-      s.vx += Math.cos(s.angle) * acceleration * dt;
-      s.vy += Math.sin(s.angle) * acceleration * dt;
+      const pitch = spatial ? flight3D.pitch : 0;
+      const forward = acceleration * Math.cos(pitch) * dt;
+      s.vx += Math.cos(s.angle) * forward;
+      s.vy += Math.sin(s.angle) * forward;
+      if (spatial) flight3D.velocity += Math.sin(pitch) * acceleration * dt;
       s.fuel = Math.max(0, s.fuel - dt * g.model.consumption);
       if (Math.random() < 0.7)
         this.particles.push({
@@ -1001,14 +1219,76 @@ export class WorldScene extends Phaser.Scene {
       s.vx += pull.x * dt;
       s.vy += pull.y * dt;
     }
-    const speed = Math.hypot(s.vx, s.vy),
+    const speed = Math.hypot(s.vx, s.vy, spatial ? flight3D.velocity : 0),
       max = g.model.speed * (g.state.upgrades.includes("engine") ? 1.5 : 1);
     if (speed > max) {
       s.vx = (s.vx / speed) * max;
       s.vy = (s.vy / speed) * max;
+      if (spatial) flight3D.velocity *= max / speed;
+    }
+    if (spatial) {
+      if (brake) flight3D.velocity *= Math.exp(-dt * 2);
+      flight3D.altitude += flight3D.velocity * dt;
     }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
+    if (spatial) {
+      const station = g.system.station;
+      if (station) {
+        const height = Math.abs(flight3D.altitude);
+        if (height < 29)
+          resolveSpaceHull(s, station, Math.PI / 2, 72, Math.sqrt(29 ** 2 - height ** 2));
+        if (height < 89) {
+          const outerX = Math.sqrt(89 ** 2 - height ** 2);
+          const innerX = Math.sqrt(Math.max(0, 63 ** 2 - height ** 2));
+          for (const offset of [-29, 31])
+            for (const side of [-1, 1])
+              resolveSpaceHull(
+                s,
+                {
+                  x: station.x + (side * (outerX + innerX)) / 2,
+                  y: station.y + offset,
+                },
+                Math.PI / 2,
+                15,
+                (outerX - innerX) / 2,
+              );
+        }
+      }
+      const carrier = g.localColossal;
+      if (
+        carrier &&
+        flight3D.altitude > -43 * COLOSSAL_MODEL_SCALE &&
+        flight3D.altitude < 66 * COLOSSAL_MODEL_SCALE
+      )
+        resolveSpaceHull(
+          s,
+          carrier,
+          carrier.angle ?? 0,
+          121 * COLOSSAL_MODEL_SCALE,
+          82 * COLOSSAL_MODEL_SCALE,
+        );
+    }
+    if (spatial) {
+      const body = {
+        x: s.x,
+        y: s.y,
+        vx: s.vx,
+        vy: s.vy,
+        altitude: flight3D.altitude,
+        verticalSpeed: flight3D.velocity,
+      };
+      for (const [index, star] of g.system.stars.entries())
+        resolveStellarCollision(body, spatialStar(star, index));
+      for (const [index, planet] of g.system.planets.entries())
+        resolveStellarCollision(body, spatialPlanet(index, planet.id));
+      s.x = body.x;
+      s.y = body.y;
+      s.vx = body.vx;
+      s.vy = body.vy;
+      flight3D.altitude = body.altitude;
+      flight3D.velocity = body.verticalSpeed;
+    }
     if (g.captureBlackHole()) return;
     if (g.applyStellarHeat(dt)) {
       this.camX = g.state.ship.x;
@@ -1018,16 +1298,19 @@ export class WorldScene extends Phaser.Scene {
     g.speed = Math.round(Math.hypot(s.vx, s.vy));
     this.camX = Phaser.Math.Linear(this.camX, s.x, 0.09);
     this.camY = Phaser.Math.Linear(this.camY, s.y, 0.09);
-    if (s.fuel < 3 && !thrust) {
+    if (s.fuel < 3 && !thrust && !g.routeDestination) {
       s.fuel = Math.min(3, s.fuel + dt * 0.15);
     }
     for (const rock of g.asteroids) {
-      const distance = Math.hypot(rock.x - s.x, rock.y - s.y);
+      const distance = Math.hypot(rock.x - s.x, rock.y - s.y,
+        spatial ? spaceAltitude("asteroid", rock.id) - flight3D.altitude : 0,
+      );
       if (distance < rock.r + 15 && speed > 30) {
         s.hull -=
           speed * dt * (g.state.upgrades.includes("shield") ? 0.025 : 0.07);
         s.vx *= -0.65;
         s.vy *= -0.65;
+        if (spatial) flight3D.velocity *= -0.65;
         s.x -= Math.cos(s.angle) * 8;
         s.y -= Math.sin(s.angle) * 8;
         if (
@@ -1057,7 +1340,7 @@ export class WorldScene extends Phaser.Scene {
         void g.save();
       }
     }
-    const encounter = this.combat.update(g.state, g.system, dt);
+    const encounter = this.combat.update(g.state, g.system, dt, spatial ? flight3D.altitude : undefined);
     g.policeContact = this.combat.policeContact;
     if (g.policeContact?.phase === "offer") {
       releaseControls();
@@ -1115,35 +1398,51 @@ export class WorldScene extends Phaser.Scene {
       s.energy >= 2
     ) {
       const range = g.state.upgrades.includes("laser") ? 200 : 130;
+      const distanceTo = (target: { x: number; y: number }, height: number) =>
+        Math.hypot(
+          target.x - s.x,
+          target.y - s.y,
+          spatial ? height - flight3D.altitude : 0,
+        );
       const rock = g.asteroids
-        .filter((r) => Math.hypot(r.x - s.x, r.y - s.y) < range)
-        .sort(
-          (a, b) =>
-            Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
-        )[0];
-      if (g.cyberTarget) {
-        const target = g.cyberTarget;
+        .map((body) => {
+          const altitude = spaceAltitude("asteroid", body.id);
+          return { body, altitude, distance: distanceTo(body, altitude) };
+        })
+        .filter((candidate) => candidate.distance < range)
+        .sort((a, b) => a.distance - b.distance)[0];
+      const target = g.cyberTarget;
+      if (target) {
         this.mineTime = 0.8;
         if (g.mineCyberCrystal()) {
           s.energy -= 2;
           this.beam = {
             x: s.x,
             y: s.y,
-            tx: target.star.x,
-            ty: target.star.y,
+            tx: target.position.x,
+            ty: target.position.y,
+            targetAltitude: target.position.altitude,
             life: 0.2,
           };
         }
       } else if (rock) {
+        const { body, altitude } = rock;
         this.mineTime = g.state.upgrades.includes("laser") ? 0.15 : 0.35;
         s.energy -= 2 * (1 - g.extractionEfficiency);
-        this.beam = { x: s.x, y: s.y, tx: rock.x, ty: rock.y, life: 0.15 };
-        this.burst(rock.x, rock.y, 0xd8b48b);
+        this.beam = {
+          x: s.x,
+          y: s.y,
+          tx: body.x,
+          ty: body.y,
+          life: 0.15,
+          targetAltitude: altitude,
+        };
+        this.burst(body.x, body.y, 0xd8b48b);
         audio.play(170);
-        const hits = (this.asteroidHits.get(rock.id) ?? 0) + 1;
-        if (hits >= 3 && g.mineAsteroid(rock.id))
-          this.asteroidHits.delete(rock.id);
-        else this.asteroidHits.set(rock.id, Math.min(2, hits));
+        const hits = (this.asteroidHits.get(body.id) ?? 0) + 1;
+        if (hits >= 3 && g.mineAsteroid(body.id))
+          this.asteroidHits.delete(body.id);
+        else this.asteroidHits.set(body.id, Math.min(2, hits));
       }
     }
   }
@@ -1151,11 +1450,18 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store;
     return systemWrecks(g.system.id, g.state.progression.piracy);
   }
-  private closestWreck(range: number): Wreck | undefined {
+  private wreckDistance(wreck: Wreck) {
     const ship = this.store.state.ship;
+    return Math.hypot(
+      wreck.x - ship.x,
+      wreck.y - ship.y,
+      flight3D.enabled ? (wreck.altitude ?? 0) - flight3D.altitude : 0,
+    );
+  }
+  private closestWreck(range: number): Wreck | undefined {
     let closest: Wreck | undefined;
     for (const wreck of this.nearbyWrecks()) {
-      const distance = Math.hypot(wreck.x - ship.x, wreck.y - ship.y);
+      const distance = this.wreckDistance(wreck);
       if (distance <= range) {
         closest = wreck;
         range = distance;
@@ -1167,7 +1473,7 @@ export class WorldScene extends Phaser.Scene {
     const g = this.store;
     const wreck = this.closestWreck(SALVAGE_RANGE);
     if (!wreck) return false;
-    const error = salvage(g.state, wreck, g.capacity);
+    const error = salvage(g.state, wreck, g.capacity, flight3D.enabled ? flight3D : undefined);
     g.notify(error ?? "Carga recuperada · +160 XP de Pirata.");
     if (!error) {
       this.updateFlightContact();
@@ -1180,7 +1486,7 @@ export class WorldScene extends Phaser.Scene {
     const ship = g.state.ship;
     const traffic = this.combat.npcs
       .filter((npc) => npc.hull > 0)
-      .map(({ id, name, x, y, role, engaged, bountyTarget }) => ({
+      .map(({ id, name, x, y, role, engaged, bountyTarget, altitude, model }) => ({
         id,
         name,
         x,
@@ -1188,14 +1494,18 @@ export class WorldScene extends Phaser.Scene {
         role,
         engaged,
         bountyTarget,
+        altitude,
+        model,
       }));
     g.radarShips = [
       ...traffic,
-      ...this.combat.escorts.map(({ pilot, x, y }) => ({
+      ...this.combat.escorts.map(({ pilot, x, y, angle }) => ({
         id: pilot.id,
         name: pilot.name,
+        model: pilot.model,
         x,
         y,
+        angle,
         role: "ally" as const,
         engaged: false,
       })),
@@ -1209,7 +1519,7 @@ export class WorldScene extends Phaser.Scene {
     );
     const npc = bounty ?? this.combat.target(ship, 670);
     const wreckInReach =
-      wreck && Math.hypot(wreck.x - ship.x, wreck.y - ship.y) <= SALVAGE_RANGE;
+      wreck && this.wreckDistance(wreck) <= SALVAGE_RANGE;
     const target = wreckInReach ? wreck : (bounty ?? wreck ?? npc);
     if (!target) {
       g.flightContact = undefined;
@@ -1220,7 +1530,7 @@ export class WorldScene extends Phaser.Scene {
     const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
     g.flightContact = {
       name: target === bounty ? `Alvo procurado: ${target.name}` : target.name,
-      distance: Math.round(Math.hypot(dx, dy)),
+      distance: Math.round(target === wreck ? this.wreckDistance(wreck) : Math.hypot(dx, dy)),
       bearing: ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]!,
       wreck: target !== npc,
       ...(target === npc
@@ -1286,6 +1596,44 @@ export class WorldScene extends Phaser.Scene {
     }
     void g.save();
   }
+  private mineSurfaceVoxel(target: SurfaceTarget, notify: boolean) {
+    const g = this.store;
+    const player = g.state.player;
+    const terrain = this.terrain!;
+    const { x, y, depth, distance } = target;
+    if ((distance ?? Infinity) > 77) {
+      if (notify) g.notify("Aproxime-se do bloco para minerar.");
+      return;
+    }
+    const saber = g.equippedSaber;
+    const drill = g.state.upgrades.includes("drill");
+    const radius = saber ? 1 : 0;
+    const mine = (tx: number, ty: number, tz: number) => {
+      if (!terrain.getAt(tx, ty, tz)) return false;
+      if (tz === 0) {
+        const rooted = treesInRange(g.planet, terrain, tx, tx, this.building.settlement.cutTrees)
+          .find((tree) => tree.x === tx && tree.ground === ty);
+        if (rooted && !this.building.harvest(rooted)) return false;
+      }
+      return g.mineTerrain(terrain, tx, ty, tz);
+    };
+    if (!mine(x, y, depth)) return;
+    for (let dz = -radius; dz <= radius; dz++)
+      for (let dy = -radius; dy <= radius; dy++)
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) !== 1) continue;
+          if (Math.hypot((x + dx + .5) * 16 - player.x,
+                         (y + dy + .5) * 16 - player.y,
+                         (depth + dz) * 16 - (player.surfaceZ ?? 0)) > 77) continue;
+          mine(x + dx, y + dy, depth + dz);
+        }
+    const efficiency = 1 - g.extractionEfficiency;
+    player.energy = Math.max(0, player.energy - (saber ? 1 : (drill ? .5 : 1) * efficiency));
+    this.mineTime = saber ? .45 : (drill ? .10 : .22) * efficiency;
+    this.beam = { x: player.x, y: player.y - 3, tx: target.wx, ty: target.wy, depth, life: .15 };
+    audio.play(saber ? 225 : 145, .09);
+    if (saber) void g.save();
+  }
   private representativePosition() {
     if (!this.store.civilization || !this.terrain) return;
     return representativePosition(
@@ -1312,9 +1660,15 @@ export class WorldScene extends Phaser.Scene {
     g.panel = "government";
     return true;
   }
+  private canReachFruit(fruit: Fruit) {
+    const player = this.store.state.player;
+    if (!fruit.depth) return Math.abs(player.surfaceZ ?? 0) <= 38 && this.canReachFood(fruit.x, fruit.y);
+    return Math.hypot(fruit.x - player.x, fruit.y - player.y, fruit.depth * 16 - (player.surfaceZ ?? 0)) <= 78;
+  }
+
   private gatherFruit(fruit: Fruit) {
     const g = this.store;
-    if (!this.canReachFood(fruit.x, fruit.y)) {
+    if (!this.canReachFruit(fruit)) {
       g.notify("Aproxime-se das frutas para colher.");
       return;
     }
@@ -1325,14 +1679,27 @@ export class WorldScene extends Phaser.Scene {
     g.notify("Duas frutas coletadas. Abra a mochila para comer.");
     void g.save();
   }
+  private surfaceStride = 0;
+
   private surfacePhysics(dt: number) {
     const g = this.store,
       p = g.state.player,
       t = this.terrain!;
+    if (!flight3D.surfaceView && !flight3D.selected && p.surfaceZ) {
+      p.surfaceZ = 0;
+      p.y = Math.min(p.y, t.height(Math.floor(p.x / 16)) * 16 - 12);
+      this.vy = 0;
+    }
     const direction =
       (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
       (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
-    if (direction) this.facing = direction;
+    if (flight3D.surfaceView && direction) {
+      const look = flight3D.surfaceLook;
+      flight3D.surfaceLook = {
+        ...look,
+        yaw: Phaser.Math.Angle.Wrap(look.yaw - direction * 2.2 * dt),
+      };
+    } else if (direction) this.facing = direction;
     const pulse = takePulse("jump");
     const jumping = this.down("SPACE") || controls.jump;
     const jump = this.jumpBuffer.take(
@@ -1347,25 +1714,57 @@ export class WorldScene extends Phaser.Scene {
       Number(this.down("W") || this.down("UP") || controls.up);
     const grip = this.building.climbingColumn;
     const climb =
+      (!flight3D.surfaceView || Math.abs((p.surfaceZ ?? 0) - surfaceLayer(p.surfaceZ ?? 0) * 16) < 6) &&
       !direction &&
       !jumping &&
       !pulse &&
       !this.building.enabled &&
       (grip !== undefined || vertical !== 0)
-        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement)
+        ? stepClimb(p, grip, vertical, dt, t, this.building.settlement,
+            flight3D.surfaceView ? surfaceLayer(p.surfaceZ ?? 0) : 0)
         : undefined;
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
-    const movement =
-      climb ??
-      stepSurface(
-        { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded },
-        direction,
-        jump,
-        g.planet.gravity,
-        dt,
-        t,
-        this.building.settlement,
-      );
+    const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
+    const yaw = flight3D.surfaceLook.yaw;
+    const step = 90 * dt * vertical;
+    const spatial = flight3D.surfaceView;
+    const z = p.surfaceZ ?? 0;
+    const settlement = this.building.settlement;
+    this.fruit = fruitsNear(g.planet, t, settlement, p.x, g.state.time, spatial ? z : undefined);
+    const spatialMove = !climb && spatial
+      ? (() => {
+          const flora = surfaceFloraCollision(
+            { x: p.x, y: p.y, z },
+            [
+              ...treesInRange(g.planet, t, Math.floor(p.x / 16) - 2,
+                Math.floor(p.x / 16) + 2, settlement.cutTrees),
+              ...spatialTreesNear(t, p.x, z, settlement.cutTrees),
+            ],
+            this.fruit,
+          );
+          const wallDepth = surfaceWallPenetration(settlement, p.x, p.y, z);
+          return stepSurfaceDepth(
+            { ...actor, z },
+            Math.sin(yaw) * step,
+            Math.cos(yaw) * step,
+            jump, g.planet.gravity, dt,
+            (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
+            (x, y, depth) => flora(x, y, depth) ||
+              surfaceWallPenetration(settlement, x, y, depth) > wallDepth,
+          );
+        })()
+      : undefined;
+    const movement = climb ?? spatialMove ??
+      stepSurface(actor, direction, jump, g.planet.gravity, dt, t, this.building.settlement);
+    const depthTravel = spatialMove ? spatialMove.z - (p.surfaceZ ?? 0) : 0;
+    if (spatialMove) p.surfaceZ = spatialMove.z;
+    const travel = climb
+      ? Math.abs(movement.y - p.y)
+      : Math.hypot(movement.x - p.x, depthTravel);
+    this.surfaceStride =
+      travel > 0.01 && (movement.grounded || climb)
+        ? this.surfaceStride + travel * 0.19
+        : 0;
     p.x = movement.x;
     p.y = movement.y;
     p.health -= movement.fallDamage;
@@ -1373,6 +1772,7 @@ export class WorldScene extends Phaser.Scene {
     this.grounded = movement.grounded;
     if (p.y > 1005) {
       p.health -= 25;
+      p.surfaceZ = 0;
       p.x = g.state.landingX * 16 + 40;
       p.y = t.height(Math.floor(p.x / 16)) * 16 - 14;
       this.vy = 0;
@@ -1387,20 +1787,13 @@ export class WorldScene extends Phaser.Scene {
       g.state.time,
       dt,
     );
-    this.fruit = fruitsNear(
-      g.planet,
-      t,
-      this.building.settlement,
-      p.x,
-      g.state.time,
-    );
     const mineButton = takePulse("mine") || controls.mine;
     const mouse = this.surfaceMouse;
     const tap = this.surfaceTap;
     this.surfaceTap = undefined;
     if (this.building.enabled) {
       if (tap) {
-        this.building.apply(tap.x, tap.y);
+        this.building.apply(tap.x, tap.y, tap.depth, tap.wallFace);
         this.mineTime = 0.2;
       }
       return;
@@ -1408,11 +1801,18 @@ export class WorldScene extends Phaser.Scene {
     if (
       tap &&
       (g.recoverBackpack(tap) ||
-        this.talkToRepresentative(tap) ||
-        this.building.interactAt(tap.x, tap.y))
+        (!tap.terrain &&
+          ((!tap.depth && Math.abs(p.surfaceZ ?? 0) < 38 && this.talkToRepresentative(tap)) ||
+            this.building.interactAt(tap.x, tap.y, tap.depth))))
     )
       return;
-    if (tap) {
+    if (tap?.fruitId) {
+      const fruit = this.fruit.find((target) => target.id === tap.fruitId);
+      if (fruit) this.gatherFruit(fruit);
+      this.mineTime = .25;
+      return;
+    }
+    if (tap && !tap.terrain && !tap.depth && Math.abs(p.surfaceZ ?? 0) < 32) {
       const fruit = this.fruit.find(
         (target) => Math.hypot(target.x - tap.wx, target.y - tap.wy) < 12,
       );
@@ -1430,6 +1830,30 @@ export class WorldScene extends Phaser.Scene {
       tap ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
+    if (aim?.treeId && flight3D.surfaceView) {
+      if (this.mineTime > 0 || p.energy < 3) return;
+      const [kind, x, z] = aim.treeId.split(":");
+      const tree = kind === "grove"
+        ? spatialTreeAt(g.planet, t, Number(x), Number(z))
+        : treeAt(g.planet, t, Number(x));
+      if (!tree || this.building.settlement.cutTrees.includes(tree.id)) return;
+      if (Math.hypot(tree.x * 16 + 8 - p.x, tree.ground * 16 - 8 - p.y,
+                    (tree.depth ?? 0) * 16 - (p.surfaceZ ?? 0)) > 96) {
+        if (tap) g.notify("Aproxime-se do tronco para cortar a árvore.");
+        return;
+      }
+      if (this.building.harvest(tree)) {
+        this.treeHits.delete(tree.id);
+        this.mineTime = g.equippedSaber ? .45 : .28;
+        this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
+      }
+      return;
+    }
+    if (aim?.terrain && flight3D.surfaceView) {
+      if (this.mineTime <= 0 && p.energy >= 1) this.mineSurfaceVoxel(aim, !!tap);
+      return;
+    }
+    if (Math.abs(p.surfaceZ ?? 0) > 72) return;
     if ((aim || mobileMine) && this.mineTime <= 0 && p.energy >= 1) {
       const trees = treesInRange(
         g.planet,
@@ -1512,7 +1936,7 @@ export class WorldScene extends Phaser.Scene {
         if (!t.get(tx, ty)) ty++;
       }
       const tile = t.get(tx, ty);
-      const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y);
+      const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y, p.surfaceZ ?? 0);
       if (tap && tile && distance >= 77)
         g.notify("Aproxime-se do bloco para minerar.");
       if (tile && ty < 63 && distance < 77) {
@@ -1586,6 +2010,34 @@ export class WorldScene extends Phaser.Scene {
     const light = surface
       ? daylight(s.time) * (1 - 0.32 * (storm?.intensity ?? 0))
       : 0;
+    if (flight3D.surfaceView && surface && !g.surfaceSequence && this.terrain) {
+      const cursor = this.building.enabled && !g.panel ? this.building.cursor : undefined;
+      flight3D.surface = {
+        terrain: this.terrain,
+        settlement: this.building.settlement,
+        camera: { x: s.player.x, y: s.player.y, z: s.player.surfaceZ ?? 0, ...flight3D.surfaceLook },
+        thirdPerson: g.thirdPersonSurface,
+        revision: g.worldRevision,
+        light,
+        elapsed: this.elapsed,
+        sunPhase: solarPhase(s.time),
+        facing: this.facing,
+        stride: this.surfaceStride,
+        animals: [...this.wildlife.animals.values()],
+        fruit: this.fruit,
+        drops: g.surfaceBackpacks(),
+        ruin: g.surfaceRuin,
+        representative: this.representativePosition(),
+        storm,
+        wallPlacementFace: this.building.enabled && !this.building.removing &&
+          ["woodWall", "metalWall", "stoneWall"].includes(this.building.selected)
+          ? this.building.rotation : undefined,
+        cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
+        beam: this.beam,
+      };
+      this.particles = [];
+      return;
+    }
     const biome = biomes[g.planet.kind]!;
     const sky = surface
       ? Phaser.Display.Color.GetColor(
@@ -1690,7 +2142,13 @@ export class WorldScene extends Phaser.Scene {
       }
       this.drawSurface(light);
       if (storm) this.drawWeather(storm);
-    } else this.drawSpace(launch);
+    } else {
+      if (flight3D.enabled) {
+        flight3D.bolts = this.combat.bolts;
+        flight3D.beam = this.beam;
+      }
+      this.drawSpace(launch);
+    }
     if (launch !== undefined) {
       const fade = Math.max(0, 1 - Math.abs(launch - ATMOSPHERE_EXIT) / 0.48);
       if (fade > 0) {

@@ -5,6 +5,7 @@ export interface AlienTree {
   id: string;
   x: number;
   ground: number;
+  depth?: number;
   height: number;
   crown: number;
   wood: number;
@@ -96,4 +97,44 @@ export function treeContains(tree: AlienTree, worldX: number, worldY: number) {
     worldY < tree.ground * 16 &&
     worldY >= (tree.ground - tree.height) * 16
   );
+}
+
+export const groveSize = 4;
+export function grovePosition(planet: Planet, kind: "tree" | "fruit", cx: number, cz: number) {
+  const seed = hash(`${planet.seed}:grove:${kind}:${cx}:${cz}`);
+  const x = cx * groveSize + seed % groveSize;
+  const depth = cz * groveSize + (seed >>> 6) % groveSize;
+  if (!depth || ([0, 24, 48].some((pad) =>
+    Math.abs(x - pad) < 4 && Math.abs(depth) < 3))) return;
+  return { x, depth, seed };
+}
+
+export function spatialTreeAt(planet: Planet, terrain: Terrain, cx: number, cz: number): AlienTree | undefined {
+  const site = grovePosition(planet, "tree", cx, cz);
+  if (!site) return;
+  const density = [.77, .57, .65, .94, .62, .86][planet.kind]!;
+  if ((site.seed >>> 17) % 100 >= density * 100) return;
+  const { x, depth, seed } = site;
+  const ground = terrain.heightAt(x, depth);
+  if (!terrain.getAt(x, ground, depth)) return;
+  const variant = (seed >>> 8) % 3;
+  const height = 3 + (seed >>> 12) % 3;
+  return {
+    id: `grove:${cx}:${cz}`, x, depth, ground, height, variant,
+    crown: 2 + (seed >>> 14) % 2, wood: height + 10, kind: planet.kind,
+    trunk: 0x7f655a, leaves: foliage[planet.kind]![variant]!, accent: 0x9cd6a1,
+  };
+}
+
+export function spatialTreesNear(terrain: Terrain, worldX: number, worldZ: number, cutTrees: readonly string[]) {
+  const unit = groveSize * 16;
+  const centerX = Math.floor(worldX / unit), centerZ = Math.floor(worldZ / unit);
+  const result: AlienTree[] = [];
+  const cut = new Set(cutTrees);
+  for (let x = centerX - 3; x <= centerX + 3; x++)
+    for (let z = centerZ - 3; z <= centerZ + 3; z++) {
+      const tree = spatialTreeAt(terrain.planet, terrain, x, z);
+      if (tree && !cut.has(tree.id)) result.push(tree);
+    }
+  return result;
 }
