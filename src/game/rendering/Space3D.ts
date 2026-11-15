@@ -495,7 +495,7 @@ export class Space3D {
     return group;
   }
 
-  private playerShip(id: ShipModelId) {
+  private shipForModel(id: ShipModelId, controlled = true) {
     const model = shipModels[id];
     const family = model.hullFamily;
     const heavy =
@@ -503,7 +503,7 @@ export class Space3D {
     const mining = family === "prospector" || family === "titan";
     const rng = random(hash(id));
     const paint = new T.Color().setHSL(rng(), 0.33, 0.61).getHex();
-    const body = this.ship(paint, heavy, true);
+    const body = this.ship(paint, heavy, controlled);
     const size =
       family === "viper"
         ? [0.8, 0.85, 1.23]
@@ -1561,7 +1561,7 @@ export class Space3D {
             box(amber, bx + side * 34, 2, -28, 1.5, 2, 43);
           const model = ships[i];
           if (!model) continue;
-          const berthed = this.playerShip(model);
+          const berthed = this.shipForModel(model);
           berthed.position.set(bx, 6, -32);
           berthed.rotation.y = Math.PI * 0.5;
           berthed.scale.multiplyScalar(0.8);
@@ -1696,7 +1696,7 @@ export class Space3D {
       scene.add(
         new T.Mesh(terrain, this.material(biome.color, "rock", planet.kind)),
       );
-      const craft = this.playerShip(model);
+      const craft = this.shipForModel(model);
       scene.add(craft);
       const ramp = new T.Group();
       ramp.position.set(12, 6, 0);
@@ -1941,7 +1941,7 @@ export class Space3D {
     const pilotedCarrier = g.colossalHelm ? g.localColossal : undefined;
     const player = this.object(
       "player:" + modelId,
-      () => this.playerShip(modelId),
+      () => this.shipForModel(modelId),
       seen,
     );
     const { altitude, pitch, thrust } = flight3D;
@@ -2165,11 +2165,12 @@ export class Space3D {
     }
     for (const npc of g.radarShips) {
       const model = this.object(
-        "npc:" + npc.id,
-        () =>
-          this.ship(
-            npc.role === "ally" ? 0x4bb99e : npc.engaged ? 0xbf6258 : 0xa89978,
-          ),
+        "npc:" + npc.id + ":" + npc.model,
+        () => {
+          const ship = this.shipForModel(npc.model, false);
+          ship.scale.multiplyScalar(0.7);
+          return ship;
+        },
         seen,
       );
       const dx = npc.x - model.position.x;
@@ -2193,7 +2194,6 @@ export class Space3D {
         "YXZ",
       );
       model.position.set(npc.x, model.position.y + climb, npc.y);
-      model.scale.setScalar(0.7);
     }
     flight3D.bolts.forEach((bolt, index) => {
       const color = bolt.hostile ? 0xff8874 : (bolt.color ?? 0xe0f8be);

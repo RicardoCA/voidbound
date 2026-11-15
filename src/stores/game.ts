@@ -249,7 +249,7 @@ export const useGame = defineStore("game", () => {
     radarShips = ref<
       (Pick<
         SpaceNpc,
-        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget" | "altitude"
+        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget" | "altitude" | "model"
       > & { role: SpaceNpc["role"] | "ally" })[]
     >([]),
     stationContact = ref<string>(),

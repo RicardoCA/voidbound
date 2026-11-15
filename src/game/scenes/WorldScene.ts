@@ -1345,7 +1345,7 @@ export class WorldScene extends Phaser.Scene {
     const ship = g.state.ship;
     const traffic = this.combat.npcs
       .filter((npc) => npc.hull > 0)
-      .map(({ id, name, x, y, role, engaged, bountyTarget, altitude }) => ({
+      .map(({ id, name, x, y, role, engaged, bountyTarget, altitude, model }) => ({
         id,
         name,
         x,
@@ -1354,12 +1354,14 @@ export class WorldScene extends Phaser.Scene {
         engaged,
         bountyTarget,
         altitude,
+        model,
       }));
     g.radarShips = [
       ...traffic,
       ...this.combat.escorts.map(({ pilot, x, y }) => ({
         id: pilot.id,
         name: pilot.name,
+        model: pilot.model,
         x,
         y,
         role: "ally" as const,
