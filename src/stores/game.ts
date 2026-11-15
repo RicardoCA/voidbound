@@ -223,6 +223,7 @@ export const useGame = defineStore("game", () => {
   const noShelter = emptySettlement();
   const survivorEnabled = gameplayPreference("survivor");
   const hungerEnabled = gameplayPreference("hunger");
+  const oxygenEnabled = gameplayPreference("oxygen");
   const autosaveEnabled = gameplayPreference("autosave");
   const state = ref<Save>(initial("VOIDBOUND")),
     started = ref(false),
@@ -1765,6 +1766,7 @@ export const useGame = defineStore("game", () => {
       planet.value,
       worldRevision.value,
       dt,
+      oxygenEnabled.value,
     );
     if (s.mode === "surface") {
       const storm = weather.value;
@@ -1779,18 +1781,22 @@ export const useGame = defineStore("game", () => {
           s.player.health -= dt * storm.intensity * 1.5;
       }
       s.player.energy = Math.min(100, s.player.energy + dt * 1.4);
-      if (!planet.value.breathable && !habitat.value.supplied)
-        s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
-      if (s.player.oxygen <= 0) s.player.health -= dt * 7;
+      if (oxygenEnabled.value) {
+        if (!planet.value.breathable && !habitat.value.supplied)
+          s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
+        if (s.player.oxygen <= 0) s.player.health -= dt * 7;
+      }
       if (
         Math.abs(planet.value.temperature) > 55 &&
         !s.upgrades.includes("shield")
       )
         s.player.health -= dt * 0.5;
     } else if (s.mode === "interior" || flightCabin.value) {
-      const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
-      s.ship.oxygen -= amount;
-      s.player.oxygen += amount;
+      if (oxygenEnabled.value) {
+        const amount = Math.min(dt * 8, s.ship.oxygen, 100 - s.player.oxygen);
+        s.ship.oxygen -= amount;
+        s.player.oxygen += amount;
+      }
       s.player.energy = Math.min(100, s.player.energy + dt * 12);
       if ((!hungerEnabled.value || s.player.hunger > 0) && sickTime === 0)
         s.player.health = Math.min(100, s.player.health + dt * 3);
@@ -1820,6 +1826,7 @@ export const useGame = defineStore("game", () => {
     saveStatus,
     survivorEnabled,
     hungerEnabled,
+    oxygenEnabled,
     autosaveEnabled,
     saveRevision,
     hasSave,

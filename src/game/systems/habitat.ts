@@ -28,6 +28,7 @@ export class HabitatSystem {
     planet: Planet,
     revision: number,
     dt: number,
+    oxygenEnabled = true,
   ): HabitatReport {
     const data = state.settlements[planet.id],
       changes = state.changes[planet.id];
@@ -102,10 +103,11 @@ export class HabitatSystem {
         report.energy += piece.energy ?? 0;
         const oxygen = piece.oxygen ?? 0;
         if (oxygen <= 0) continue;
-        const breathable = Math.max(0, oxygen - 0.38 * dt),
+        const oxygenTime = oxygenEnabled ? dt : 0;
+        const breathable = Math.max(0, oxygen - 0.38 * oxygenTime),
           requested = Math.min(
             Math.max(0, 100 - player.oxygen),
-            REFILL_RATE * dt,
+            REFILL_RATE * oxygenTime,
           ),
           gain = Math.min(requested, breathable);
         player.oxygen = Math.min(100, player.oxygen + gain);

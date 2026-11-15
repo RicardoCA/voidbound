@@ -415,7 +415,7 @@ function minutes() {
             <p v-if="g.routeDestination">
               Rota ativa · {{ g.routeDestination.name }}
             </p>
-            <p v-if="inShip">
+            <p v-if="inShip && g.oxygenEnabled">
               O₂ nave {{ Math.ceil(g.state.ship.oxygen) }}% · Traje
               {{ Math.ceil(g.state.player.oxygen) }}%
             </p>
@@ -621,7 +621,7 @@ function minutes() {
                     }}<small>%</small></b
                   >
                 </div>
-                <div class="gold">
+                <div v-if="!surface || g.oxygenEnabled" class="gold">
                   <span>{{ surface ? "OXIGÊNIO" : "COMBUSTÍVEL" }}</span>
                   <div class="meter">
                     <i
@@ -760,6 +760,7 @@ function minutes() {
             <label
               ><input v-model="g.hungerEnabled" type="checkbox" /> Fome</label
             >
+            <label><input v-model="g.oxygenEnabled" type="checkbox" /> Consumo de oxigênio</label>
             <label
               ><input v-model="g.autosaveEnabled" type="checkbox" /> Salvamento
               automático</label

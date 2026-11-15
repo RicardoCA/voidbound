@@ -31,12 +31,11 @@ const meters = computed(() => [
     value: surface.value ? g.state.player.health : g.hullPercent,
     max: 100,
   },
-  {
-    label: surface.value || cabin.value ? "O₂" : "COMB.",
-    value:
-      surface.value || cabin.value ? g.state.player.oxygen : g.state.ship.fuel,
-    max: surface.value || cabin.value ? 100 : g.maxFuel,
-  },
+  ...(surface.value || cabin.value
+    ? g.oxygenEnabled
+      ? [{ label: "O₂", value: g.state.player.oxygen, max: 100 }]
+      : []
+    : [{ label: "COMB.", value: g.state.ship.fuel, max: g.maxFuel }]),
   {
     label: "ENERGIA",
     value: surface.value ? g.state.player.energy : g.state.ship.energy,
@@ -108,13 +107,13 @@ const colossalDistance = computed(() => {
     </div>
     <div
       class="mobile-meters"
-      :class="{ 'surface-meters': surface && g.hungerEnabled }"
+      :class="{ 'surface-meters': meters.length === 4 }"
     >
       <div
         v-for="(meter, i) in meters"
         :key="meter.label"
         class="mobile-meter"
-        :class="[`meter-${i}`, { critical: meter.value < 20 }]"
+        :class="[`meter-${meter.label === 'ENERGIA' ? 2 : meter.label === 'FOME' ? 3 : i}`, { critical: meter.value < 20 }]"
         :aria-label="`${meter.label}: ${Math.ceil(meter.value)}`"
       >
         <div>
