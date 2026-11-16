@@ -153,6 +153,7 @@ watch(
       const draw = () => {
         if (lightJump.value)
           space!.drawJump(
+            g,
             (performance.now() - startedAt) /
               (g.colossalJumpMs ?? JUMP_DURATION_MS),
           );

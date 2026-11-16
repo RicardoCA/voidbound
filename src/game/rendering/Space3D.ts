@@ -73,8 +73,9 @@ export class Space3D {
   };
   private jumpScene?: T.Scene;
   private jumpFallback?: T.Group;
-  private jumpModel?: T.Group;
-  private jumpAnimation?: { mixer: T.AnimationMixer; duration: number };
+  private jumpPilot?: T.Group;
+  private jumpOutfit?: string;
+  private cabinPilotSeat?: T.Vector3;
   private exploration?: {
     world: SurfaceWorld3D;
     representative: T.Group;
@@ -201,13 +202,6 @@ export class Space3D {
       })
       .catch((error: unknown) =>
         console.warn("Animação 3D de voo planetário indisponível.", error),
-      );
-    void this.loadEnvironmentAsset("cockpit-salto-luz")
-      .then((model) => {
-        if (!this.disposed) this.jumpModel = model;
-      })
-      .catch((error: unknown) =>
-        console.warn("Cockpit do salto 3D indisponível.", error),
       );
     void this.loadEnvironmentAsset("computador-de-rota")
       .then((model) => {
@@ -1177,6 +1171,13 @@ export class Space3D {
         vista.visible = false;
         scene.add(model);
         this.importedCabin = model;
+        model.updateWorldMatrix(true, true);
+        model.traverse((object) => {
+          if (object.name.replaceAll("_", " ") !== "Estrutura do assento") return;
+          const bounds = new T.Box3().setFromObject(object);
+          this.cabinPilotSeat = bounds.getCenter(new T.Vector3());
+          this.cabinPilotSeat.y = bounds.max.y;
+        });
       })
       .catch((error: unknown) =>
         console.warn("Interior do Blender indisponível.", error),
@@ -1681,20 +1682,24 @@ export class Space3D {
     if (liveExterior) {
       if (landed) this.drawCabinExterior(g, x);
       else this.draw(g, true);
-      const scene = this.cabinScene!;
-      const background = scene.background;
-      const autoClear = this.renderer.autoClear;
-      scene.background = null;
-      this.renderer.autoClear = false;
-      try {
-        this.renderer.clearDepth();
-        this.renderer.render(scene, this.cabinCamera);
-      } finally {
-        scene.background = background;
-        this.renderer.autoClear = autoClear;
-      }
+      this.renderCabinOverlay();
     } else this.renderer.render(this.cabinScene!, this.cabinCamera);
     return true;
+  }
+
+  private renderCabinOverlay() {
+    const scene = this.cabinScene!;
+    const background = scene.background;
+    const autoClear = this.renderer.autoClear;
+    scene.background = null;
+    this.renderer.autoClear = false;
+    try {
+      this.renderer.clearDepth();
+      this.renderer.render(scene, this.cabinCamera);
+    } finally {
+      scene.background = background;
+      this.renderer.autoClear = autoClear;
+    }
   }
 
   private updateLandingExterior(
@@ -2202,8 +2207,56 @@ export class Space3D {
     this.drawCockpit(0, planet);
   }
 
-  drawJump(progress: number) {
+  drawJump(g: Game, progress: number) {
+    if (!this.resize()) return;
+    const outfit = g.state.wardrobe?.equipped;
+    this.prepareCabin(outfit);
+    const key = JSON.stringify(outfit ?? {});
+    if (!this.jumpPilot || this.jumpOutfit !== key) {
+      this.jumpPilot?.removeFromParent();
+      this.jumpPilot = this.dressedPilot(outfit);
+      this.cabinScene!.add(this.jumpPilot);
+      this.jumpOutfit = key;
+    }
+    const pilot = this.jumpPilot;
+    const { x, y } = cabinEquipment.pilot;
+    const seat = this.cabinPilotSeat;
+    pilot.position.set(seat?.x ?? x + 9, (seat?.y ?? 9) - 7, (seat?.z ?? y + 9) - 3);
+    for (const leg of pilot.children)
+      if (leg.name === "leg") leg.rotation.x = Math.PI / 2;
+    for (const { bone, rest } of this.playerRigs.get(pilot) ?? []) {
+      const name = bone.name.toLowerCase();
+      const bend = name.startsWith("thigh") ? Math.PI / 2
+        : name.startsWith("shin") ? -Math.PI / 2 : .4;
+      bone.quaternion.copy(rest).premultiply(this.walkRotation.setFromAxisAngle(this.walkAxis, bend));
+    }
     this.drawCockpit(progress);
+    const cabinActor = this.cabinActor!;
+    const actorVisible = cabinActor.visible;
+    const hatchVisible = this.cabinHatch!.visible;
+    const backdropVisible = this.cabinSpaceBackdrop!.visible;
+    const importedVisibility = this.cabinImportedBackdrop.map((object) => object.visible);
+    cabinActor.visible = this.cabinHatch!.visible = this.cabinSpaceBackdrop!.visible = false;
+    for (const object of this.cabinImportedBackdrop) object.visible = false;
+    pilot.visible = true;
+    const t = T.MathUtils.clamp(progress, 0, 1);
+    const shake = Math.sin(Math.PI * t) * .45;
+    this.cabinCamera.position.set(
+      pilot.position.x - (this.width < this.height ? 27 : 35) + Math.sin(t * 89) * shake,
+      pilot.position.y + 29 + Math.cos(t * 75) * shake,
+      pilot.position.z + 24,
+    );
+    this.cabinCamera.lookAt(pilot.position.x, pilot.position.y + 16, pilot.position.z - 15);
+    this.cabinCamera.updateProjectionMatrix();
+    try {
+      this.renderCabinOverlay();
+    } finally {
+      pilot.visible = false;
+      cabinActor.visible = actorVisible;
+      this.cabinHatch!.visible = hatchVisible;
+      this.cabinSpaceBackdrop!.visible = backdropVisible;
+      this.cabinImportedBackdrop.forEach((object, index) => object.visible = importedVisibility[index]!);
+    }
   }
 
   private drawCockpit(progress: number, planet?: Planet) {
@@ -2317,22 +2370,7 @@ export class Space3D {
       this.landingPlanet.visible = false;
     }
     const t = T.MathUtils.clamp(progress, 0, 1);
-    if (this.jumpModel && !this.jumpModel.parent) {
-      const clips = this.jumpModel.animations;
-      if (clips.length) {
-        const mixer = new T.AnimationMixer(this.jumpModel);
-        for (const clip of clips) mixer.clipAction(clip).play();
-        this.jumpAnimation = {
-          mixer,
-          duration: Math.max(...clips.map((clip) => clip.duration)),
-        };
-      }
-      this.jumpScene.add(this.jumpModel);
-    }
-    if (this.jumpModel) this.jumpModel.visible = !planet;
-    if (this.jumpFallback) this.jumpFallback.visible = !!planet || !this.jumpModel;
-    if (!planet && this.jumpAnimation)
-      this.jumpAnimation.mixer.setTime(t * this.jumpAnimation.duration * 0.9999);
+    if (this.jumpFallback) this.jumpFallback.visible = !!planet;
 
     const power =
       T.MathUtils.smoothstep(t, 0.08, 0.34) *
@@ -2774,7 +2812,6 @@ export class Space3D {
       for (const child of this.showroomRoom.scene.children)
         if (child instanceof T.Sprite) child.material.dispose();
     }
-    this.jumpAnimation?.mixer.stopAllAction();
     this.jumpTrails?.dispose();
     this.renderer.dispose();
   }
