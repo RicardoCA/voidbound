@@ -20,7 +20,7 @@ import { clothing, type Outfit } from "../../wardrobe/clothing";
 import { DOCKING_DURATION, STATION_EXIT_DISTANCE } from "../../stores/game";
 import { shipModels } from "../../fleet/models";
 import type { Planet, ShipModelId } from "../types";
-import { cabinEquipment } from "../cabin/CabinInterior";
+import { cabinEquipment, type CabinEquipment, type CabinFootprint } from "../cabin/CabinInterior";
 import { flight3D, spaceAltitude, PLANETARY_SHIP_SCALE } from "./flight3D";
 import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
@@ -1166,18 +1166,31 @@ export class Space3D {
         const widthScale = 145 / 6.94;
         const depthScale = 58 / (2.49 + 1.5);
         model.scale.set(widthScale, widthScale, depthScale);
+        model.traverse((fixture) => {
+          const id: unknown = fixture.userData.voidbound_equipment;
+          if (id === "craft" || id === "inventory" || id === "map")
+            fixture.position.x = cabinEquipment[id].x / widthScale;
+        });
         model.position.set(0, -0.065 * widthScale, -24 + 2.49 * depthScale);
         room.visible = false;
         vista.visible = false;
         scene.add(model);
         this.importedCabin = model;
         model.updateWorldMatrix(true, true);
+        const footprints: CabinFootprint[] = [];
         model.traverse((object) => {
+          const id: unknown = object.userData.voidbound_equipment;
+          if (typeof id === "string" && Object.hasOwn(cabinEquipment, id)) {
+            const { min, max } = new T.Box3().setFromObject(object);
+            if (Number.isFinite(min.x))
+              footprints.push({ id: id as CabinEquipment, minX: min.x, maxX: max.x, minZ: min.z, maxZ: max.z });
+          }
           if (object.name.replaceAll("_", " ") !== "Estrutura do assento") return;
           const bounds = new T.Box3().setFromObject(object);
           this.cabinPilotSeat = bounds.getCenter(new T.Vector3());
           this.cabinPilotSeat.y = bounds.max.y;
         });
+        if (footprints.length) flight3D.cabinFootprints = footprints;
       })
       .catch((error: unknown) =>
         console.warn("Interior do Blender indisponível.", error),
@@ -1672,8 +1685,12 @@ export class Space3D {
     const aspect = this.width / this.height;
     const distance = aspect < 1.5 ? 125 / Math.max(aspect, 0.5) + 70 : 146;
     this.cabinCamera.aspect = aspect;
-    this.cabinCamera.position.set(x * 0.78, 60, z * 0.25 + distance);
-    this.cabinCamera.lookAt(x * 0.73, 15, -15);
+    this.cabinCamera.position.set(
+      x * 0.78 + distance * 0.24,
+      18 + distance * 0.86,
+      z * 0.25 + distance,
+    );
+    this.cabinCamera.lookAt(x * 0.78, 12, z * 0.25 - 12);
     this.cabinCamera.updateProjectionMatrix();
     const landed = !inFlight && g.state.mode === "interior";
     const liveExterior = landed || inFlight;
@@ -2795,7 +2812,10 @@ export class Space3D {
       this.disposeEnvironmentAsset(model);
     if (this.playerTemplate) this.disposeMap(this.playerTemplate);
     if (this.mapModel) this.disposeMap(this.mapModel);
-    if (this.importedCabin) this.disposeMap(this.importedCabin);
+    if (this.importedCabin) {
+      flight3D.cabinFootprints = undefined;
+      this.disposeMap(this.importedCabin);
+    }
     for (const geometry of [
       this.sphere,
       this.rock,

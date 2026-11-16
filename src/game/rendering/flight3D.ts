@@ -1,3 +1,4 @@
+import type { CabinFootprint } from "../cabin/CabinInterior";
 import type { SurfaceFrame, SurfaceTarget } from "./SurfaceWorld3D";
 import { showroomSpawn } from "../station/showroom";
 import { shallowReactive } from "vue";
@@ -37,6 +38,7 @@ export const flight3D = shallowReactive({
   ) | undefined,
   showroom: { ...showroomSpawn },
   station: { x: -274, z: -38, heading: -Math.PI / 2, stride: 0 },
+  cabinFootprints: undefined as readonly CabinFootprint[] | undefined,
   cabin: { x: 145, z: -24, stride: 0, heading: -Math.PI / 2 },
   pitch: 0,
   altitude: 0,

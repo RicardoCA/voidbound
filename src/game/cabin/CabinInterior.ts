@@ -10,7 +10,7 @@ export const cabinEquipment = {
     color: 0x88ded8,
   },
   craft: {
-    x: 0,
+    x: -52,
     y: -24,
     label: "Bancada e refinaria",
     action: "Abrir fabricação",
@@ -31,7 +31,7 @@ export const cabinEquipment = {
     color: 0xd8ba70,
   },
   inventory: {
-    x: 0,
+    x: -27,
     y: 34,
     label: "Armário de carga",
     action: "Abrir carga e melhorias",
@@ -45,7 +45,7 @@ export const cabinEquipment = {
     color: 0xb3a1da,
   },
   map: {
-    x: 0,
+    x: 52,
     y: 5,
     label: "Mapa galáctico",
     action: "Abrir mapa galáctico",
@@ -54,6 +54,13 @@ export const cabinEquipment = {
 } as const;
 
 export type CabinEquipment = keyof typeof cabinEquipment;
+export interface CabinFootprint {
+  id: CabinEquipment;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
 const fixtures = Object.entries(cabinEquipment) as [
   CabinEquipment,
   (typeof cabinEquipment)[CabinEquipment],
@@ -111,9 +118,22 @@ export class CabinInterior {
     for (const label of this.labels.values()) label.setVisible(false);
   }
 
-  walk(horizontal: number, vertical: number, dt: number) {
+  walk(horizontal: number, vertical: number, dt: number, imported?: readonly CabinFootprint[]) {
     const distance = (dt * 105) / Math.max(1, Math.hypot(horizontal, vertical));
-    const blocked = (x: number, y: number) =>
+    const overlap = (x: number, y: number) => {
+      let depth = 0;
+      for (const box of imported ?? []) {
+        if (box.id === "hatch" && this.inFlight) continue;
+        const margin = 4;
+        depth = Math.max(depth, Math.min(
+          x - box.minX + margin, box.maxX + margin - x,
+          y - box.minZ + margin, box.maxZ + margin - y,
+        ));
+      }
+      return depth;
+    };
+    const blocked = (x: number, y: number, fromX: number, fromY: number) =>
+      imported ? overlap(x, y) > overlap(fromX, fromY) :
       equipmentFootprints.some(([id, offsetX, offsetY, halfX, halfY]) => {
         if (id === "hatch" && this.inFlight) return false;
         const fixture = cabinEquipment[id];
@@ -123,9 +143,9 @@ export class CabinInterior {
         );
       });
     const nextX = Math.max(-185, Math.min(185, this.x + horizontal * distance));
-    const x = blocked(nextX, this.y) ? this.x : nextX;
+    const x = blocked(nextX, this.y, this.x, this.y) ? this.x : nextX;
     const nextY = Math.max(-37, Math.min(45, this.y + vertical * distance));
-    const y = blocked(x, nextY) ? this.y : nextY;
+    const y = blocked(x, nextY, x, this.y) ? this.y : nextY;
     if (horizontal) this.facing = horizontal;
     if (x !== this.x || y !== this.y)
       this.heading = Math.atan2(this.x - x, this.y - y);
@@ -138,11 +158,15 @@ export class CabinInterior {
     return { x: this.x, z: this.y, stride: this.stride, heading: this.heading };
   }
 
-  nearby() {
+  nearby(imported?: readonly CabinFootprint[]) {
     let closest: CabinEquipment | undefined;
     let range = 25;
     for (const [id, item] of fixtures) {
-      const distance = Math.hypot(this.x - item.x, this.y - item.y);
+      const box = imported?.find((box) => box.id === id);
+      const distance = box
+        ? Math.hypot(Math.max(box.minX - this.x, this.x - box.maxX, 0),
+            Math.max(box.minZ - this.y, this.y - box.maxZ, 0)) + 11
+        : Math.hypot(this.x - item.x, this.y - item.y);
       if (distance <= range) {
         closest = id;
         range = distance;

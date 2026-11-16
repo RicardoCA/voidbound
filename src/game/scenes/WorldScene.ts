@@ -829,8 +829,9 @@ export class WorldScene extends Phaser.Scene {
           if (!g.flightCabin) return;
         }
         const { x, y } = this.walkingDirection();
-        this.cabin.walk(x, y, dt);
-        g.cabinContact = this.cabin.nearby();
+        const footprints = flight3D.selected ? flight3D.cabinFootprints : undefined;
+        this.cabin.walk(x, y, dt, footprints);
+        g.cabinContact = this.cabin.nearby(footprints);
         if (takePulse("interact") || (held && !this.interactHeld))
           g.interactCabin();
       }
