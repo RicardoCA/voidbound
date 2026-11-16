@@ -3,7 +3,7 @@ import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollisio
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
-import { flight3D, spaceAltitude } from "../rendering/flight3D";
+import { flight3D, spaceAltitude, turnSurfaceCamera } from "../rendering/flight3D";
 import {
   COLOSSAL_MODEL_SCALE,
   COLOSSAL_SPEED,
@@ -231,20 +231,14 @@ export class WorldScene extends Phaser.Scene {
       return target;
     };
     let touchLook: { id: number; x: number; y: number; drag: boolean } | undefined;
-    const turning = (dx: number, dy: number) => {
-      const look = flight3D.surfaceLook;
-      flight3D.surfaceLook = {
-        yaw: Phaser.Math.Angle.Wrap(look.yaw - dx * .0038),
-        pitch: Phaser.Math.Clamp(look.pitch - dy * .0038, -1.48, 1.48),
-      };
-    };
     const press = (event: PointerEvent) => {
-      if (event.button !== 0) return;
       if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
+        if (touchLook) return;
         touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
         canvas.setPointerCapture(event.pointerId);
         return;
       }
+      if (event.button !== 0) return;
       if (
         flight3D.surfaceView && onSurface() && event.pointerType === "mouse" &&
         document.pointerLockElement !== canvas && canvas.requestPointerLock
@@ -282,12 +276,12 @@ export class WorldScene extends Phaser.Scene {
           const dx = event.clientX - touchLook.x, dy = event.clientY - touchLook.y;
           if (touchLook.drag || Math.hypot(dx, dy) > 5) {
             touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: true };
-            turning(dx, dy);
+            turnSurfaceCamera(dx, dy, .007);
           }
           return;
         }
         if (document.pointerLockElement === canvas || (event.buttons & 2))
-          turning(event.movementX, event.movementY);
+          turnSurfaceCamera(event.movementX, event.movementY, .0038);
       }
       if (event.pointerType !== "mouse") return;
       this.surfaceMouse = event;

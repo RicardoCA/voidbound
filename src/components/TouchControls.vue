@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { flight3D, turnSurfaceCamera } from "../game/rendering/flight3D";
 import { useGame } from "../stores/game";
 import {
   controls,
@@ -19,6 +20,25 @@ const x = ref(0),
   y = ref(0),
   active = ref(false);
 let stickPointer: number | undefined;
+let lookPointer: { id: number; x: number; y: number } | undefined;
+
+function startLook(event: PointerEvent) {
+  if (lookPointer) return;
+  event.preventDefault();
+  lookPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+}
+function moveLook(event: PointerEvent) {
+  if (lookPointer?.id !== event.pointerId) return;
+  const dx = event.clientX - lookPointer.x;
+  const dy = event.clientY - lookPointer.y;
+  turnSurfaceCamera(dx, dy, .007);
+  lookPointer.x = event.clientX;
+  lookPointer.y = event.clientY;
+}
+function endLook(event: PointerEvent) {
+  if (lookPointer?.id === event.pointerId) lookPointer = undefined;
+}
 const directions: Control[] = ["left", "right", "up", "down"];
 function resetStick() {
   stickPointer = undefined;
@@ -67,10 +87,11 @@ function stop(id: Control, event: PointerEvent) {
   controls[id] = false;
 }
 function reset() {
+  lookPointer = undefined;
   resetStick();
   releaseControls();
 }
-watch(() => [g.state.mode, g.panel, g.paused], reset, { flush: "sync" });
+watch(() => [g.state.mode, g.panel, g.paused, flight3D.surfaceView], reset, { flush: "sync" });
 onBeforeUnmount(reset);
 </script>
 <template>
@@ -105,8 +126,21 @@ onBeforeUnmount(reset);
     </div>
     <div
       class="touch-actions"
-      :class="{ 'space-actions': !walking, 'station-actions-only': indoors }"
+      :class="{ 'space-actions': !walking, 'station-actions-only': indoors, 'surface-look-actions': surface && flight3D.surfaceView }"
     >
+      <button
+        v-if="surface && flight3D.surfaceView"
+        type="button"
+        class="touch-look"
+        aria-label="Arraste para girar a câmera e olhar para cima ou para baixo"
+        @pointerdown="startLook"
+        @pointermove="moveLook"
+        @pointerup="endLook"
+        @pointercancel="endLook"
+        @lostpointercapture="endLook"
+      >
+        ↕ OLHAR
+      </button>
       <button
         v-if="!walking"
         class="touch-brake"

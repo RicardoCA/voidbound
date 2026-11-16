@@ -55,3 +55,12 @@ export const flight3D = shallowReactive({
     this.touchPitch = 0;
   },
 });
+
+export function turnSurfaceCamera(dx: number, dy: number, sensitivity: number) {
+  const { yaw, pitch } = flight3D.surfaceLook;
+  const heading = yaw - dx * sensitivity;
+  flight3D.surfaceLook = {
+    yaw: Math.atan2(Math.sin(heading), Math.cos(heading)),
+    pitch: Math.max(-1.48, Math.min(1.48, pitch - dy * sensitivity)),
+  };
+}
