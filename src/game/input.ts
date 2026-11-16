@@ -9,6 +9,25 @@ export const controls = {
   interact: false,
 };
 export type Control = keyof typeof controls;
+export const touchSteering = { target: 0, turn: 0 };
+
+export function setTouchSteering(axis: number) {
+  const magnitude = Math.max(0, (Math.min(1, Math.abs(axis)) - .2) / .8);
+  touchSteering.target = Math.sign(axis) * magnitude ** 1.7;
+}
+
+export function flightSteering(keyboard: number, dt: number, response = 1) {
+  if (keyboard) {
+    touchSteering.turn = 0;
+    return keyboard;
+  }
+  const blend = 1 - Math.exp(-dt * response * (touchSteering.target ? 9 : 15));
+  touchSteering.turn += (touchSteering.target - touchSteering.turn) * blend;
+  if (!touchSteering.target && Math.abs(touchSteering.turn) < .005)
+    touchSteering.turn = 0;
+  return touchSteering.turn;
+}
+
 const pulses = new Set<Control>();
 export function queuePulse(id: Control) {
   pulses.add(id);
@@ -25,6 +44,7 @@ export function takePulse(id: Control) {
 export function releaseControls() {
   for (const key of Object.keys(controls) as Control[]) controls[key] = false;
   pulses.clear();
+  touchSteering.target = touchSteering.turn = 0;
 }
 
 export function isEditing(target: EventTarget | null) {

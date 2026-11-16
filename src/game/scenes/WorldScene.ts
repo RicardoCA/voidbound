@@ -102,6 +102,8 @@ import { random, hash } from "../procedural/random";
 import { planetPosition, spatialPlanet } from "../../universe/generator";
 import {
   controls,
+  flightSteering,
+  touchSteering,
   takePulse,
   queuePulse,
   JumpBuffer,
@@ -735,8 +737,10 @@ export class WorldScene extends Phaser.Scene {
             steerColossal(
               carrier,
               dt,
-              Number(this.down("D") || this.down("RIGHT") || controls.right) -
-                Number(this.down("A") || this.down("LEFT") || controls.left),
+              flightSteering(
+                Number(this.down("D") || this.down("RIGHT")) -
+                  Number(this.down("A") || this.down("LEFT")), dt, .6,
+              ),
               !!thrusting,
               this.down("S") || this.down("DOWN") || controls.down,
             );
@@ -1157,10 +1161,9 @@ export class WorldScene extends Phaser.Scene {
   private spacePhysics(dt: number, piloting = true) {
     const g = this.store,
       s = g.state.ship;
-    const rotate = piloting
-      ? Number(this.down("D") || controls.right) -
-        Number(this.down("A") || controls.left)
-      : 0;
+    const keyboardTurn = Number(this.down("D")) - Number(this.down("A"));
+    const steeringResponse = Phaser.Math.Clamp(g.model.acceleration / 65, .65, 1.25);
+    const rotate = piloting ? flightSteering(keyboardTurn, dt, steeringResponse) : 0;
     const thrust = piloting && (this.down("W") || controls.up);
     const brake = piloting && (this.down("S") || controls.down);
     const spatial = piloting && flight3D.enabled;
@@ -1179,11 +1182,11 @@ export class WorldScene extends Phaser.Scene {
       spatial &&
       ((thrust && s.fuel > 0) ||
         (!!g.routeDestination && s.fuel > 0 && !this.routeBraking));
-    if (g.routeDestination && (rotate || thrust || brake || pitchInput)) {
+    if (g.routeDestination && ((piloting && (keyboardTurn || touchSteering.target)) || thrust || brake || pitchInput)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
     if (g.routeDestination) this.followRoute(dt, g.routeDestination, spatial);
-    s.angle += rotate * 2.5 * dt;
+    if (!g.routeDestination) s.angle += rotate * 2.5 * dt;
     if (thrust && s.fuel > 0) {
       const acceleration =
         g.model.acceleration *

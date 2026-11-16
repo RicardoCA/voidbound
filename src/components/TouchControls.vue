@@ -4,6 +4,7 @@ import { flight3D, turnSurfaceCamera } from "../game/rendering/flight3D";
 import { useGame } from "../stores/game";
 import {
   controls,
+  setTouchSteering,
   pressControl,
   releaseControls,
   type Control,
@@ -16,6 +17,7 @@ const indoors = computed(() => station.value || cabin.value);
 const walking = computed(
   () => surface.value || indoors.value || g.aboardColossal,
 );
+const piloting = computed(() => !walking.value || g.colossalHelm);
 const x = ref(0),
   y = ref(0),
   active = ref(false);
@@ -45,6 +47,7 @@ function resetStick() {
   active.value = false;
   x.value = 0;
   y.value = 0;
+  setTouchSteering(0);
   for (const id of directions) controls[id] = false;
 }
 function move(event: PointerEvent) {
@@ -61,8 +64,9 @@ function move(event: PointerEvent) {
   }
   x.value = dx;
   y.value = dy;
-  controls.left = dx < -radius * 0.28;
-  controls.right = dx > radius * 0.28;
+  setTouchSteering(piloting.value ? dx / radius : 0);
+  controls.left = !piloting.value && dx < -radius * 0.28;
+  controls.right = !piloting.value && dx > radius * 0.28;
   controls.up = dy < -radius * 0.28;
   controls.down = dy > radius * 0.28;
 }
@@ -91,7 +95,7 @@ function reset() {
   resetStick();
   releaseControls();
 }
-watch(() => [g.state.mode, g.panel, g.paused, flight3D.surfaceView], reset, { flush: "sync" });
+watch(() => [g.state.mode, g.panel, g.paused, flight3D.surfaceView, piloting.value], reset, { flush: "sync" });
 onBeforeUnmount(reset);
 </script>
 <template>
