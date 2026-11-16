@@ -279,7 +279,7 @@ export function drawPiece(
     );
     return;
   }
-  if (kind === "oxygenGenerator") {
+  if (kind === "oxygenGenerator" || kind === "planetaryOxygenGenerator") {
     g.fillStyle(material.vein, alpha);
     g.fillRect(x + 1, y + 1, 14, 15);
     g.fillStyle(0x263d4a, alpha);

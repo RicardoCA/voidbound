@@ -145,7 +145,12 @@ export function analyzeSpatialRoom(terrain: Terrain, data: Settlement, x: number
   return { sealed: true, reason: "sealed", cells };
 }
 
+export function hasPlanetaryOxygenGenerator(data?: Settlement) {
+  return Object.values(data?.pieces ?? {}).some((piece) => piece.kind === "planetaryOxygenGenerator");
+}
+
 export interface PowerNetwork {
+  planetary: { key: string; battery?: string; panels: number }[];
   generators: {
     key: string;
     x: number;
@@ -226,11 +231,13 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
+  const exposed: { x: number; y: number; depth: number }[] = [];
   let exposedPanels = 0;
   for (const [key] of panels) {
     const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
     if (!exposedToSky(terrain, data, x, y, depth)) continue;
     exposedPanels++;
+    exposed.push({ x, y, depth });
     const battery = nearest(batteries, x, y, depth);
     if (battery) {
       battery.panels++;
@@ -250,7 +257,18 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       if (Math.hypot(fridge.x - x!, fridge.y - y, fridge.depth - depth) <= POWER_RANGE)
         fridge.panels.push(key);
   }
+  const planetary = Object.entries(data.pieces)
+    .filter(([, piece]) => piece.kind === "planetaryOxygenGenerator")
+    .map(([key]) => {
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+      return {
+        key,
+        panels: exposed.filter((p) => Math.hypot(p.x - x, p.y - y, p.depth - depth) <= POWER_RANGE).length,
+        battery: nearest(batteries, x, y, depth)?.key,
+      };
+    });
   return {
+    planetary,
     generators,
     batteries,
     fridges,
@@ -265,12 +283,17 @@ export function advancePowerNetwork(
   from: number,
   to: number,
 ) {
-  if (network.fridges.length) {
+  if (network.fridges.length || network.planetary.length) {
     for (let start = from; start < to;) {
       const end = Math.min(to, start + 1);
       advancePowerStep(data, network, start, end);
       start = end;
     }
+    if (from === to)
+      for (const generator of network.planetary) {
+        const battery = generator.battery ? data.pieces[generator.battery] : undefined;
+        data.pieces[generator.key]!.powered = generator.panels >= 5 && (battery?.energy ?? 0) > 0;
+      }
     for (const fridge of network.fridges) {
       const piece = data.pieces[fridge.key]!;
       const available =
@@ -333,6 +356,14 @@ function advancePowerStep(
     }
     advanceGenerator(piece, 0, from, to, suppliedEnergy);
   }
+  for (const generator of network.planetary) {
+    const battery = generator.battery ? data.pieces[generator.battery] : undefined;
+    const charge = battery?.energy ?? 0;
+    const demand = elapsed;
+    const used = generator.panels >= 5 ? Math.min(charge, demand) : 0;
+    if (battery) battery.energy = charge - used;
+    data.pieces[generator.key]!.powered = used >= demand && (battery?.energy ?? 0) > 0;
+  }
   for (const fridge of network.fridges) {
     const demand = FRIDGE_RATE * elapsed;
     let supplied = takeSolar(fridge.panels, demand);
@@ -375,6 +406,8 @@ export function advanceGenerator(
   piece.oxygen = Math.min(OXYGEN_CAP, stored + produced);
 }
 export interface HabitatReport {
+  planetaryActive?: boolean;
+  planetaryInstalled?: boolean;
   supplied: boolean;
   sealed: boolean;
   hasGenerator: boolean;
@@ -407,6 +440,9 @@ export const emptyHabitat = (): HabitatReport => ({
   gain: 0,
 });
 export function habitatMessage(report: HabitatReport) {
+  if (report.planetaryActive) return "Atmosfera abastecida pelo gerador planetário";
+  if (report.planetaryInstalled && !report.supplied && !report.hasGenerator)
+    return "Gerador planetário desligado · Verifique as placas e a bateria";
   if (report.supplied)
     return report.gain > 0
       ? "Casa pressurizada · O₂ recarregando"

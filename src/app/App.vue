@@ -1015,9 +1015,7 @@ function minutes() {
               : "Acoplando à " + g.system.station?.name
             : g.surfaceSequence?.kind === "landing"
               ? "Descida para " + g.planet.name
-              : g.surfaceSequence?.kind === "takeoff"
-                ? "Decolando para o espaço"
-                : "Desembarcando"
+              : "Decolando para o espaço"
         }}
       </div>
       <div

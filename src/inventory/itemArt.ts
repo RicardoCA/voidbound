@@ -439,6 +439,13 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M11 9h4l-2 4h3l-5 5 1-4h-2z",
     accent: "#ffe9a0",
   },
+  planetaryOxygenGenerator: {
+    body: "M8 2h8v4h3v5h3v10H2V11h3V6h3z",
+    shade: "M15 6h4v5h3v10h-7z",
+    light: "M8 8h8v8H8z",
+    detail: "M4 18h16v1H4z",
+    accent: "#6ee8ff",
+  },
   oxygenGenerator: {
     body: "M6 5h12v3h3v12H3V8h3z",
     shade: "M15 8h6v12h-6z",

@@ -188,7 +188,7 @@ export const useConstruction = defineStore("construction", () => {
     lastError.value = "";
     if (
       !removing.value &&
-      ["solarPanel", "battery", "oxygenGenerator", "fridge"].includes(
+      ["solarPanel", "battery", "oxygenGenerator", "planetaryOxygenGenerator", "fridge"].includes(
         selected.value,
       )
     )
@@ -354,6 +354,16 @@ export const useConstruction = defineStore("construction", () => {
       return true;
     }
     if (
+      found.piece.kind === "planetaryOxygenGenerator" &&
+      inReach(g.state.player, found.x, found.y, 76)
+    ) {
+      g.refreshHabitat();
+      g.notify(found.piece.powered
+        ? "Gerador planetário ativo · Atmosfera abastecida."
+        : "Gerador planetário desligado · São necessárias 5 placas solares expostas e uma bateria próxima com carga.");
+      return true;
+    }
+    if (
       found.piece.kind === "oxygenGenerator" &&
       inReach(g.state.player, found.x, found.y, 76)
     ) {
@@ -442,6 +452,7 @@ export const useConstruction = defineStore("construction", () => {
           "bed",
           "battery",
           "oxygenGenerator",
+          "planetaryOxygenGenerator",
         ].includes(piece.kind)
       )
         continue;

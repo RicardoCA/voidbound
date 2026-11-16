@@ -1,7 +1,8 @@
+import { fallbackLandedHull, landingSideExit } from "../game/physics/landedShip";
 import { openSurfacePosition } from "../construction/openSurfacePosition";
 import { surfaceLayer } from "../game/physics/surfaceDepth";
 import type { ShipModelId } from "../game/types";
-import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
+import { flight3D, spaceAltitude, landedShipHulls } from "../game/rendering/flight3D";
 import {
   regrowTerrain,
   TERRAIN_REGROWTH_SECONDS,
@@ -111,8 +112,6 @@ export const DOCKING_DURATION = 1.8;
 export const STATION_EXIT_DISTANCE = 145;
 export const SURFACE_SEQUENCE_DURATION = {
   landing: 2.3,
-  disembark: 1.1,
-  boarding: 1.1,
   takeoff: 5,
 } as const;
 type SurfaceSequence = {
@@ -984,27 +983,12 @@ export const useGame = defineStore("game", () => {
     releaseControls();
     if (equipment === "hatch") {
       if (flightCabin.value) notify("A escotilha só abre após pousar.");
-      else beginDisembark();
+      else exit();
     } else if (equipment === "solar") recover();
     else if (equipment === "pilot") {
       if (flightCabin.value) standingInFlight.value = false;
       else panel.value = "takeoff";
     } else panel.value = equipment;
-  }
-  function beginDisembark() {
-    if (
-      state.value.mode !== "interior" ||
-      surfaceSequence.value ||
-      paused.value
-    )
-      return;
-    releaseControls();
-    surfaceSequence.value = {
-      kind: "disembark",
-      landingX: state.value.landingX,
-      elapsed: 0,
-    };
-    audio.playSurface("disembark", SURFACE_SEQUENCE_DURATION.disembark);
   }
   function advanceSurfaceSequence(dt: number) {
     const sequence = surfaceSequence.value;
@@ -1014,9 +998,7 @@ export const useGame = defineStore("game", () => {
     surfaceSequence.value = undefined;
     releaseControls();
     if (sequence.kind === "landing") land(sequence.landingX / 24);
-    else if (sequence.kind === "takeoff") takeoff();
-    else if (sequence.kind === "boarding") enter();
-    else exit();
+    else takeoff();
   }
   function land(zone: number) {
     state.value.landingX = zone * 24;
@@ -1029,26 +1011,27 @@ export const useGame = defineStore("game", () => {
     notify("Pouso confirmado. Saia da nave para explorar.");
     void save();
   }
-  function planetaryExitPosition(landingX = state.value.landingX) {
-    return openSurfacePosition(planetTerrain.value, state.value.settlements[planet.value.id],
-      landingX + 9, 0, landingX, 9) ?? { x: (landingX + 9) * 16 + 8, y: 0 };
-  }
   function exit() {
-    state.value.player.surfaceZ = 0;
-    const position = flight3D.selected ? planetaryExitPosition()
-      : { x: state.value.landingX * 16 + 40, y: 0 };
+    const { landingX, activeShip, settlements } = state.value;
+    const settlement = settlements[planet.value.id] ?? noShelter;
+    const terrain = planetTerrain.value;
+    const hull = landedShipHulls.get(activeShip.model) ?? fallbackLandedHull;
+    const safeSide = flight3D.selected ? landingSideExit(terrain, settlement, landingX, hull) : undefined;
+    const hullClearance = Math.ceil((Math.max(hull.maxX, -hull.minX) + 12) / 16);
+    const distant = flight3D.selected && !safeSide
+      ? openSurfacePosition(terrain, settlement, landingX + hullClearance, 0, landingX, hullClearance)
+      : undefined;
+    if (flight3D.selected && !safeSide && !distant) {
+      notify("Não há espaço livre ao lado da nave para desembarcar.");
+      return;
+    }
+    const position = safeSide ?? distant ?? { x: landingX * 16 + 40, y: 0 };
+    state.value.player.surfaceZ = safeSide?.z ?? 0;
     state.value.player.x = position.x;
     state.value.player.y = position.y;
     state.value.mode = "surface";
     panel.value = "";
     void save();
-  }
-  function beginBoarding() {
-    if (state.value.mode !== "surface" || surfaceSequence.value || paused.value)
-      return;
-    releaseControls();
-    surfaceSequence.value = { kind: "boarding", landingX: state.value.landingX, elapsed: 0 };
-    audio.playSurface("disembark", SURFACE_SEQUENCE_DURATION.boarding);
   }
   function enter() {
     state.value.mode = "interior";
@@ -1836,9 +1819,6 @@ export const useGame = defineStore("game", () => {
     inSequence,
     advanceDocking,
     beginLanding,
-    beginDisembark,
-    beginBoarding,
-    planetaryExitPosition,
     advanceSurfaceSequence,
     panel,
     governmentAnchor,

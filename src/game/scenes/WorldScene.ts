@@ -1,9 +1,10 @@
+import { fallbackLandedHull, landedHullOverlap } from "../physics/landedShip";
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
 import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
-import { flight3D, spaceAltitude, turnSurfaceCamera, PLANETARY_SHIP_SCALE } from "../rendering/flight3D";
+import { flight3D, spaceAltitude, turnSurfaceCamera, PLANETARY_SHIP_SCALE, landedShipHulls } from "../rendering/flight3D";
 import {
   COLOSSAL_MODEL_SCALE,
   COLOSSAL_SPEED,
@@ -73,7 +74,6 @@ import {
   drawPiece,
 } from "../rendering/settlements";
 import {
-  drawBoardingRamp,
   drawDockingLane,
   drawGroundWake,
   drawLandingGear,
@@ -95,7 +95,7 @@ import {
   stepSurface,
 } from "../physics/surface";
 import { cabinetWidths, isCabinet } from "../../construction/pieces";
-import { daylight, solarPhase } from "../../construction/habitat";
+import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
@@ -992,7 +992,16 @@ export class WorldScene extends Phaser.Scene {
         } else if (s.mode === "surface") {
           const cabinet = this.building.nearestInteraction();
           if (g.recoverBackpack()) return;
-          if (Math.abs(s.player.surfaceZ ?? 0) > 38) {
+          const hull = landedShipHulls.get(s.activeShip.model) ?? fallbackLandedHull;
+          const shipX = s.player.x - s.landingX * 16;
+          const shipZ = s.player.surfaceZ ?? 0;
+          const shipDistance = flight3D.surfaceView
+            ? Math.hypot(Math.max(hull.minX - shipX, shipX - hull.maxX, 0),
+                Math.max(hull.minZ - shipZ, shipZ - hull.maxZ, 0))
+            : Math.abs(shipX);
+          const nearShip = shipDistance < (flight3D.surfaceView ? 28 : 90) &&
+            Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80;
+          if (Math.abs(shipZ) > 38 && !nearShip) {
             if (cabinet.key) {
               const [x, y, depth] = cabinet.key.split(",").map(Number);
               if (this.building.interactAt(x!, y!, depth)) return;
@@ -1007,15 +1016,12 @@ export class WorldScene extends Phaser.Scene {
             g.scanSignal();
           } else if (
             cabinet.key &&
-            cabinet.distance < Math.abs(s.player.x - s.landingX * 16)
+            (!nearShip || cabinet.distance < shipDistance + 12)
           ) {
             const [x, y, depth] = cabinet.key.split(",").map(Number);
             this.building.interactAt(x!, y!, depth);
-          } else if (
-            Math.abs(s.player.x - s.landingX * 16) < (flight3D.surfaceView ? 170 : 90) &&
-            Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
-          )
-            g.beginBoarding();
+          } else if (nearShip)
+            g.enter();
           else if (cabinet.key) {
             const [x, y, depth] = cabinet.key.split(",").map(Number);
             this.building.interactAt(x!, y!, depth);
@@ -1724,7 +1730,8 @@ export class WorldScene extends Phaser.Scene {
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
     const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
     const yaw = flight3D.surfaceLook.yaw;
-    const step = 90 * dt * vertical;
+    const walkingPace = 2 / 3;
+    const step = 90 * walkingPace * dt * vertical;
     const spatial = flight3D.surfaceView;
     const z = p.surfaceZ ?? 0;
     const settlement = this.building.settlement;
@@ -1741,6 +1748,10 @@ export class WorldScene extends Phaser.Scene {
             this.fruit,
           );
           const wallDepth = surfaceWallPenetration(settlement, p.x, p.y, z);
+          const hull = landedShipHulls.get(g.state.activeShip.model) ?? fallbackLandedHull;
+          const padX = g.state.landingX * 16;
+          const padY = t.height(g.state.landingX) * 16;
+          const shipOverlap = landedHullOverlap(hull, p.x - padX, p.y - padY, z);
           return stepSurfaceDepth(
             { ...actor, z },
             Math.sin(yaw) * step,
@@ -1748,12 +1759,13 @@ export class WorldScene extends Phaser.Scene {
             jump, g.planet.gravity, dt,
             (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
             (x, y, depth) => flora(x, y, depth) ||
+              landedHullOverlap(hull, x - padX, y - padY, depth) > shipOverlap ||
               surfaceWallPenetration(settlement, x, y, depth) > wallDepth,
           );
         })()
       : undefined;
     const movement = climb ?? spatialMove ??
-      stepSurface(actor, direction, jump, g.planet.gravity, dt, t, this.building.settlement);
+      stepSurface(actor, direction * walkingPace, jump, g.planet.gravity, dt, t, this.building.settlement);
     const depthTravel = spatialMove ? spatialMove.z - (p.surfaceZ ?? 0) : 0;
     if (spatialMove) p.surfaceZ = spatialMove.z;
     const travel = climb
@@ -2566,14 +2578,17 @@ export class WorldScene extends Phaser.Scene {
     )
       return;
 
+    const biome = biomes[planet.kind]!;
+    const lines = [planet.name, `✓ Catalogado · ${biome.name}`, biome.resources];
+    if (hasPlanetaryOxygenGenerator(this.store.state.settlements[planet.id]))
+      lines.push("Gerador planetário de oxigênio");
     let label = this.planetLabels.get(planet.id);
     if (!label) {
-      const biome = biomes[planet.kind]!;
       label = this.add
         .text(
           0,
           0,
-          [planet.name, `✓ Catalogado · ${biome.name}`, biome.resources],
+          lines,
           {
             fontFamily: "monospace",
             fontSize: "10px",
@@ -2585,7 +2600,7 @@ export class WorldScene extends Phaser.Scene {
         )
         .setDepth(1);
       this.planetLabels.set(planet.id, label);
-    }
+    } else label.setText(lines);
 
     const margin = 8,
       gap = radius + 12;
@@ -3116,30 +3131,7 @@ export class WorldScene extends Phaser.Scene {
       contactShadow(landingX * 16, groundY - offsetY, shipWidth * 0.64 * PLANETARY_SHIP_SCALE);
       drawLandingGear(f, shipX, shipY + gearOffset * PLANETARY_SHIP_SCALE, PLANETARY_SHIP_SCALE, 1);
       this.drawShip(shipX, shipY, 0, false, undefined, f, PLANETARY_SHIP_SCALE, 3);
-      if (sequence?.kind === "disembark" || sequence?.kind === "boarding") {
-        const elapsed = Math.min(1, sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind]);
-        const progress = sequence.kind === "boarding" ? 1 - elapsed : elapsed;
-        const step = Math.max(0, (progress - 0.18) / 0.82);
-        const worldX = landingX * 16 + 12 + 28 * step;
-        const ground = t.height(Math.floor(worldX / 16)) * 16;
-        const ramp = Math.min(1, progress / 0.18);
-        f.fillStyle(0x71e3c7, ramp * 0.26).fillTriangle(
-          shipX + 11,
-          groundY - 12,
-          shipX + 21,
-          groundY + 1,
-          shipX + 37,
-          groundY + 1,
-        );
-        drawBoardingRamp(f, shipX + 11, groundY - 8, ramp);
-        if (progress >= 0.18)
-          this.drawAstronaut(
-            Math.round(worldX - this.camX + this.centerX),
-            Math.round(ground - 13 - (1 - step) * 4 - this.camY + this.centerY),
-            Math.sin(step * Math.PI * 6) * 2,
-            1,
-          );
-      } else if (g.state.mode === "surface") {
+      if (g.state.mode === "surface") {
         const representative = this.representativePosition();
         if (representative && g.civilization) {
           const x = Math.round(representative.x + offsetX);

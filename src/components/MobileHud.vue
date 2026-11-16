@@ -272,7 +272,7 @@ const colossalDistance = computed(() => {
       ></template
     >
     <template
-      v-else-if="surface && (g.habitat.hasGenerator || g.habitat.sealed)"
+      v-else-if="surface && (g.habitat.planetaryInstalled || g.habitat.hasGenerator || g.habitat.sealed)"
       >{{ habitatMessage(g.habitat) }} · Traje
       {{ Math.ceil(g.state.player.oxygen) }}%</template
     >

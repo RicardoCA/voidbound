@@ -1,3 +1,4 @@
+import { fallbackLandedHull, landedHullOverlap, landingSideExit } from "../game/physics/landedShip";
 import { advancePowerNetwork, powerNetwork } from "../construction/habitat";
 import { treeAt } from "../game/procedural/trees";
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader } from "three";
@@ -353,4 +354,22 @@ it("aproxima a câmera de terceira pessoa quando há terreno atrás do jogador",
   } finally {
     world.dispose();
   }
+});
+
+it("escolhe uma saída lateral fora do casco da nave pousada", () => {
+  const terrain = new Terrain(planet, {});
+  const settlement = emptySettlement();
+  const hull = fallbackLandedHull;
+  const point = landingSideExit(terrain, settlement, 0, hull);
+  expect(point).toBeDefined();
+  expect(Math.abs(point!.x)).toBeLessThan(32);
+  expect(Math.abs(point!.z)).toBeGreaterThan(hull.maxZ);
+  expect(landedHullOverlap(hull, point!.x, point!.y - terrain.height(0) * 16, point!.z)).toBe(0);
+  expect(landedHullOverlap(hull, 0, -12, 0)).toBeGreaterThan(0);
+});
+
+it("deixa espaço vazio dentro dos limites externos da nave transitável", () => {
+  const hull = { ...fallbackLandedHull, intersectsMesh: (x: number) => x < 20 };
+  expect(landedHullOverlap(hull, 70, -12, 0)).toBe(0);
+  expect(landedHullOverlap(hull, 0, -12, 0)).toBe(1);
 });

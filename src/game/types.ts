@@ -81,7 +81,8 @@ export type Item =
   | "solarPanel"
   | "campfire"
   | "battery"
-  | "oxygenGenerator";
+  | "oxygenGenerator"
+  | "planetaryOxygenGenerator";
 export type MeatBatch = { amount: number; expires: number };
 export type Inventory = Partial<Record<Item, number>> & {
   meatBatches?: MeatBatch[];
@@ -134,7 +135,8 @@ export type BuildItem =
   | "solarPanel"
   | "campfire"
   | "battery"
-  | "oxygenGenerator";
+  | "oxygenGenerator"
+  | "planetaryOxygenGenerator";
 export interface PlacedPiece {
   kind: Exclude<BuildItem, "woodWall" | "stoneWall" | "metalWall">;
   facing: 1 | -1;
@@ -693,6 +695,13 @@ export const items: Record<Item, ItemDetails> = {
     icon: "▣",
     rarity: "Construção",
     stack: 99,
+  },
+  planetaryOxygenGenerator: {
+    name: "Gerador planetário de oxigênio",
+    color: "#6ee8ff",
+    icon: "◉",
+    rarity: "Construção",
+    stack: 10,
   },
   oxygenGenerator: {
     name: "Gerador de oxigênio",

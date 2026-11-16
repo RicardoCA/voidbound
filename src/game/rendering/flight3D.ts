@@ -1,3 +1,5 @@
+import type { LandedHull } from "../physics/landedShip";
+import type { ShipModelId } from "../types";
 import type { CabinFootprint } from "../cabin/CabinInterior";
 import type { SurfaceFrame, SurfaceTarget } from "./SurfaceWorld3D";
 import { showroomSpawn } from "../station/showroom";
@@ -6,6 +8,7 @@ import { hash } from "../procedural/random";
 import type { Bolt } from "../../combat/flight";
 
 export const PLANETARY_SHIP_SCALE = 3;
+export const landedShipHulls = new Map<ShipModelId, LandedHull>();
 
 export function spaceAltitude(
   kind: "planet" | "star" | "asteroid",

@@ -488,3 +488,31 @@ describe("Gerador sem armazenamento elétrico interno", () => {
     expect(data.pieces["6,28"]!.energy).toBe(0);
   });
 });
+
+it("abastece o traje longe da base com cinco placas e uma bateria próxima", () => {
+  const g = useGame();
+  g.newGame("oxigenio-planetario");
+  g.orbit(0);
+  g.land(0);
+  g.exit();
+  const data = settlementFor(g.state, g.planet.id);
+  data.pieces["0,25"] = { kind: "planetaryOxygenGenerator", facing: 1 };
+  data.pieces["1,25"] = { kind: "battery", facing: 1, energy: 100 };
+  for (let x = 2; x <= 6; x++)
+    data.pieces[`${x},23`] = { kind: "solarPanel", facing: 1 };
+  g.state.player.x = 2000;
+  g.state.player.surfaceZ = 96;
+  g.state.player.oxygen = 5;
+  g.refreshHabitat();
+  expect(g.habitat.planetaryActive).toBe(true);
+  expect(g.state.player.oxygen).toBe(100);
+  delete data.pieces["6,23"];
+  g.worldChanged();
+  g.refreshHabitat();
+  expect(g.habitat.planetaryActive).toBeUndefined();
+  data.pieces["6,23"] = { kind: "solarPanel", facing: 1 };
+  delete data.pieces["1,25"];
+  g.worldChanged();
+  g.refreshHabitat();
+  expect(g.habitat.planetaryActive).toBeUndefined();
+});

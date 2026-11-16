@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hasPlanetaryOxygenGenerator } from "../construction/habitat";
 import PlanetScanProgress from "./PlanetScanProgress.vue";
 import { computed } from "vue";
 import { useGame } from "../stores/game";
@@ -103,6 +104,9 @@ const minerals = computed(() => {
           {{ g.state.progression.discoveries["planet:" + planet.id]?.notes }}
         </p>
         <small>Catalogado</small>
+        <p v-if="hasPlanetaryOxygenGenerator(g.state.settlements[planet.id])">
+          Gerador planetário de oxigênio instalado
+        </p>
       </template>
       <template v-else>
         <p v-if="distance">

@@ -55,17 +55,29 @@ export class HabitatSystem {
       from = Math.min(now, data.utilityTime ?? Math.max(0, now - dt));
     advancePowerNetwork(data, network, from, now);
     if (
+      network.planetary.length ||
       network.generators.length ||
       network.batteries.length ||
       network.fridges.length
     )
       data.utilityTime = now;
-    const report = {
+    const report: HabitatReport = {
       ...emptyHabitat(),
       panels: network.panels,
       exposedPanels: network.exposedPanels,
       generators: network.generators.length,
     };
+    report.planetaryInstalled = network.planetary.length > 0;
+    const planetary = network.planetary.find(({key}) => data.pieces[key]?.powered);
+    if (planetary && state.mode === "surface") {
+      report.planetaryActive = report.supplied = true;
+      report.connectedPanels = planetary.panels;
+      report.batteries = 1;
+      report.batteryCapacity = BATTERY_CAP;
+      report.batteryEnergy = data.pieces[planetary.battery!]?.energy ?? 0;
+      if (oxygenEnabled) state.player.oxygen = 100;
+      return report;
+    }
     function reportPower(generators: PowerNetwork["generators"]) {
       const keys = new Set(generators.flatMap((g) => g.batteries));
       report.batteries = keys.size;

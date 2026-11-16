@@ -39,6 +39,8 @@ const descriptions = {
     "Instale sobre chão firme. Use E ou toque na fogueira para assar carne crua.",
   battery:
     "Armazena até 1.200 de energia solar e alimenta o gerador mais próximo até 12 blocos, inclusive à noite. E ou toque mostra a carga.",
+  planetaryOxygenGenerator:
+    "Fornece oxigênio em toda a superfície enquanto houver energia. Instale 5 placas solares expostas e uma bateria a até 12 blocos.",
   oxygenGenerator:
     "Produz e armazena O₂ usando bateria ou energia solar direta. Recarrega o traje em um cômodo vedado, com paredes de fundo.",
 };

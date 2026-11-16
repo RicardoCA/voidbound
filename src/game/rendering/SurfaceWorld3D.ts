@@ -14,6 +14,7 @@ const terrainKits = [
 const surfaceTileOffset = 16;
 
 const equipmentModels = {
+  planetaryOxygenGenerator: { file: "gerador-oxigenio", width: 15, height: 23, depth: 12, center: -3 },
   campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
   stickLadder: { file: "escada-vertical", width: 12, height: 16, depth: 3, center: -2 },
   woodStairs: { file: "escada-madeira", width: 16, height: 16, depth: 12, center: -6 },
@@ -404,10 +405,10 @@ export class SurfaceWorld3D {
     if (!frame.thirdPerson) return;
 
     const sin = Math.sin(yaw), cos = Math.cos(yaw);
-    const behind = 39 * Math.cos(pitch);
+    const behind = 55 * Math.cos(pitch);
     const offset = this.cameraOffset.set(
       sin * behind + cos * 9,
-      13 - Math.sin(pitch) * 29,
+      18 - Math.sin(pitch) * 40,
       cos * behind - sin * 9,
     );
     const { terrain, settlement } = frame;

@@ -119,12 +119,9 @@ describe("Progressão e salvamento", () => {
     g.collect("copper", 4);
     g.collect("silicon", 2);
     expect(g.state.mission).toBe(2);
-    g.beginBoarding();
-    expect(g.surfaceSequence?.kind).toBe("boarding");
-    g.advanceSurfaceSequence(.5);
-    expect(g.state.mode).toBe("surface");
-    g.advanceSurfaceSequence(.7);
+    g.enter();
     expect(g.state.mode).toBe("interior");
+    expect(g.surfaceSequence).toBeUndefined();
     expect(g.moveCargo(true, "iron", 6)).toBe(true);
     expect(g.moveCargo(true, "copper", 4)).toBe(true);
     expect(g.moveCargo(true, "silicon", 2)).toBe(true);

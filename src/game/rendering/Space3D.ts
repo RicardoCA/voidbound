@@ -2,7 +2,7 @@ import { SurfaceWorld3D, type SurfaceFrame } from "./SurfaceWorld3D";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { emptySettlement } from "../../construction/building";
 import { fruitsNear, Wildlife, type Fruit } from "../../survival/wildlife";
-import { daylight, solarPhase } from "../../construction/habitat";
+import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { systemWrecks } from "../../combat/traffic";
 import { COLOSSAL_MODEL_SCALE } from "../../fleet/colossal";
 import { clone as cloneRig } from "three/addons/utils/SkeletonUtils.js";
@@ -21,7 +21,7 @@ import { DOCKING_DURATION, STATION_EXIT_DISTANCE } from "../../stores/game";
 import { shipModels } from "../../fleet/models";
 import type { Planet, ShipModelId } from "../types";
 import { cabinEquipment, type CabinEquipment, type CabinFootprint } from "../cabin/CabinInterior";
-import { flight3D, spaceAltitude, PLANETARY_SHIP_SCALE } from "./flight3D";
+import { flight3D, spaceAltitude, PLANETARY_SHIP_SCALE, landedShipHulls } from "./flight3D";
 import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
 import type { useGame } from "../../stores/game";
@@ -68,8 +68,6 @@ export class Space3D {
     key: string;
     actors: T.Group;
     craft: T.Group;
-    ramp: T.Group;
-    astronaut: T.Group;
   };
   private jumpScene?: T.Scene;
   private jumpFallback?: T.Group;
@@ -91,12 +89,6 @@ export class Space3D {
     duration: number;
     landing: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
     takeoff: { ship: T.Object3D; camera: T.Object3D; target: T.Object3D };
-    disembark: {
-      ramp: T.Object3D;
-      pilot: T.Object3D;
-      camera: T.Object3D;
-      target: T.Object3D;
-    };
   };
   private showroomRoom?: {
     scene: T.Scene;
@@ -133,6 +125,7 @@ export class Space3D {
   private readonly walkAxis = new T.Vector3(1, 0, 0);
   private readonly walkRotation = new T.Quaternion();
   private cabinScene?: T.Scene;
+  private readonly requestedLandedHulls = new Set<ShipModelId>();
   private cabinSpaceBackdrop?: T.Group;
   private readonly cabinImportedBackdrop: T.Object3D[] = [];
   private cabinSurface?: {
@@ -192,12 +185,6 @@ export class Space3D {
           duration: Math.max(...clips.map((clip) => clip.duration)),
           landing: tracking("Landing"),
           takeoff: tracking("Takeoff"),
-          disembark: {
-            ramp: rig.getObjectByName("DisembarkRamp")!,
-            pilot: rig.getObjectByName("DisembarkPilot")!,
-            camera: rig.getObjectByName("DisembarkCamera")!,
-            target: rig.getObjectByName("DisembarkTarget")!,
-          },
         };
       })
       .catch((error: unknown) =>
@@ -579,7 +566,7 @@ export class Space3D {
     return group;
   }
 
-  private shipForModel(id: ShipModelId, controlled = true) {
+  private shipForModel(id: ShipModelId, controlled = true, planetary = false) {
     const model = shipModels[id];
     const family = model.hullFamily;
     const heavy =
@@ -652,12 +639,62 @@ export class Space3D {
     const variant = new T.Group();
     variant.add(...body.children);
     variant.scale.copy(body.scale);
+    const recordLandedHull = () => {
+      // The parked ship points along +X and sits above the landing tile.
+      const probe = new T.Group();
+      probe.add(variant.clone());
+      for (const part of [...probe.children[0]!.children])
+        if (part.name === "exhaust") part.removeFromParent();
+      const shape = probe.children[0]!;
+      shape.rotation.y = -Math.PI / 2;
+      shape.scale.copy(body.scale).multiplyScalar(PLANETARY_SHIP_SCALE);
+      shape.position.y = 10 * PLANETARY_SHIP_SCALE;
+      const { min, max } = new T.Box3().setFromObject(probe, true);
+      const cellSize = 16;
+      const buckets = new Map<string, T.Triangle[]>();
+      const triangleBounds = new T.Box3();
+      shape.traverse((part) => {
+        if (!(part instanceof T.Mesh)) return;
+        const positions = part.geometry.getAttribute("position");
+        const index = part.geometry.index;
+        if (!positions) return;
+        for (let i = 0; i + 2 < (index?.count ?? positions.count); i += 3) {
+          const vertex = (at: number) => new T.Vector3()
+            .fromBufferAttribute(positions, index?.getX(at) ?? at)
+            .applyMatrix4(part.matrixWorld);
+          const tri = new T.Triangle(vertex(i), vertex(i + 1), vertex(i + 2));
+          triangleBounds.makeEmpty().expandByPoint(tri.a).expandByPoint(tri.b).expandByPoint(tri.c);
+          for (let x = Math.floor(triangleBounds.min.x / cellSize); x <= Math.floor(triangleBounds.max.x / cellSize); x++)
+            for (let z = Math.floor(triangleBounds.min.z / cellSize); z <= Math.floor(triangleBounds.max.z / cellSize); z++) {
+              const key = `${x},${z}`;
+              const bucket = buckets.get(key);
+              if (bucket) bucket.push(tri);
+              else buckets.set(key, [tri]);
+            }
+        }
+      });
+      const playerBox = new T.Box3();
+      landedShipHulls.set(id, {
+        minX: min.x, maxX: max.x, minY: -max.y, maxY: -min.y, minZ: min.z, maxZ: max.z,
+        intersectsMesh(x, y, z) {
+          playerBox.min.set(x - 4, -y - 12, z - 4);
+          playerBox.max.set(x + 4, -y + 12, z + 4);
+          for (let column = Math.floor(playerBox.min.x / cellSize); column <= Math.floor(playerBox.max.x / cellSize); column++)
+            for (let depth = Math.floor(playerBox.min.z / cellSize); depth <= Math.floor(playerBox.max.z / cellSize); depth++)
+              if (buckets.get(`${column},${depth}`)?.some((triangle) => playerBox.intersectsTriangle(triangle)))
+                return true;
+          return false;
+        },
+      });
+    };
+
     void this.loadEnvironmentAsset("naves/" + id)
       .then((asset) => {
         if (this.disposed) return;
         const exhausts = variant.children.filter((part) => part.name === "exhaust");
         variant.clear();
         variant.add(asset.clone(), ...exhausts);
+        if (planetary && !landedShipHulls.has(id)) recordLandedHull();
         for (const [index, exhaust] of exhausts.entries()) {
           exhaust.position.x = index === 0 ? -4.7 : 4.7;
           exhaust.position.y = -1;
@@ -715,15 +752,16 @@ export class Space3D {
     return group;
   }
 
-  private planetCatalogLabel(planet: Planet) {
+  private planetCatalogLabel(planet: Planet, planetaryOxygen: boolean) {
     const biome = biomes[planet.kind]!;
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d")!;
     const lines = [planet.name, `✓ Catalogado · ${biome.name}`, biome.resources];
+    if (planetaryOxygen) lines.push("Gerador planetário de oxigênio");
     const font = "24px monospace";
     context.font = font;
     canvas.width = Math.ceil(Math.max(...lines.map((line) => context.measureText(line).width))) + 28;
-    canvas.height = 100;
+    canvas.height = 13 + lines.length * 29;
     context.fillStyle = "#101d2e";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "#b8e4db";
@@ -1673,6 +1711,11 @@ export class Space3D {
     if (!this.resize()) return false;
     const inFlight = g.flightCabin;
     this.prepareCabin(g.state.wardrobe?.equipped);
+    const model = g.state.activeShip.model;
+    if (!landedShipHulls.has(model) && !this.requestedLandedHulls.has(model)) {
+      this.requestedLandedHulls.add(model);
+      this.shipForModel(model, false, true);
+    }
     if (this.cabinLoading || !this.cabinActor || this.loadingPilots.has(this.cabinActor))
       return false;
     const { x, z, stride, heading } = flight3D.cabin;
@@ -1684,14 +1727,7 @@ export class Space3D {
     this.cabinHatch!.visible = !inFlight;
     const aspect = this.width / this.height;
     const distance = aspect < 1.5 ? 125 / Math.max(aspect, 0.5) + 70 : 146;
-    this.cabinCamera.aspect = aspect;
-    this.cabinCamera.position.set(
-      x * 0.78 + distance * 0.24,
-      18 + distance * 0.86,
-      z * 0.25 + distance,
-    );
-    this.cabinCamera.lookAt(x * 0.78, 12, z * 0.25 - 12);
-    this.cabinCamera.updateProjectionMatrix();
+    this.aimInteriorCamera(x * 0.78, z * 0.25 - 12, distance);
     const landed = !inFlight && g.state.mode === "interior";
     const liveExterior = landed || inFlight;
     this.cabinSpaceBackdrop!.visible = !liveExterior;
@@ -1702,6 +1738,13 @@ export class Space3D {
       this.renderCabinOverlay();
     } else this.renderer.render(this.cabinScene!, this.cabinCamera);
     return true;
+  }
+
+  private aimInteriorCamera(x: number, z: number, distance: number) {
+    this.cabinCamera.aspect = this.width / this.height;
+    this.cabinCamera.position.set(x + distance * .24, 18 + distance * .86, z + distance + 12);
+    this.cabinCamera.lookAt(x, 12, z);
+    this.cabinCamera.updateProjectionMatrix();
   }
 
   private renderCabinOverlay() {
@@ -1951,10 +1994,9 @@ export class Space3D {
     const turn = heading - actor.rotation.y;
     actor.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * 0.24;
     this.animatePilot(actor, stride);
-    this.cabinCamera.aspect = this.width / this.height;
-    this.cabinCamera.position.set(actor.position.x, 88, actor.position.z + 143);
-    this.cabinCamera.lookAt(actor.position.x, 17, actor.position.z - 36);
-    this.cabinCamera.updateProjectionMatrix();
+    const aspect = this.width / this.height;
+    const distance = aspect < 1 ? 167 / Math.max(aspect, .65) : 167;
+    this.aimInteriorCamera(actor.position.x, actor.position.z - 36, distance);
     this.renderer.render(scene, this.cabinCamera);
   }
 
@@ -1984,7 +2026,7 @@ export class Space3D {
     const model = g.state.activeShip.model;
     if (!view.ship || view.shipModel !== model) {
       view.ship?.removeFromParent();
-      view.ship = this.shipForModel(model, false);
+      view.ship = this.shipForModel(model, false, true);
       view.ship.scale.multiplyScalar(PLANETARY_SHIP_SCALE);
       view.shipModel = model;
       view.ship.rotation.y = -Math.PI / 2;
@@ -2002,7 +2044,6 @@ export class Space3D {
       if (!view.pilot || view.pilotOutfit !== key) {
         view.pilot?.removeFromParent();
         view.pilot = this.dressedPilot(outfit);
-        view.pilot.scale.setScalar(1.15);
         view.world.scene.add(view.pilot);
         view.pilotOutfit = key;
       }
@@ -2046,96 +2087,24 @@ export class Space3D {
       planet.id,
       sequence.landingX,
       model,
-      g.state.wardrobe?.equipped,
     ]);
     if (this.surfaceCinematic?.key !== key) {
       const actors = new T.Group();
       const craft = this.shipForModel(model);
       craft.scale.multiplyScalar(PLANETARY_SHIP_SCALE);
       actors.add(craft);
-      const ramp = new T.Group();
-      ramp.position.set(12, 6, 0);
-      this.part(ramp, this.box, this.material(0x63758a), 8, 0, 0, 16, 1, 9);
-      for (const z of [-4, 4])
-        this.part(
-          ramp,
-          this.box,
-          this.lightMaterial(0xe2aa57),
-          8,
-          0.6,
-          z,
-          15,
-          0.4,
-          0.5,
-        );
-      const astronaut = this.dressedPilot(g.state.wardrobe?.equipped);
-      astronaut.scale.setScalar(0.65);
-      actors.add(ramp, astronaut);
-      this.surfaceCinematic = { key, actors, craft, ramp, astronaut };
+      this.surfaceCinematic = { key, actors, craft };
     }
-    const { actors, craft, ramp, astronaut } = this.surfaceCinematic;
+    const { actors, craft } = this.surfaceCinematic;
     const padX = sequence.landingX * 16;
     const ground = g.planetTerrain.height(sequence.landingX) * 16;
-    const elapsed = T.MathUtils.clamp(
+    const progress = T.MathUtils.clamp(
       sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind],
       0,
       1,
     );
-    const progress = sequence.kind === "boarding" ? 1 - elapsed : elapsed;
     const rig = this.surfaceFlight;
     if (rig) rig.mixer.setTime(progress * rig.duration * 0.9999);
-    const disembarking = sequence.kind === "disembark" || sequence.kind === "boarding";
-    ramp.visible = disembarking;
-    astronaut.visible = disembarking && progress > (rig ? 0.30 : 0.22);
-    if (disembarking) {
-      craft.position.set(0, 10 * PLANETARY_SHIP_SCALE, 0);
-      craft.rotation.set(0, -Math.PI / 2, 0);
-      for (const part of craft.children)
-        if (part.name === "exhaust") part.visible = false;
-      this.cabinCamera.aspect = this.width / this.height;
-      if (rig) {
-        const track = rig.disembark;
-        if (!ramp.userData.blenderRamp) {
-          ramp.clear();
-          ramp.add(...track.ramp.children.map((part) => part.clone()));
-          ramp.userData.blenderRamp = true;
-        }
-        ramp.position.copy(track.ramp.position);
-        ramp.quaternion.copy(track.ramp.quaternion);
-        astronaut.position.copy(track.pilot.position);
-        astronaut.quaternion.copy(track.pilot.quaternion);
-        this.animatePilot(astronaut, track.pilot.scale.x);
-        this.cabinCamera.position.copy(track.camera.position).lerp(track.target.position, -.85);
-        this.cabinCamera.lookAt(track.target.position);
-      } else {
-        const opening = T.MathUtils.smoothstep(progress, 0, 0.27);
-        ramp.rotation.z = T.MathUtils.lerp(1.4, -Math.asin(6 / 16), opening);
-        const walk = T.MathUtils.smoothstep(progress, 0.22, 1);
-        astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
-        astronaut.rotation.y = -Math.PI / 2;
-        this.animatePilot(astronaut, walk * Math.PI * 6);
-        this.cabinCamera.position.set(72 + walk * 10, 54, 125);
-        this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
-      }
-      const exit = g.planetaryExitPosition(sequence.landingX);
-      const exitShift = (exit.x - padX - astronaut.position.x) *
-        T.MathUtils.smoothstep(progress, .35, 1);
-      astronaut.position.x += exitShift;
-      this.cabinCamera.position.x += exitShift;
-      if (rig) {
-        const target = rig.disembark.target.position;
-        this.cabinCamera.lookAt(target.x + exitShift, target.y, target.z);
-      } else {
-        this.cabinCamera.lookAt(astronaut.position.x, 7, 0);
-      }
-      const exitGround = g.planetTerrain.heightAt(
-        Math.floor((padX + astronaut.position.x) / 16),
-        Math.floor((astronaut.position.z + 8) / 16),
-      ) * 16;
-      astronaut.position.y = Math.max(astronaut.position.y, ground - exitGround);
-      this.renderSurfaceCinematic(g, sequence.landingX, actors, ground, 0);
-      return;
-    }
     const takingOff = sequence.kind === "takeoff";
     const flight = takingOff ? 1 - (1 - progress) ** 2 : (1 - progress) ** 2;
     const altitude = takingOff ? 480 * progress ** 1.7 : 230 * flight;
@@ -2617,9 +2586,10 @@ export class Space3D {
         Math.hypot(observer.x - x, observer.y - y, observerAltitude - altitude) -
         radius;
       if (surfaceDistance > 1_000) return;
+      const planetaryOxygen = hasPlanetaryOxygenGenerator(g.state.settlements[planet.id]);
       const label = this.object(
-        "planet-catalog:" + planet.id,
-        () => this.planetCatalogLabel(planet),
+        `planet-catalog:${planet.id}:${planetaryOxygen}`,
+        () => this.planetCatalogLabel(planet, planetaryOxygen),
         seen,
       ) as T.Sprite;
       const center = model.position.clone().applyMatrix4(this.camera.matrixWorldInverse);

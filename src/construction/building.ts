@@ -40,6 +40,7 @@ export const buildItems: BuildItem[] = [
   "campfire",
   "battery",
   "oxygenGenerator",
+  "planetaryOxygenGenerator",
 ];
 export const CABINET_SLOTS = 16,
   BUILD_RANGE = 96;
@@ -178,6 +179,7 @@ export function placementError(
         "solarPanel",
         "battery",
         "oxygenGenerator",
+        "planetaryOxygenGenerator",
       ].includes(kind)) &&
     !cells
       .filter((cell) => cell.y === y)

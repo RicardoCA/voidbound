@@ -53,35 +53,6 @@ export function drawGroundWake(
   }
 }
 
-export function drawBoardingRamp(
-  g: Graphics,
-  x: number,
-  y: number,
-  deployment: number,
-) {
-  if (deployment <= 0) return;
-  const reach = Math.round(21 * deployment);
-  const drop = Math.round(8 * deployment);
-  g.fillStyle(0x172638).fillTriangle(
-    x,
-    y,
-    x + reach,
-    y + drop,
-    x,
-    y + drop + 3,
-  );
-  g.lineStyle(3, 0x536c80).lineBetween(x, y, x + reach, y + drop);
-  g.lineStyle(1, 0xa6bdc3).lineBetween(x, y - 1, x + reach, y + drop - 1);
-  for (let tread = 4; tread < reach; tread += 4) {
-    g.fillStyle(tread % 8 ? 0x293e52 : 0xd4a568).fillRect(
-      x + tread,
-      y + Math.round((tread * drop) / reach),
-      2,
-      2,
-    );
-  }
-}
-
 export function drawDockingLane(
   g: Graphics,
   x: number,

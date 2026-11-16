@@ -5,14 +5,14 @@ import { habitatMessage, daylight } from "../construction/habitat";
 defineProps<{ always?: boolean }>();
 const g = useGame(),
   message = computed(() =>
-    !g.habitat.hasGenerator && !g.habitat.sealed
+    !g.habitat.planetaryInstalled && !g.habitat.hasGenerator && !g.habitat.sealed
       ? "Instale um gerador dentro da casa e placas solares do lado de fora."
       : habitatMessage(g.habitat),
   );
 </script>
 <template>
   <section
-    v-if="always || g.habitat.hasGenerator || g.habitat.sealed"
+    v-if="always || g.habitat.planetaryInstalled || g.habitat.hasGenerator || g.habitat.sealed"
     class="habitat-status"
     :class="{ supplied: g.habitat.supplied }"
   >
