@@ -331,13 +331,6 @@
     letter-spacing: 0.6px;
     box-shadow: 0 3px 12px #0002;
   }
-  .touch-actions.surface-look-actions {
-    grid-template-areas: "look look" "aux mine" "interact interact";
-  }
-  .touch-actions .touch-look {
-    grid-area: look;
-    min-height: 44px;
-  }
   .touch-actions button:active {
     background: #3c737be6;
     transform: none;
