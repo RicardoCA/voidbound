@@ -167,6 +167,7 @@ function minutes() {
     class="app-shell"
     :class="{
       'is-playing': g.started,
+      'is-flying': g.started && g.state.mode === 'space' && !g.flightCabin && !g.paused && !g.panel,
       'is-building': b.enabled,
       'at-station': g.started && atStation,
       'in-cabin': g.started && inShip,

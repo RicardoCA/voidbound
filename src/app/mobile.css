@@ -10,6 +10,13 @@
   right: 32px;
 }
 @media (pointer: coarse), (max-width: 760px) {
+  .app-shell.is-flying,
+  .app-shell.is-flying * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .app-shell.is-playing {
     --mobile-hud-height: 110px;
     position: fixed;
