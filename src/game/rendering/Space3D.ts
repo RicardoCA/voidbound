@@ -2100,6 +2100,17 @@ export class Space3D {
         this.cabinCamera.position.set(72 + walk * 10, 54, 125);
         this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
       }
+      const exit = g.planetaryExitPosition(sequence.landingX);
+      const exitShift = (exit.x - padX - astronaut.position.x) *
+        T.MathUtils.smoothstep(progress, .35, 1);
+      astronaut.position.x += exitShift;
+      this.cabinCamera.position.x += exitShift;
+      if (rig) {
+        const target = rig.disembark.target.position;
+        this.cabinCamera.lookAt(target.x + exitShift, target.y, target.z);
+      } else {
+        this.cabinCamera.lookAt(astronaut.position.x, 7, 0);
+      }
       const exitGround = g.planetTerrain.heightAt(
         Math.floor((padX + astronaut.position.x) / 16),
         Math.floor((astronaut.position.z + 8) / 16),

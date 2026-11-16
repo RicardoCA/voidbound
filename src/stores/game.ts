@@ -1,3 +1,4 @@
+import { openSurfacePosition } from "../construction/openSurfacePosition";
 import { surfaceLayer } from "../game/physics/surfaceDepth";
 import type { ShipModelId } from "../game/types";
 import { flight3D, spaceAltitude } from "../game/rendering/flight3D";
@@ -1028,10 +1029,16 @@ export const useGame = defineStore("game", () => {
     notify("Pouso confirmado. Saia da nave para explorar.");
     void save();
   }
+  function planetaryExitPosition(landingX = state.value.landingX) {
+    return openSurfacePosition(planetTerrain.value, state.value.settlements[planet.value.id],
+      landingX + 9, 0, landingX, 9) ?? { x: (landingX + 9) * 16 + 8, y: 0 };
+  }
   function exit() {
     state.value.player.surfaceZ = 0;
-    state.value.player.x = state.value.landingX * 16 + 40;
-    state.value.player.y = 0;
+    const position = flight3D.selected ? planetaryExitPosition()
+      : { x: state.value.landingX * 16 + 40, y: 0 };
+    state.value.player.x = position.x;
+    state.value.player.y = position.y;
     state.value.mode = "surface";
     panel.value = "";
     void save();
@@ -1831,6 +1838,7 @@ export const useGame = defineStore("game", () => {
     beginLanding,
     beginDisembark,
     beginBoarding,
+    planetaryExitPosition,
     advanceSurfaceSequence,
     panel,
     governmentAnchor,

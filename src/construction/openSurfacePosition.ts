@@ -9,6 +9,7 @@ export function openSurfacePosition(
   preferred: number,
   clearance: number,
   landingX?: number,
+  landingClearance = 5,
 ) {
   const occupied = new Set<number>();
   for (const [key, piece] of Object.entries(settlement?.pieces ?? {})) {
@@ -24,7 +25,7 @@ export function openSurfacePosition(
         ? [preferred]
         : [preferred + distance, preferred - distance];
     for (const column of candidates) {
-      if (landingX !== undefined && Math.abs(column - landingX) < 5) continue;
+      if (landingX !== undefined && Math.abs(column - landingX) < landingClearance) continue;
       let clear = true;
       for (let offset = -clearance; offset <= clearance; offset++)
         if (occupied.has(column + offset)) {

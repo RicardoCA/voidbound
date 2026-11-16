@@ -1011,7 +1011,7 @@ export class WorldScene extends Phaser.Scene {
             const [x, y, depth] = cabinet.key.split(",").map(Number);
             this.building.interactAt(x!, y!, depth);
           } else if (
-            Math.abs(s.player.x - s.landingX * 16) < 90 &&
+            Math.abs(s.player.x - s.landingX * 16) < (flight3D.surfaceView ? 170 : 90) &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
             g.beginBoarding();
