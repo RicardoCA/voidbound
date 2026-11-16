@@ -111,6 +111,7 @@ export const STATION_EXIT_DISTANCE = 145;
 export const SURFACE_SEQUENCE_DURATION = {
   landing: 2.3,
   disembark: 1.1,
+  boarding: 1.1,
   takeoff: 5,
 } as const;
 type SurfaceSequence = {
@@ -1013,6 +1014,7 @@ export const useGame = defineStore("game", () => {
     releaseControls();
     if (sequence.kind === "landing") land(sequence.landingX / 24);
     else if (sequence.kind === "takeoff") takeoff();
+    else if (sequence.kind === "boarding") enter();
     else exit();
   }
   function land(zone: number) {
@@ -1033,6 +1035,13 @@ export const useGame = defineStore("game", () => {
     state.value.mode = "surface";
     panel.value = "";
     void save();
+  }
+  function beginBoarding() {
+    if (state.value.mode !== "surface" || surfaceSequence.value || paused.value)
+      return;
+    releaseControls();
+    surfaceSequence.value = { kind: "boarding", landingX: state.value.landingX, elapsed: 0 };
+    audio.playSurface("disembark", SURFACE_SEQUENCE_DURATION.boarding);
   }
   function enter() {
     state.value.mode = "interior";
@@ -1821,6 +1830,7 @@ export const useGame = defineStore("game", () => {
     advanceDocking,
     beginLanding,
     beginDisembark,
+    beginBoarding,
     advanceSurfaceSequence,
     panel,
     governmentAnchor,

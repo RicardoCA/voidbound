@@ -3,7 +3,7 @@ import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollisio
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
-import { flight3D, spaceAltitude, turnSurfaceCamera } from "../rendering/flight3D";
+import { flight3D, spaceAltitude, turnSurfaceCamera, PLANETARY_SHIP_SCALE } from "../rendering/flight3D";
 import {
   COLOSSAL_MODEL_SCALE,
   COLOSSAL_SPEED,
@@ -1014,7 +1014,7 @@ export class WorldScene extends Phaser.Scene {
             Math.abs(s.player.x - s.landingX * 16) < 90 &&
             Math.abs(s.player.y - this.terrain!.height(s.landingX) * 16) < 80
           )
-            g.enter();
+            g.beginBoarding();
           else if (cabinet.key) {
             const [x, y, depth] = cabinet.key.split(",").map(Number);
             this.building.interactAt(x!, y!, depth);
@@ -3033,17 +3033,17 @@ export class WorldScene extends Phaser.Scene {
       true,
     );
     const gearOffset = shipHeight / 2 - 7;
-    const shipY = groundY - (shipHeight / 2 + 5);
+    const shipY = groundY - (shipHeight / 2 + 5) * PLANETARY_SHIP_SCALE;
     if (sequence?.kind === "takeoff") {
       const elapsed = sequence.elapsed;
       const lift = this.takeoffLift(elapsed);
       const x = shipX + 68 * lift;
       const y = shipY - 158 * lift;
-      const scale = 1 - 0.36 * lift;
+      const scale = PLANETARY_SHIP_SCALE * (1 - 0.36 * lift);
       f.fillStyle(0x101a29, 0.38 * (1 - lift)).fillEllipse(
         shipX,
         groundY - 1,
-        shipWidth * 0.64 + 24 * lift,
+        shipWidth * 0.64 * PLANETARY_SHIP_SCALE + 24 * lift,
         4,
       );
       drawGroundWake(
@@ -3073,7 +3073,7 @@ export class WorldScene extends Phaser.Scene {
     } else if (descent !== undefined) {
       const altitude = Math.max(0, 1 - descent / 0.84) ** 2;
       const flare = Math.sin(Math.PI * Math.min(1, descent / 0.84));
-      const scale = 1 - 0.48 * altitude;
+      const scale = PLANETARY_SHIP_SCALE * (1 - 0.48 * altitude);
       const x = shipX - 112 * altitude + 13 * flare;
       const y = shipY - 145 * altitude;
       const depth = 3 + 2 * altitude;
@@ -3084,7 +3084,7 @@ export class WorldScene extends Phaser.Scene {
       f.fillEllipse(
         shipX - 47 * altitude,
         groundY - 1,
-        shipWidth * 0.64 + altitude * 24,
+        shipWidth * 0.64 * PLANETARY_SHIP_SCALE + altitude * 24,
         5 + altitude * 6,
       );
       drawLandingGear(
@@ -3112,14 +3112,12 @@ export class WorldScene extends Phaser.Scene {
         biome.ground,
       );
     } else {
-      contactShadow(landingX * 16, groundY - offsetY, shipWidth * 0.64);
-      drawLandingGear(f, shipX, shipY + gearOffset, 1, 1);
-      this.drawShip(shipX, shipY, 0, false, undefined, f, 1, 3);
-      if (sequence?.kind === "disembark") {
-        const progress = Math.min(
-          1,
-          sequence.elapsed / SURFACE_SEQUENCE_DURATION.disembark,
-        );
+      contactShadow(landingX * 16, groundY - offsetY, shipWidth * 0.64 * PLANETARY_SHIP_SCALE);
+      drawLandingGear(f, shipX, shipY + gearOffset * PLANETARY_SHIP_SCALE, PLANETARY_SHIP_SCALE, 1);
+      this.drawShip(shipX, shipY, 0, false, undefined, f, PLANETARY_SHIP_SCALE, 3);
+      if (sequence?.kind === "disembark" || sequence?.kind === "boarding") {
+        const elapsed = Math.min(1, sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind]);
+        const progress = sequence.kind === "boarding" ? 1 - elapsed : elapsed;
         const step = Math.max(0, (progress - 0.18) / 0.82);
         const worldX = landingX * 16 + 12 + 28 * step;
         const ground = t.height(Math.floor(worldX / 16)) * 16;

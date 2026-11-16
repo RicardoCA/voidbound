@@ -4,6 +4,8 @@ import { shallowReactive } from "vue";
 import { hash } from "../procedural/random";
 import type { Bolt } from "../../combat/flight";
 
+export const PLANETARY_SHIP_SCALE = 3;
+
 export function spaceAltitude(
   kind: "planet" | "star" | "asteroid",
   id: string,

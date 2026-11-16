@@ -21,7 +21,7 @@ import { DOCKING_DURATION, STATION_EXIT_DISTANCE } from "../../stores/game";
 import { shipModels } from "../../fleet/models";
 import type { Planet, ShipModelId } from "../types";
 import { cabinEquipment } from "../cabin/CabinInterior";
-import { flight3D, spaceAltitude } from "./flight3D";
+import { flight3D, spaceAltitude, PLANETARY_SHIP_SCALE } from "./flight3D";
 import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
 import type { useGame } from "../../stores/game";
@@ -1963,12 +1963,13 @@ export class Space3D {
     if (!view.ship || view.shipModel !== model) {
       view.ship?.removeFromParent();
       view.ship = this.shipForModel(model, false);
+      view.ship.scale.multiplyScalar(PLANETARY_SHIP_SCALE);
       view.shipModel = model;
       view.ship.rotation.y = -Math.PI / 2;
       view.world.scene.add(view.ship);
     }
     const pad = g.state.landingX;
-    view.ship.position.set(pad * 16, -frame.terrain.height(pad) * 16 + 10, 0);
+    view.ship.position.set(pad * 16, -frame.terrain.height(pad) * 16 + 10 * PLANETARY_SHIP_SCALE, 0);
     view.representative.visible = !!frame.representative;
     if (frame.representative)
       view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 8);
@@ -2028,6 +2029,7 @@ export class Space3D {
     if (this.surfaceCinematic?.key !== key) {
       const actors = new T.Group();
       const craft = this.shipForModel(model);
+      craft.scale.multiplyScalar(PLANETARY_SHIP_SCALE);
       actors.add(craft);
       const ramp = new T.Group();
       ramp.position.set(12, 6, 0);
@@ -2052,18 +2054,19 @@ export class Space3D {
     const { actors, craft, ramp, astronaut } = this.surfaceCinematic;
     const padX = sequence.landingX * 16;
     const ground = g.planetTerrain.height(sequence.landingX) * 16;
-    const progress = T.MathUtils.clamp(
+    const elapsed = T.MathUtils.clamp(
       sequence.elapsed / SURFACE_SEQUENCE_DURATION[sequence.kind],
       0,
       1,
     );
+    const progress = sequence.kind === "boarding" ? 1 - elapsed : elapsed;
     const rig = this.surfaceFlight;
     if (rig) rig.mixer.setTime(progress * rig.duration * 0.9999);
-    const disembarking = sequence.kind === "disembark";
+    const disembarking = sequence.kind === "disembark" || sequence.kind === "boarding";
     ramp.visible = disembarking;
     astronaut.visible = disembarking && progress > (rig ? 0.30 : 0.22);
     if (disembarking) {
-      craft.position.set(0, 10, 0);
+      craft.position.set(0, 10 * PLANETARY_SHIP_SCALE, 0);
       craft.rotation.set(0, -Math.PI / 2, 0);
       for (const part of craft.children)
         if (part.name === "exhaust") part.visible = false;
@@ -2080,7 +2083,7 @@ export class Space3D {
         astronaut.position.copy(track.pilot.position);
         astronaut.quaternion.copy(track.pilot.quaternion);
         this.animatePilot(astronaut, track.pilot.scale.x);
-        this.cabinCamera.position.copy(track.camera.position);
+        this.cabinCamera.position.copy(track.camera.position).lerp(track.target.position, -.85);
         this.cabinCamera.lookAt(track.target.position);
       } else {
         const opening = T.MathUtils.smoothstep(progress, 0, 0.27);
@@ -2089,7 +2092,7 @@ export class Space3D {
         astronaut.position.set(12 + 31 * walk, Math.max(0, 6 - walk * 12), 0);
         astronaut.rotation.y = -Math.PI / 2;
         this.animatePilot(astronaut, walk * Math.PI * 6);
-        this.cabinCamera.position.set(44 + walk * 10, 30, 63);
+        this.cabinCamera.position.set(72 + walk * 10, 54, 125);
         this.cabinCamera.lookAt(9 + walk * 16, 7, 0);
       }
       const exitGround = g.planetTerrain.heightAt(
@@ -2130,7 +2133,7 @@ export class Space3D {
       Math.floor((padX + craft.position.x) / 16),
       Math.floor((craft.position.z + 8) / 16),
     ) * 16;
-    craft.position.y = Math.max(craft.position.y, ground - beneath + 10);
+    craft.position.y = Math.max(craft.position.y, ground - beneath + 10 * PLANETARY_SHIP_SCALE);
     const onPad = takingOff ? 1 - T.MathUtils.smoothstep(progress, 0, .18)
       : T.MathUtils.smoothstep(progress, .82, 1);
     if (onPad > 0) {
@@ -2139,12 +2142,12 @@ export class Space3D {
     }
     this.cabinCamera.aspect = this.width / this.height;
     this.cabinCamera.position.set(
-      115,
-      craft.position.y + 48,
-      craft.position.z + 118,
+      194,
+      craft.position.y + 76,
+      craft.position.z + 203,
     );
     if (track) {
-      this.cabinCamera.position.copy(track.camera.position);
+      this.cabinCamera.position.copy(track.camera.position).lerp(track.target.position, -.85);
       this.cabinCamera.lookAt(track.target.position);
     } else {
       this.cabinCamera.lookAt(0, craft.position.y - 9, craft.position.z - 16);
