@@ -105,6 +105,8 @@ onBeforeUnmount(reset);
           walking ? 'Joystick de movimento' : 'Joystick de pilotagem'
         "
         @pointerdown="start"
+        @touchend.prevent
+        @dblclick.prevent
         @pointermove="move"
         @pointerup="end"
         @pointercancel="end"
