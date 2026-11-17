@@ -373,3 +373,16 @@ it("deixa espaço vazio dentro dos limites externos da nave transitável", () =>
   expect(landedHullOverlap(hull, 70, -12, 0)).toBe(0);
   expect(landedHullOverlap(hull, 0, -12, 0)).toBe(1);
 });
+
+it("exige pulo para subir um bloco durante a caminhada", () => {
+  const solid = (x: number, y: number) => y >= (x >= 1 ? 9 : 10);
+  let actor = { x: 8, y: 148, z: 0, vy: 0, grounded: true };
+  for (let i = 0; i < 30; i++)
+    actor = stepSurfaceDepth(actor, 1, 0, false, 1, .016, solid);
+  expect(actor.x).toBeLessThan(16);
+  expect(actor.y).toBeGreaterThanOrEqual(147);
+  for (let i = 0; i < 50; i++)
+    actor = stepSurfaceDepth(actor, 1, 0, i === 0, 1, .016, solid);
+  expect(actor.x).toBeGreaterThan(32);
+  expect(actor.y).toBeLessThan(140);
+});

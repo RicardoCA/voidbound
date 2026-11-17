@@ -125,17 +125,7 @@ export function stepSurfaceDepth(
     if (clear(x, a.y, z)) {
       a.x = x;
       a.z = z;
-    } else if (
-      a.grounded &&
-      !jump &&
-      !blockedByProps?.(x, a.y, z) &&
-      clear(a.x, a.y - TILE, a.z) &&
-      clear(x, a.y - TILE, z) &&
-      !clear(x, a.y - TILE + 1, z)
-    ) {
-      a.x = x;
-      a.z = z;
-      a.y -= TILE;
+
     }
   };
   move(a.x + dx, a.z);
