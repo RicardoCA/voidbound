@@ -1707,6 +1707,37 @@ export class Space3D {
     }
   }
 
+  drawTitle(g: Game) {
+    if (!this.resize()) return;
+    this.prepareCabin(g.state.wardrobe?.equipped);
+    if (this.cabinLoading || !this.cabinActor) {
+      this.draw(g, true);
+      return;
+    }
+    const pilot = this.cabinActor;
+    const seat = this.cabinPilotSeat;
+    pilot.position.set(seat?.x ?? 154, (seat?.y ?? 9) - 7, (seat?.z ?? -15) - 3);
+    for (const leg of pilot.children)
+      if (leg.name === "leg") leg.rotation.x = Math.PI / 2;
+    for (const { bone, rest } of this.playerRigs.get(pilot) ?? []) {
+      const name = bone.name.toLowerCase();
+      const bend = name.startsWith("thigh") ? Math.PI / 2
+        : name.startsWith("shin") ? -Math.PI / 2 : .4;
+      bone.quaternion.copy(rest).premultiply(this.walkRotation.setFromAxisAngle(this.walkAxis, bend));
+    }
+    const t = performance.now() / 1000;
+    this.cabinCamera.aspect = this.width / this.height;
+    this.cabinCamera.position.set(pilot.position.x - 62 + Math.sin(t * .12) * 3,
+      pilot.position.y + 48, pilot.position.z + 81);
+    this.cabinCamera.lookAt(pilot.position.x - 8, pilot.position.y + 13, pilot.position.z - 28);
+    this.cabinCamera.updateProjectionMatrix();
+    this.cabinSpaceBackdrop!.visible = false;
+    this.cabinHatch!.visible = false;
+    for (const object of this.cabinImportedBackdrop) object.visible = false;
+    this.draw(g, true);
+    this.renderCabinOverlay();
+  }
+
   drawCabin(g: Game) {
     if (!this.resize()) return false;
     const inFlight = g.flightCabin;

@@ -34,6 +34,7 @@ import { audio } from "../game/systems/audio";
 const b = useConstruction();
 const g = useGame(),
   seed = ref("VOIDBOUND"),
+  configuringNew = ref(false),
   sound = ref(audio.enabled),
   volume = ref(Math.round(audio.volume * 100)),
   showOptions = ref(false),
@@ -138,6 +139,7 @@ function open(id: string) {
   releaseControls();
 }
 function newGame() {
+  if (!configuringNew.value) { configuringNew.value = true; return; }
   if (g.hasSave && !confirmNew.value) {
     confirmNew.value = true;
     return;
@@ -145,6 +147,7 @@ function newGame() {
   audio.unlock();
   g.newGame(seed.value);
   confirmNew.value = false;
+  configuringNew.value = false;
 }
 function resumeGame() {
   audio.unlock();
@@ -323,7 +326,7 @@ function minutes() {
         "
       />
       <template v-if="!g.started">
-        <div class="start-menu" :inert="showCloud">
+        <div class="start-menu" :inert="showCloud || showOptions">
           <div class="eyebrow">
             <span class="little-line" /> UM UNIVERSO. INFINITAS FRONTEIRAS.
           </div>
@@ -333,15 +336,12 @@ function minutes() {
             Construa. Encontre seu caminho entre as estrelas.
           </p>
           <div class="menu-actions">
-            <button class="primary large" @click="newGame">
+            <button v-if="g.hasSave" class="primary large" @click="resumeGame">
+              CONTINUAR EXPEDIÇÃO <span>→</span>
+            </button>
+            <button class="secondary large" @click="newGame">
               {{ confirmNew ? "CONFIRMAR NOVA PARTIDA" : "INICIAR EXPEDIÇÃO" }}
               <span>↗</span></button
-            ><button
-              v-if="g.hasSave"
-              class="secondary large"
-              @click="resumeGame"
-            >
-              CONTINUAR EXPEDIÇÃO <span>→</span></button
             ><button
               v-if="confirmNew"
               class="text-button"
@@ -358,7 +358,8 @@ function minutes() {
               SALVAMENTO NA NUVEM <span aria-hidden="true">→</span>
             </button>
           </div>
-          <label class="seed-input"
+          <button class="text-button title-options" @click="showOptions = true">OPÇÕES</button>
+          <label v-if="configuringNew" class="seed-input"
             >SEED DO UNIVERSO
             <input
               v-model="seed"
@@ -371,10 +372,7 @@ function minutes() {
             A nova partida substituirá o salvamento existente.
           </p>
         </div>
-        <div class="planet-label">
-          <span>SETOR 00.00</span><b>{{ g.system.planets[0]?.name }}</b
-          ><small>Um sinal à espera de resposta.</small>
-        </div>
+
       </template>
       <template v-else-if="!orbitConsole && !routeConsole">
         <div class="flight-info" :class="{ 'surface-info': surface }">
@@ -729,7 +727,7 @@ function minutes() {
       </div>
       <div
         v-if="
-          g.started &&
+          (!g.started && showOptions) || (g.started &&
           !g.busy &&
           (g.paused ||
             (!g.inSequence &&
@@ -737,14 +735,14 @@ function minutes() {
                 g.panel !== 'government' &&
                 !g.panel.startsWith('station:') &&
                 !g.panel.startsWith('showroom:')) ||
-                g.state.mode === 'orbit')))
+                g.state.mode === 'orbit'))))
         "
         class="overlay"
         :class="{
           'orbit-overlay': orbitConsole || routeConsole,
         }"
       >
-        <section v-if="g.paused && showOptions" class="dialog narrow">
+        <section v-if="showOptions && (g.paused || !g.started)" class="dialog narrow">
           <h2>Opções</h2>
           <div class="audio-options">
             <label><input v-model="sound" type="checkbox" /> Som do jogo</label>
@@ -785,7 +783,7 @@ function minutes() {
             </p>
           </div>
           <button class="primary" @click="showOptions = false">
-            VOLTAR À PAUSA
+            {{ g.started ? "VOLTAR À PAUSA" : "VOLTAR AO INÍCIO" }}
           </button>
         </section>
         <section v-else-if="g.paused" class="dialog narrow">
