@@ -94,7 +94,7 @@ const landingComputer = computed(
 const lightJump = computed(() => g.busy && !g.blackHoleTransit);
 const show3D = computed(
   () =>
-    (freeFlight.value ||
+    (!props.playing || freeFlight.value ||
       inCabin.value ||
       inStation.value ||
       inColossal.value ||
@@ -103,7 +103,7 @@ const show3D = computed(
       surfaceCinematic.value ||
       surfaceExploration.value ||
       !!g.dockingSequence) &&
-    use3D.value &&
+    (use3D.value || !props.playing) &&
     !gpuFailed.value,
 );
 watch(surfaceControls, (available) => {
@@ -151,7 +151,8 @@ watch(
         );
       const startedAt = performance.now();
       const draw = () => {
-        if (lightJump.value)
+        if (!props.playing) space!.drawTitle(g);
+        else if (lightJump.value)
           space!.drawJump(
             g,
             (performance.now() - startedAt) /
