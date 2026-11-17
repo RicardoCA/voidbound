@@ -23,12 +23,11 @@ import { MOBILE_LAYOUT, logicalViewport } from "../game/rendering/viewport";
 const props = defineProps<{ playing: boolean; expanded?: boolean }>();
 const host = ref<HTMLDivElement>();
 const spaceCanvas = ref<HTMLCanvasElement>();
-const use3D = computed(() => g.betaMode);
 const gpuFailed = ref(false);
 watch(
-  [use3D, gpuFailed],
+  gpuFailed,
   () => {
-    flight3D.selected = use3D.value && !gpuFailed.value;
+    flight3D.selected = !gpuFailed.value;
   },
   { immediate: true },
 );
@@ -59,8 +58,8 @@ function leaveShowroom() {
   g.showroomContact = undefined;
   if (g.panel.startsWith("showroom:")) g.panel = "";
 }
-watch([inStation, gpuFailed, use3D], ([atStation, failed, enabled]) => {
-  if (g.showroom && (!atStation || failed || !enabled)) leaveShowroom();
+watch([inStation, gpuFailed], ([atStation, failed]) => {
+  if (g.showroom && (!atStation || failed)) leaveShowroom();
 });
 const inColossal = computed(
   () => props.playing && g.aboardColossal && !g.colossalHelm && !g.busy,
@@ -103,7 +102,6 @@ const show3D = computed(
       surfaceCinematic.value ||
       surfaceExploration.value ||
       !!g.dockingSequence) &&
-    (use3D.value || !props.playing) &&
     !gpuFailed.value,
 );
 watch(surfaceControls, (available) => {
@@ -277,7 +275,6 @@ onBeforeUnmount(() => {
     <div
       v-if="
         freeFlight &&
-        use3D &&
         !gpuFailed &&
         !g.panel &&
         !g.paused &&

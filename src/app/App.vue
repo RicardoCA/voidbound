@@ -760,8 +760,7 @@ function minutes() {
               ><input v-model="g.hungerEnabled" type="checkbox" /> Fome</label
             >
             <label><input v-model="g.oxygenEnabled" type="checkbox" /> Consumo de oxigênio</label>
-            <label><input v-model="g.betaMode" type="checkbox" /> Modo Beta</label>
-            <label v-if="g.betaMode">
+            <label>
               <input v-model="g.thirdPersonSurface" type="checkbox" />
               Câmera em terceira pessoa na superfície 3D
             </label>
