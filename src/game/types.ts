@@ -82,6 +82,9 @@ export type Item =
   | "campfire"
   | "battery"
   | "oxygenGenerator"
+  | "emptyOxygenCartridge"
+  | "oxygenCartridge"
+  | "autoOxygen"
   | "autoFeeder"
   | "planetaryOxygenGenerator";
 export type MeatBatch = { amount: number; expires: number };
@@ -226,6 +229,7 @@ export interface Save {
   minedCyberCrystals?: Record<string, number>;
   player: {
     autoFeeder?: { food: Inventory };
+    autoOxygen?: { cartridges: Inventory };
     surfaceZ?: number;
     photonSaber?: PhotonSaber;
     hunger: number;
@@ -712,6 +716,9 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  emptyOxygenCartridge: { name: "Cartucho de oxigênio vazio", color: "#8a9da8", icon: "▥", rarity: "Recipiente reutilizável", stack: 10 },
+  oxygenCartridge: { name: "Cartucho de oxigênio cheio", color: "#82e1ed", icon: "▥", rarity: "Oxigênio comprimido", stack: 10 },
+  autoOxygen: { name: "Reabastecedor automático do traje", color: "#82e1ed", icon: "◈", rarity: "Equipamento do traje", stack: 1 },
   autoFeeder: {
     name: "Alimentador automático do traje",
     color: "#8edfc8",

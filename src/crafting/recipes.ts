@@ -19,6 +19,8 @@ export const recipes: Recipe[] = [
   { id: "plate", cost: { iron: 3 }, unlock: 0 },
   { id: "circuit", cost: { copper: 2, silicon: 1 }, unlock: 0 },
   { id: "cell", cost: { crystal: 2, copper: 1 }, unlock: 0 },
+  { id: "emptyOxygenCartridge", cost: { plate: 4 }, unlock: 0 },
+  { id: "autoOxygen", cost: { plate: 3, circuit: 2, cell: 1 }, unlock: 0 },
   { id: "autoFeeder", cost: { plate: 3, circuit: 2, cell: 1 }, unlock: 0 },
   { id: "repair", cost: { plate: 2, circuit: 1 }, unlock: 0 },
   { id: "oxygen", cost: { plate: 2, silicon: 1 }, unlock: 0 },

@@ -446,6 +446,9 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M4 18h16v1H4z",
     accent: "#6ee8ff",
   },
+  emptyOxygenCartridge: { body: "M8 3h8v3h2v15H6V6h2z", shade: "M14 6h4v15h-4z", light: "M8 8h2v10H8z", detail: "M10 10h4v5h-4zM9 3h6v2H9z" },
+  oxygenCartridge: { body: "M8 3h8v3h2v15H6V6h2z", shade: "M14 6h4v15h-4z", light: "M8 8h2v10H8z", detail: "M10 10h4v5h-4zM9 3h6v2H9z" },
+  autoOxygen: { body: "M4 5h16v16H4z", shade: "M16 5h4v16h-4z", light: "M6 7h10v2H6z", detail: "M7 11h3v7H7zM13 11h3v7h-3z" },
   autoFeeder: {
     body: "M5 3h14v18H5z",
     shade: "M15 3h4v18h-4z",

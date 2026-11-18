@@ -1,3 +1,4 @@
+import { cartridgeCount, loadCartridges, refillAutomatically, OXYGEN_CARTRIDGE_CAPACITY } from "../survival/autoOxygen";
 import {
   feedAutomatically,
   loadFeeder,
@@ -909,6 +910,7 @@ export const useGame = defineStore("game", () => {
       void save();
       return;
     }
+    if (id === "autoOxygen") { toggleAutoOxygen(fromBackpack); return; }
     if (id === "autoFeeder") {
       toggleFeeder(fromBackpack);
       return;
@@ -1475,6 +1477,32 @@ export const useGame = defineStore("game", () => {
     Settlement,
     { revision: number; network: PowerNetwork }
   >();
+  function toggleAutoOxygen(fromBackpack = true) {
+    const s = state.value;
+    if (trading.value || (!fromBackpack && !canAccessShipCargo.value)) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
+    if (s.player.autoOxygen) {
+      if (cartridgeCount(s.player.autoOxygen.cartridges)) { notify("Retire os cartuchos antes de desequipar."); return; }
+      if (!add(inventory, "autoOxygen", 1, fromBackpack ? BACKPACK_SLOTS : capacity.value)) { notify("Sem espaço para guardar o equipamento."); return; }
+      delete s.player.autoOxygen;
+    } else {
+      if (!consume(inventory, { autoOxygen: 1 })) return;
+      s.player.autoOxygen = { cartridges: {} };
+    }
+    void save();
+  }
+  function moveAutoOxygen(item: Item, quantity: number, deposit: boolean, fromBackpack = true) {
+    if (trading.value || (!fromBackpack && !canAccessShipCargo.value)) return;
+    if (item !== "oxygenCartridge" && item !== "emptyOxygenCartridge") return;
+    const s = state.value, cartridges = s.player.autoOxygen?.cartridges;
+    if (!cartridges) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
+    const moved = deposit
+      ? item === "oxygenCartridge" && loadCartridges(inventory, cartridges, Math.min(quantity, OXYGEN_CARTRIDGE_CAPACITY - cartridgeCount(cartridges)))
+      : transfer(cartridges, inventory, item, quantity, fromBackpack ? BACKPACK_SLOTS : capacity.value);
+    if (!moved) notify("Sem espaço ou cartuchos insuficientes.");
+    else void save();
+  }
   function toggleFeeder(fromBackpack = true) {
     const s = state.value;
     if (trading.value || (!fromBackpack && !canAccessShipCargo.value)) return;
@@ -1673,6 +1701,7 @@ export const useGame = defineStore("game", () => {
       s.inventory = {};
       s.backpack = {};
       if (s.player.autoFeeder) s.player.autoFeeder.food = {};
+      if (s.player.autoOxygen) s.player.autoOxygen.cartridges = {};
     }
     if (
       !survivorEnabled.value ||
@@ -1797,6 +1826,10 @@ export const useGame = defineStore("game", () => {
       for (const [id, n] of inventoryEntries(food))
         transfer(food, s.backpack, id, n, Infinity);
     }
+    if (s.mode === "surface" && survivorEnabled.value && s.player.autoOxygen) {
+      const cartridges = s.player.autoOxygen.cartridges;
+      for (const [id, n] of inventoryEntries(cartridges)) transfer(cartridges, s.backpack, id, n, Infinity);
+    }
     const lostBackpack =
       s.mode === "surface" &&
       survivorEnabled.value &&
@@ -1918,6 +1951,7 @@ export const useGame = defineStore("game", () => {
       if (oxygenEnabled.value) {
         if (!planet.value.breathable && !habitat.value.supplied)
           s.player.oxygen = Math.max(0, s.player.oxygen - dt * 0.38);
+        if (refillAutomatically(s.player)) void save();
         if (s.player.oxygen <= 0) s.player.health -= dt * 7;
       }
       if (
@@ -1939,6 +1973,8 @@ export const useGame = defineStore("game", () => {
     resolvePlayerDeath();
   }
   return {
+    toggleAutoOxygen,
+    moveAutoOxygen,
     toggleFeeder,
     moveFeeder,
     state,

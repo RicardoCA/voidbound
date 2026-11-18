@@ -2,6 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { flight3D } from "../game/rendering/flight3D";
 import { weatherLabels } from "../game/procedural/weather";
+import OxygenCartridgePanel from "../components/OxygenCartridgePanel.vue";
 import CookingPanel from "../components/CookingPanel.vue";
 import { daylight, planetClock } from "../construction/habitat";
 import LocalRadar from "../components/LocalRadar.vue";
@@ -926,6 +927,7 @@ function minutes() {
             </button>
           </div>
         </section>
+        <OxygenCartridgePanel v-else-if="g.panel === 'oxygen-cartridges'" />
         <CookingPanel v-else-if="g.panel === 'cook'" />
         <BuildPanel v-else-if="g.panel === 'build'" />
         <StoragePanel v-else-if="g.panel === 'storage'" />

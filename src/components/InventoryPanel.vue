@@ -2,6 +2,7 @@
 import { isWeaponModule } from "../combat/weapons";
 import { isScannerEquipment } from "../combat/shipScanners";
 import { isHeatDeflector, isPhotonSaber } from "../universe/stars";
+import { cartridgeCount } from "../survival/autoOxygen";
 import { feederCount } from "../survival/autoFeeder";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
@@ -42,6 +43,7 @@ function canUse(id: Item) {
     isScannerEquipment(id) ||
     [
       "autoFeeder",
+      "autoOxygen",
       "repair",
       "fuel",
       "oxygen",
@@ -97,6 +99,76 @@ function canUse(id: Item) {
       </p>
       <TransferAmount v-model="amount" />
     </template>
+    <section v-if="g.state.player.autoOxygen" class="storage-column">
+      <h3>Reabastecedor automático · equipado no traje</h3>
+      <p>
+        {{ cartridgeCount(g.state.player.autoOxygen.cartridges) }}/10 cartuchos.
+        Abaixo de 30% de O₂, usa um cartucho cheio para chegar a 100%. O
+        recipiente vazio fica guardado para reutilização.
+      </p>
+      <TransferAmount v-model="amount" />
+      <div
+        v-for="id in ['oxygenCartridge', 'emptyOxygenCartridge'] as const"
+        :key="id"
+        class="storage-row"
+      >
+        <ItemIcon :item="id" />
+        <div>
+          {{ items[id].name }} ·
+          {{ g.state.player.autoOxygen.cartridges[id] ?? 0 }}
+        </div>
+        <button
+          class="secondary"
+          :disabled="!g.state.player.autoOxygen.cartridges[id]"
+          @click="
+            g.moveAutoOxygen(
+              id,
+              amount === 'all'
+                ? (g.state.player.autoOxygen.cartridges[id] ?? 0)
+                : Math.min(
+                    g.state.player.autoOxygen.cartridges[id] ?? 0,
+                    Number(amount),
+                  ),
+              false,
+              fromBackpack,
+            )
+          "
+        >
+          Retirar
+        </button>
+      </div>
+      <div class="storage-row">
+        <div>
+          Cartuchos cheios disponíveis: {{ source.oxygenCartridge ?? 0 }}
+        </div>
+        <button
+          class="secondary"
+          :disabled="
+            !source.oxygenCartridge ||
+            cartridgeCount(g.state.player.autoOxygen.cartridges) >= 10
+          "
+          @click="
+            g.moveAutoOxygen(
+              'oxygenCartridge',
+              amount === 'all'
+                ? (source.oxygenCartridge ?? 0)
+                : Math.min(source.oxygenCartridge ?? 0, Number(amount)),
+              true,
+              fromBackpack,
+            )
+          "
+        >
+          Abastecer
+        </button>
+      </div>
+      <button
+        class="secondary"
+        :disabled="cartridgeCount(g.state.player.autoOxygen.cartridges) > 0"
+        @click="g.toggleAutoOxygen(fromBackpack)"
+      >
+        Desequipar (retire os cartuchos)
+      </button>
+    </section>
     <section v-if="g.state.player.autoFeeder" class="storage-column">
       <h3>Alimentador automático · equipado no traje</h3>
       <p>
@@ -208,11 +280,11 @@ function canUse(id: Item) {
                 ? "INSTALAR ARMA"
                 : isBuildItem(id)
                   ? "EQUIPAR CONSTRUÇÃO"
-                  : id === "autoFeeder"
+                  : id === "autoFeeder" || id === "autoOxygen"
                     ? "EQUIPAR NO TRAJE"
                     : canUse(id)
-                    ? "USAR / INSTALAR"
-                    : items[id].rarity
+                      ? "USAR / INSTALAR"
+                      : items[id].rarity
         }}</small>
         <MeatShelfLife
           v-if="id === 'rawMeat'"

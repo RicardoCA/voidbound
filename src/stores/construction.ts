@@ -1,5 +1,6 @@
+import { fillCartridge, OXYGEN_FILL_TIME_MS, oxygenFillingProgress } from "../survival/autoOxygen";
 import { flight3D } from "../game/rendering/flight3D";
-import { defineStore } from "pinia";
+import { defineStore, acceptHMRUpdate } from "pinia";
 import { computed, onScopeDispose, ref, watch } from "vue";
 import { craft } from "../crafting/recipes";
 import { COOKING_TIME_MS, cookedMeatRecipe } from "../survival/food";
@@ -28,7 +29,7 @@ import {
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
-import { BATTERY_CAP } from "../construction/habitat";
+import { BATTERY_CAP, powerNetwork } from "../construction/habitat";
 import {
   pieceAt,
   footprint,
@@ -353,26 +354,68 @@ export const useConstruction = defineStore("construction", () => {
       );
       return true;
     }
-    if (
-      found.piece.kind === "planetaryOxygenGenerator" &&
-      inReach(g.state.player, found.x, found.y, 76)
-    ) {
+    if (["oxygenGenerator", "planetaryOxygenGenerator"].includes(found.piece.kind) && inReach(g.state.player, found.x, found.y, 76)) {
       g.refreshHabitat();
-      g.notify(found.piece.powered
-        ? "Gerador planetário ativo · Atmosfera abastecida."
-        : "Gerador planetário desligado · São necessárias 5 placas solares expostas e uma bateria próxima com carga.");
-      return true;
-    }
-    if (
-      found.piece.kind === "oxygenGenerator" &&
-      inReach(g.state.player, found.x, found.y, 76)
-    ) {
-      g.notify(
-        `Gerador sem bateria interna · O₂ ${Math.floor(found.piece.oxygen ?? 0)}/100.`,
-      );
+      activeOxygenGenerator.value = { planetId: g.planet.id, x: found.x, y: found.y, depth };
+      releaseControls();
+      g.panel = "oxygen-cartridges";
       return true;
     }
     return false;
+  }
+  const activeOxygenGenerator = ref<{ planetId: string; x: number; y: number; depth: number }>();
+  const oxygenGeneratorPiece = computed(() => {
+    const target = activeOxygenGenerator.value;
+    if (!target || g.state.mode !== "surface" || target.planetId !== g.planet.id ||
+      Math.abs(target.depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24 || !inReach(g.state.player, target.x, target.y, 76)) return;
+    return pieceAt(settlement.value, target.x, target.y, target.depth);
+  });
+  const oxygenFillingElapsed = ref<number | null>(null);
+  let oxygenFillingTimer: ReturnType<typeof setInterval> | undefined;
+  function stopOxygenFilling() {
+    clearInterval(oxygenFillingTimer);
+    oxygenFillingTimer = undefined;
+    oxygenFillingElapsed.value = null;
+  }
+  watch([() => g.panel, () => g.paused, () => g.state, activeOxygenGenerator], stopOxygenFilling, { flush: "sync" });
+  onScopeDispose(stopOxygenFilling);
+  function oxygenFillingResources() {
+    if (g.paused || g.panel !== "oxygen-cartridges") return;
+    const found = oxygenGeneratorPiece.value;
+    if (!found) return;
+    const network = powerNetwork(terrain.value, settlement.value);
+    const batteryKey = network.planetary.find(generator => generator.key === found.key)?.battery;
+    return { found, battery: batteryKey ? settlement.value.pieces[batteryKey] : undefined };
+  }
+  function fillOxygenCartridge() {
+    if (oxygenFillingProgress(oxygenFillingElapsed.value)) return;
+    stopOxygenFilling();
+    g.refreshHabitat();
+    const resources = oxygenFillingResources();
+    if (!resources) { g.notify("Aproxime-se do gerador."); return; }
+    const { found, battery } = resources;
+    if (!fillCartridge({ ...g.state.backpack }, BACKPACK_SLOTS, { ...found.piece }, battery ? { ...battery } : undefined)) {
+      g.notify("Leve um cartucho vazio na mochila e libere espaço. O gerador normal precisa de 100 O₂; o planetário deve estar ativo e ter 10 de energia na bateria.");
+      return;
+    }
+    const startedAt = performance.now();
+    oxygenFillingElapsed.value = 0;
+    oxygenFillingTimer = setInterval(() => {
+      const current = oxygenFillingResources();
+      if (!current || current.found.piece !== found.piece) { stopOxygenFilling(); return; }
+      oxygenFillingElapsed.value = Math.min(OXYGEN_FILL_TIME_MS, performance.now() - startedAt);
+      if (oxygenFillingElapsed.value < OXYGEN_FILL_TIME_MS) return;
+      stopOxygenFilling();
+      g.refreshHabitat();
+      const final = oxygenFillingResources();
+      if (!final || !fillCartridge(g.state.backpack, BACKPACK_SLOTS, final.found.piece, final.battery)) {
+        g.notify("Abastecimento cancelado: verifique os cartuchos, o espaço e os recursos do gerador.");
+        return;
+      }
+      g.notify("Cartucho cheio. Guarde-o no reabastecedor do traje.");
+      audio.play(520);
+      void g.save();
+    }, 100);
   }
   const cookingElapsed = ref<number | null>(null);
   let cookingTimer: ReturnType<typeof setInterval> | undefined;
@@ -536,6 +579,9 @@ export const useConstruction = defineStore("construction", () => {
     { flush: "sync" },
   );
   return {
+    oxygenFillingElapsed,
+    oxygenGeneratorPiece,
+    fillOxygenCartridge,
     enabled,
     lastError,
     removing,
@@ -572,3 +618,7 @@ export const useConstruction = defineStore("construction", () => {
     cabinetAt,
   };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useConstruction, import.meta.hot));
+}

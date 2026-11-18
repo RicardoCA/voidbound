@@ -217,3 +217,24 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Com fome ativa e abaixo de 30%, consome até 100% ou esgotar a reserva. Mantém risco de intoxicação da carne crua, persistência e perda/recuperação dos alimentos conforme as regras de sobrevivência existentes.
 - Arquivos: tipos e arte dos itens, receitas, inventário, store do jogo, perecíveis e novos módulos/testes de alimentador.
 - Verificação: 228 testes passaram; TypeScript, ESLint e build de produção passaram. Interface ainda sem teste manual em navegador.
+
+## 2026-11-17 · Cartuchos reutilizáveis e oxigênio automático
+
+- Cartucho vazio fabricado com 4 placas metálicas. Sem venda de cartuchos nas estações.
+- Interagir com gerador normal ou planetário abre o abastecimento. O normal consome 100 O₂ da reserva; o planetário exige funcionamento ativo e consome 10 de energia da bateria conectada. A operação valida recipiente, recursos e capacidade antes de alterar qualquer estado.
+- Novo reabastecedor do traje (3 placas, 2 circuitos, 1 célula): comporta 10 cartuchos, usa um cheio abaixo de 30% de O₂ e completa até 100%, preservando o recipiente vazio para reutilização. Gerenciamento pelo inventário, incluindo retirada dos vazios. Respeita a opção de consumo de oxigênio.
+- Reserva persistida no save e sujeita às regras de morte/recuperação existentes, como o alimentador.
+- Arquivos: tipos/arte, receitas, inventário, store de jogo/construção, App, novo painel de abastecimento, lógica e testes de cartuchos.
+- Verificação: 234 testes, ESLint, TypeScript e build passaram. Sem teste manual em navegador nesta etapa.
+
+### Abastecimento animado dos cartuchos
+
+- Encher um cartucho agora leva 10 segundos, com ilustração animada do gerador enviando oxigênio ao recipiente, nível crescente, bolhas, porcentagem e barra de progresso no painel responsivo.
+- Impede iniciar processos duplicados. Fechar, pausar, afastar-se ou remover o gerador cancela sem consumir recursos; valida novamente recipiente, capacidade, energia e reserva antes da entrega final.
+- Testes verificam duração, consumo único e cancelamentos. Verificação completa: 239 testes, ESLint, TypeScript e build de produção.
+
+### Correção de NaN no abastecimento durante atualização local
+
+- Progresso ausente/inválido agora é tratado como inativo, sem NaN nem botão travado. O store de construção passa a aceitar atualização a quente via Pinia, evitando manter métodos antigos com o painel atualizado.
+- Testes cobrem valores inválidos de progresso e dois abastecimentos completos consecutivos, além das validações anteriores (12 testes de cartuchos).
+- ESLint, TypeScript e build de produção verificados.
