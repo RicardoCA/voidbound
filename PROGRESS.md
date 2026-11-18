@@ -209,3 +209,11 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - O registro está no mapa e nas estações. É possível pagar multas da jurisdição em uma estação acessível. Os dados persistem no save, inclusive ao trocar de nave.
 - Implementação em `src/combat/law.ts`, `flight.ts`, `traffic.ts`, `CriminalRecord.vue`, mapa, HUD e store. Os 116 testes, lint, TypeScript e build passaram. Chromium validou mobilização, consulta e pagamento em desktop e celular.
 - Pendentes nesta frente: inspeções de carga, entrega voluntária, negociação clandestina e o aprofundamento de reputação e registros das naves. As 20 naves novas e o balanceamento de longo prazo continuam nas próximas etapas.
+
+## 2026-11-17 · Alimentador automático do traje
+
+- Receita na bancada da nave: 3 placas metálicas, 2 circuitos básicos e 1 célula energética. O equipamento é instalado no traje pelo inventário.
+- Reserva de um tipo de alimento, limitada a 100 unidades, com abastecimento/retirada em 1, 10 ou todos. Transferências preservam a validade da carne; desequipar exige reserva vazia e espaço para guardar o equipamento.
+- Com fome ativa e abaixo de 30%, consome até 100% ou esgotar a reserva. Mantém risco de intoxicação da carne crua, persistência e perda/recuperação dos alimentos conforme as regras de sobrevivência existentes.
+- Arquivos: tipos e arte dos itens, receitas, inventário, store do jogo, perecíveis e novos módulos/testes de alimentador.
+- Verificação: 228 testes passaram; TypeScript, ESLint e build de produção passaram. Interface ainda sem teste manual em navegador.

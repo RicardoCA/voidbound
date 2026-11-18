@@ -57,6 +57,8 @@ function age(inventory: Inventory, time: number, chilled = false) {
 
 export function spoilMeat(save: Save) {
   let spoiled = age(save.inventory, save.time) + age(save.backpack, save.time);
+  if (save.player.autoFeeder)
+    spoiled += age(save.player.autoFeeder.food, save.time);
   for (const ship of save.parkedShips)
     spoiled += age(ship.inventory, save.time);
   for (const settlement of Object.values(save.settlements))

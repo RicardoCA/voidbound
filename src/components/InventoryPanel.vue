@@ -2,6 +2,7 @@
 import { isWeaponModule } from "../combat/weapons";
 import { isScannerEquipment } from "../combat/shipScanners";
 import { isHeatDeflector, isPhotonSaber } from "../universe/stars";
+import { feederCount } from "../survival/autoFeeder";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
@@ -40,6 +41,7 @@ function canUse(id: Item) {
     isHeatDeflector(id) ||
     isScannerEquipment(id) ||
     [
+      "autoFeeder",
       "repair",
       "fuel",
       "oxygen",
@@ -95,6 +97,77 @@ function canUse(id: Item) {
       </p>
       <TransferAmount v-model="amount" />
     </template>
+    <section v-if="g.state.player.autoFeeder" class="storage-column">
+      <h3>Alimentador automático · equipado no traje</h3>
+      <p>
+        Reserva {{ feederCount(g.state.player.autoFeeder.food) }}/100. Abaixo de
+        30% de fome, come até 100% ou até acabar a reserva. Um tipo de alimento
+        por vez.
+      </p>
+      <TransferAmount v-model="amount" />
+      <div
+        v-for="[id, n] in inventoryEntries(
+          g.state.player.autoFeeder.food,
+        ).filter(([, n]) => n > 0)"
+        :key="id"
+        class="storage-row"
+      >
+        <ItemIcon :item="id" />
+        <div>
+          {{ items[id].name }} · {{ n }}
+          <MeatShelfLife
+            v-if="id === 'rawMeat'"
+            :inventory="g.state.player.autoFeeder.food"
+            :time="g.state.time"
+          />
+        </div>
+        <button
+          class="secondary"
+          @click="
+            g.moveFeeder(
+              id,
+              amount === 'all' ? n : Math.min(n, Number(amount)),
+              false,
+              fromBackpack,
+            )
+          "
+        >
+          Retirar
+        </button>
+      </div>
+      <div
+        v-for="[id, n] in inventory.filter(([id]) => foodValue(id) > 0)"
+        :key="id"
+        class="storage-row"
+      >
+        <ItemIcon :item="id" />
+        <div>{{ items[id].name }} · {{ n }}</div>
+        <button
+          class="secondary"
+          :disabled="feederCount(g.state.player.autoFeeder.food) >= 100"
+          @click="
+            g.moveFeeder(
+              id,
+              amount === 'all' ? n : Math.min(n, Number(amount)),
+              true,
+              fromBackpack,
+            )
+          "
+        >
+          Abastecer
+        </button>
+      </div>
+      <p v-if="g.state.player.autoFeeder.food.rawMeat" class="warning">
+        Carne crua também pode causar intoxicação no alimentador.
+      </p>
+      <button
+        class="secondary"
+        :disabled="feederCount(g.state.player.autoFeeder.food) > 0"
+        @click="g.toggleFeeder(fromBackpack)"
+      >
+        Desequipar (esvazie a reserva)
+      </button>
+    </section>
     <div class="inventory-heading">
       <span
         >{{ slots(source) }} /
@@ -135,7 +208,9 @@ function canUse(id: Item) {
                 ? "INSTALAR ARMA"
                 : isBuildItem(id)
                   ? "EQUIPAR CONSTRUÇÃO"
-                  : canUse(id)
+                  : id === "autoFeeder"
+                    ? "EQUIPAR NO TRAJE"
+                    : canUse(id)
                     ? "USAR / INSTALAR"
                     : items[id].rarity
         }}</small>

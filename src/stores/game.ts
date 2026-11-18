@@ -1,8 +1,21 @@
-import { fallbackLandedHull, landingSideExit } from "../game/physics/landedShip";
+import {
+  feedAutomatically,
+  loadFeeder,
+  feederCount,
+  FEEDER_CAPACITY,
+} from "../survival/autoFeeder";
+import {
+  fallbackLandedHull,
+  landingSideExit,
+} from "../game/physics/landedShip";
 import { openSurfacePosition } from "../construction/openSurfacePosition";
 import { surfaceLayer } from "../game/physics/surfaceDepth";
 import type { ShipModelId } from "../game/types";
-import { flight3D, spaceAltitude, landedShipHulls } from "../game/rendering/flight3D";
+import {
+  flight3D,
+  spaceAltitude,
+  landedShipHulls,
+} from "../game/rendering/flight3D";
 import {
   regrowTerrain,
   TERRAIN_REGROWTH_SECONDS,
@@ -255,7 +268,14 @@ export const useGame = defineStore("game", () => {
     radarShips = ref<
       (Pick<
         SpaceNpc,
-        "id" | "name" | "x" | "y" | "engaged" | "bountyTarget" | "altitude" | "model"
+        | "id"
+        | "name"
+        | "x"
+        | "y"
+        | "engaged"
+        | "bountyTarget"
+        | "altitude"
+        | "model"
       > & { role: SpaceNpc["role"] | "ally"; angle?: number })[]
     >([]),
     stationContact = ref<string>(),
@@ -417,9 +437,15 @@ export const useGame = defineStore("game", () => {
       const distance = Math.round(Math.hypot(dx, dy, player.surfaceZ ?? 0));
       const yaw = flight3D.surfaceLook.yaw;
       const dz = -(player.surfaceZ ?? 0);
-      const horizontal = flight3D.surfaceView ? dx * Math.cos(yaw) - dz * Math.sin(yaw) : dx;
-      const vertical = flight3D.surfaceView ? dx * Math.sin(yaw) + dz * Math.cos(yaw) : dy;
-      const octant = Math.round(Math.atan2(vertical, horizontal) / (Math.PI / 4));
+      const horizontal = flight3D.surfaceView
+        ? dx * Math.cos(yaw) - dz * Math.sin(yaw)
+        : dx;
+      const vertical = flight3D.surfaceView
+        ? dx * Math.sin(yaw) + dz * Math.cos(yaw)
+        : dy;
+      const octant = Math.round(
+        Math.atan2(vertical, horizontal) / (Math.PI / 4),
+      );
       const bearing = distance
         ? ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"][(octant + 8) % 8]
         : "•";
@@ -883,6 +909,10 @@ export const useGame = defineStore("game", () => {
       void save();
       return;
     }
+    if (id === "autoFeeder") {
+      toggleFeeder(fromBackpack);
+      return;
+    }
     if (id === "rawMeat") refreshFood();
     const nutrition = foodValue(id);
     if (nutrition) {
@@ -1015,11 +1045,23 @@ export const useGame = defineStore("game", () => {
     const settlement = settlements[planet.value.id] ?? noShelter;
     const terrain = planetTerrain.value;
     const hull = landedShipHulls.get(activeShip.model) ?? fallbackLandedHull;
-    const safeSide = flight3D.selected ? landingSideExit(terrain, settlement, landingX, hull) : undefined;
-    const hullClearance = Math.ceil((Math.max(hull.maxX, -hull.minX) + 12) / 16);
-    const distant = flight3D.selected && !safeSide
-      ? openSurfacePosition(terrain, settlement, landingX + hullClearance, 0, landingX, hullClearance)
+    const safeSide = flight3D.selected
+      ? landingSideExit(terrain, settlement, landingX, hull)
       : undefined;
+    const hullClearance = Math.ceil(
+      (Math.max(hull.maxX, -hull.minX) + 12) / 16,
+    );
+    const distant =
+      flight3D.selected && !safeSide
+        ? openSurfacePosition(
+            terrain,
+            settlement,
+            landingX + hullClearance,
+            0,
+            landingX,
+            hullClearance,
+          )
+        : undefined;
     if (flight3D.selected && !safeSide && !distant) {
       notify("Não há espaço livre ao lado da nave para desembarcar.");
       return;
@@ -1433,6 +1475,65 @@ export const useGame = defineStore("game", () => {
     Settlement,
     { revision: number; network: PowerNetwork }
   >();
+  function toggleFeeder(fromBackpack = true) {
+    const s = state.value;
+    if (trading.value || (!fromBackpack && !canAccessShipCargo.value)) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
+    if (s.player.autoFeeder) {
+      if (feederCount(s.player.autoFeeder.food)) {
+        notify("Retire os alimentos antes de desequipar o alimentador.");
+        return;
+      }
+      if (
+        !add(
+          inventory,
+          "autoFeeder",
+          1,
+          fromBackpack ? BACKPACK_SLOTS : capacity.value,
+        )
+      ) {
+        notify("Sem espaço para guardar o equipamento.");
+        return;
+      }
+      delete s.player.autoFeeder;
+    } else {
+      if (!consume(inventory, { autoFeeder: 1 })) return;
+      s.player.autoFeeder = { food: {} };
+    }
+    void save();
+  }
+  function moveFeeder(
+    item: Item,
+    quantity: number,
+    deposit: boolean,
+    fromBackpack = true,
+  ) {
+    if (trading.value || (!fromBackpack && !canAccessShipCargo.value)) return;
+    refreshFood();
+    const s = state.value,
+      food = s.player.autoFeeder?.food;
+    if (!food) return;
+    const inventory = fromBackpack ? s.backpack : s.inventory;
+    const moved = deposit
+      ? loadFeeder(
+          inventory,
+          food,
+          item,
+          Math.min(quantity, FEEDER_CAPACITY - feederCount(food)),
+        )
+      : transfer(
+          food,
+          inventory,
+          item,
+          quantity,
+          fromBackpack ? BACKPACK_SLOTS : capacity.value,
+        );
+    if (!moved)
+      notify(
+        "Sem espaço ou alimento diferente no slot. Retire a reserva para trocar o tipo.",
+      );
+    else void save();
+  }
   function refreshFood() {
     const s = state.value;
     for (const [id, data] of Object.entries(s.settlements)) {
@@ -1571,6 +1672,7 @@ export const useGame = defineStore("game", () => {
     if (survivorEnabled.value) {
       s.inventory = {};
       s.backpack = {};
+      if (s.player.autoFeeder) s.player.autoFeeder.food = {};
     }
     if (
       !survivorEnabled.value ||
@@ -1636,14 +1738,27 @@ export const useGame = defineStore("game", () => {
       (drop) => drop.planetId === planet.value.id && drop.expiresAt > now,
     );
   }
-  function recoverBackpack(target?: { wx: number; wy: number; depth?: number }) {
+  function recoverBackpack(target?: {
+    wx: number;
+    wy: number;
+    depth?: number;
+  }) {
     const s = state.value;
     if (s.mode !== "surface") return false;
     const nearby = surfaceBackpacks()
       .filter(
         (drop) =>
-          Math.hypot(drop.x - s.player.x, drop.y - s.player.y, (drop.z ?? 0) - (s.player.surfaceZ ?? 0)) <= 44 &&
-          (!target || Math.hypot(drop.x - target.wx, drop.y - target.wy, (drop.z ?? 0) - (target.depth ?? 0) * 16) <= 20),
+          Math.hypot(
+            drop.x - s.player.x,
+            drop.y - s.player.y,
+            (drop.z ?? 0) - (s.player.surfaceZ ?? 0),
+          ) <= 44 &&
+          (!target ||
+            Math.hypot(
+              drop.x - target.wx,
+              drop.y - target.wy,
+              (drop.z ?? 0) - (target.depth ?? 0) * 16,
+            ) <= 20),
       )
       .sort(
         (a, b) =>
@@ -1670,9 +1785,18 @@ export const useGame = defineStore("game", () => {
   function resolvePlayerDeath() {
     const s = state.value;
     if (s.player.health > 0) return false;
-    const deathPosition = { x: s.player.x, y: s.player.y, z: s.player.surfaceZ };
+    const deathPosition = {
+      x: s.player.x,
+      y: s.player.y,
+      z: s.player.surfaceZ,
+    };
     restorePlayer();
     s.ship.hull = Math.max(15, s.ship.hull - 10);
+    if (s.mode === "surface" && survivorEnabled.value && s.player.autoFeeder) {
+      const food = s.player.autoFeeder.food;
+      for (const [id, n] of inventoryEntries(food))
+        transfer(food, s.backpack, id, n, Infinity);
+    }
     const lostBackpack =
       s.mode === "surface" &&
       survivorEnabled.value &&
@@ -1754,6 +1878,10 @@ export const useGame = defineStore("game", () => {
     }
     if (hungerEnabled.value) {
       s.player.hunger = Math.max(0, (s.player.hunger ?? 100) - dt * 0.12);
+      if (s.player.hunger < 30 && s.player.autoFeeder && feederCount(s.player.autoFeeder.food) > 0) {
+        refreshFood();
+        if (feedAutomatically(s.player)) void save();
+      }
       if (s.player.hunger === 0) s.player.health -= dt * 3;
     }
     const sickTime = Math.min(dt, s.player.sickness ?? 0);
@@ -1776,8 +1904,13 @@ export const useGame = defineStore("game", () => {
         const head = Math.floor((s.player.y - 11) / 16);
         const shelter = s.settlements[planet.value.id] ?? noShelter;
         if (
-          weatherCeiling(planetTerrain.value, shelter, column, head, surfaceLayer(s.player.surfaceZ ?? 0)) ===
-          Infinity
+          weatherCeiling(
+            planetTerrain.value,
+            shelter,
+            column,
+            head,
+            surfaceLayer(s.player.surfaceZ ?? 0),
+          ) === Infinity
         )
           s.player.health -= dt * storm.intensity * 1.5;
       }
@@ -1806,6 +1939,8 @@ export const useGame = defineStore("game", () => {
     resolvePlayerDeath();
   }
   return {
+    toggleFeeder,
+    moveFeeder,
     state,
     habitat,
     planetTerrain,

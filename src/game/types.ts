@@ -82,6 +82,7 @@ export type Item =
   | "campfire"
   | "battery"
   | "oxygenGenerator"
+  | "autoFeeder"
   | "planetaryOxygenGenerator";
 export type MeatBatch = { amount: number; expires: number };
 export type Inventory = Partial<Record<Item, number>> & {
@@ -224,6 +225,7 @@ export interface Save {
   ship: ShipState;
   minedCyberCrystals?: Record<string, number>;
   player: {
+    autoFeeder?: { food: Inventory };
     surfaceZ?: number;
     photonSaber?: PhotonSaber;
     hunger: number;
@@ -709,6 +711,13 @@ export const items: Record<Item, ItemDetails> = {
     icon: "◉",
     rarity: "Construção",
     stack: 99,
+  },
+  autoFeeder: {
+    name: "Alimentador automático do traje",
+    color: "#8edfc8",
+    icon: "◈",
+    rarity: "Equipamento do traje",
+    stack: 1,
   },
   drill: {
     name: "Broca aprimorada",

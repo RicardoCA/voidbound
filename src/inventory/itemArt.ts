@@ -446,6 +446,12 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M4 18h16v1H4z",
     accent: "#6ee8ff",
   },
+  autoFeeder: {
+    body: "M5 3h14v18H5z",
+    shade: "M15 3h4v18h-4z",
+    light: "M7 5h8v2H7z",
+    detail: "M8 10h8v6H8zM10 17h4v2h-4z",
+  },
   oxygenGenerator: {
     body: "M6 5h12v3h3v12H3V8h3z",
     shade: "M15 8h6v12h-6z",
