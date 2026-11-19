@@ -1,6 +1,6 @@
 import type { Fruit } from "../../survival/wildlife";
 import type { AlienTree } from "../procedural/trees";
-import { pieceAt } from "../../construction/pieces";
+import { pieceAt, isDoor } from "../../construction/pieces";
 import { TILE, type Terrain } from "../procedural/terrain";
 import type { Settlement } from "../types";
 import type { Actor } from "./surface";
@@ -18,8 +18,9 @@ export function solidSurfaceVoxel(
   return terrain.getAt(x, y, depth) !== 0 ||
     !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
     piece?.kind === "woodBlock" ||
+    (piece?.kind === "window" && piece.rotation === undefined) ||
     (!!piece && !piece.open && (piece.kind === "woodHatch" ||
-      (piece.kind === "woodDoor" && piece.rotation === undefined)));
+      (isDoor(piece.kind) && piece.rotation === undefined)));
 }
 
 export const surfaceWallZ = -6;
@@ -40,8 +41,8 @@ export function surfaceWallPenetration(settlement: Settlement, x: number, y: num
           rotations.push(settlement.wallRotations?.[key] ?? 0);
           for (const face of Object.keys(settlement.cornerWalls?.[key] ?? {})) rotations.push(Number(face));
         }
-        if (door?.kind === "woodDoor" && !door.open && door.rotation !== undefined)
-          rotations.push(door.rotation);
+        if (door?.kind === "window" || (door && isDoor(door.kind) && !door.open && door.rotation !== undefined))
+          rotations.push(door.rotation ?? 0);
         for (const rotation of rotations) {
           const offset = rotation < 2 ? surfaceWallZ : -surfaceWallZ;
           const normal = rotation % 2 === 0

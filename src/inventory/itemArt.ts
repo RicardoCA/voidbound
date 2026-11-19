@@ -411,6 +411,8 @@ export const itemArt: Record<Item, ItemArt> = {
       "M8 11h1v7H8zM15 11h1v7h-1zM5 13h2v2H5zM12 13h2v2h-2zM19 13h2v2h-2z",
     accent: "#c7b27e",
   },
+  window: { body: "M3 3h18v18H3z", shade: "M5 5h14v14H5z", light: "M7 7h10v10H7z", detail: "M8 8h2v6H8zM14 10h2v6h-2z" },
+  airlockDoor: { body: "M5 2h14v20H5z", shade: "M8 5h8v15H8z", light: "M9 6h6v4H9z", detail: "M11 11h2v8h-2zM6 12h1v4H6zM17 12h1v4h-1z" },
   woodDoor: {
     body: "M5 3h14v18H5z",
     shade: "M7 6h10v13H7z",

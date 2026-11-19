@@ -77,6 +77,8 @@ export type Item =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "window"
+  | "airlockDoor"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
@@ -135,6 +137,8 @@ export type BuildItem =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "window"
+  | "airlockDoor"
   | "woodDoor"
   | "solarPanel"
   | "campfire"
@@ -681,6 +685,8 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  window: { name: "Janela vedada", color: "#88dcea", icon: "▣", rarity: "Construção", stack: 99 },
+  airlockDoor: { name: "Porta de antecâmara", color: "#93bbc9", icon: "▥", rarity: "Construção", stack: 99 },
   woodDoor: {
     name: "Porta de madeira",
     color: "#d0a176",

@@ -1,6 +1,6 @@
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
-import { blocksAir, isOpening, keyAt, pieceAt } from "./pieces";
+import { blocksAir, isOpening, isDoor, keyAt, pieceAt } from "./pieces";
 export const BATTERY_CAP = 1200;
 export const OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
@@ -124,7 +124,7 @@ export function analyzeSpatialRoom(terrain: Terrain, data: Settlement, x: number
     const door = pieceAt(data, x, y, depth)?.piece;
     return (wall && (data.wallRotations?.[key] ?? 0) === face) ||
       data.cornerWalls?.[key]?.[face] ||
-      (door?.kind === "woodDoor" && !door.open && door.rotation === face);
+      ((door?.kind === "window" || (door && isDoor(door.kind) && !door.open)) && (door.rotation ?? 0) === face);
   };
   for (let i = 0; i < queue.length; i++) {
     const at = queue[i]!;

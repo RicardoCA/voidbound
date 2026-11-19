@@ -1,6 +1,6 @@
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
-import { cabinetWidths, isCabinet, keyAt } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isDoor, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
 import { TILE, type Terrain } from "../procedural/terrain";
@@ -116,6 +116,10 @@ export class SurfaceWorld3D {
   private groundKey = "";
   private readonly terrainModels = new Map<number, Map<number, T.Mesh>>();
   private readonly requestedTerrainKits = new Set<number>();
+  private readonly windowGlass = new T.MeshStandardMaterial({
+    color: 0xa4e4ed, transparent: true, opacity: .18, roughness: .12,
+    metalness: .15, depthWrite: false, side: T.DoubleSide,
+  });
   private disposed = false;
   private groundTerrain?: Terrain;
   private planetKey = "";
@@ -338,6 +342,35 @@ export class SurfaceWorld3D {
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
       for (const y of [2, 7, 12]) block(trim, 0, y, 0, 15, 0.5, 0.32);
+    } else if (kind === "window") {
+      const z = surfaceWallZ;
+      for (const side of [-1, 1]) block(metal, side * 7, 8, z, 2, 16, 3);
+      for (const y of [1, 15]) block(metal, 0, y, z, 12, 2, 3);
+      const glass = new T.Mesh(this.box, this.windowGlass);
+      glass.position.set(0, 8, z); glass.scale.set(12, 12, .35); group.add(glass);
+      for (const side of [-1, 1]) {
+        for (const x of [-6.8, 6.8]) for (const y of [2, 8, 14])
+          block(0xb6c4ce, x, y, z + side * 1.55, .5, .5, .2);
+        for (const y of [2.1, 13.9]) block(0x213a46, 0, y, z + side * 1.55, 11.8, .35, .2);
+      }
+    } else if (kind === "airlockDoor") {
+      const z = surfaceWallZ;
+      for (const side of [-1, 1]) {
+        block(0x324450, side * 7, 16, z, 2, 32, 4);
+        for (const face of [-1, 1]) {
+          block(open ? 0x80e5af : 0xe0af62, side * 7, 18, z + face * 2.1, .7, 13, .25);
+          for (const y of [3, 9, 25, 30]) block(0xa9bac4, side * 7, y, z + face * 2.2, .6, .6, .25);
+        }
+        const panelX = side * (open ? 10.5 : 3);
+        block(0x657d8c, panelX, 16, z, 6, 28, 1.8);
+        for (const face of [-1, 1]) {
+          block(0x283e4c, panelX, 22, z + face, 4.4, 6, .3);
+          block(0x82d7df, panelX, 22, z + face * 1.2, 3.3, 4.3, .2);
+          for (const y of [7, 11, 29]) block(0x8f9faa, panelX, y, z + face, 4.5, .4, .3);
+          block(0xd5ad61, panelX, 4, z + face * 1.1, 5.3, 1, .25);
+        }
+      }
+      for (const y of [1, 31]) block(0x324450, 0, y, z, 16, 2, 4);
     } else if (kind === "woodDoor") {
       for (const side of [-1, 1]) block(trim, side * 7, 16, -2, 2, 32, 5);
       block(wood, 0, 31, -2, 16, 2, 5);
@@ -711,16 +744,16 @@ export class SurfaceWorld3D {
         (frame.cursor.depth ?? 0) * TILE,
       );
       const { kind, rotation = 0 } = frame.cursor;
-      const panel = kind === "woodDoor" || kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
+      const panel = isDoor(kind) || kind === "window" || kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
       const angle = rotation * Math.PI / 2;
       this.cursor.rotation.y = angle;
       this.cursor.scale.set(
         kind && isCabinet(kind) ? cabinetWidths[kind] * TILE : TILE + 0.3,
-        kind === "woodDoor" ? TILE * 2 : TILE + 0.3,
+        isDoor(kind) ? TILE * 2 : TILE + 0.3,
         panel ? 4 : TILE + 0.3,
       );
       if (kind && isCabinet(kind)) this.cursor.position.x += (cabinetWidths[kind] - 1) * TILE / 2;
-      if (kind === "woodDoor") this.cursor.position.y += TILE / 2;
+      if (isDoor(kind)) this.cursor.position.y += TILE / 2;
       if (panel) {
         this.cursor.position.x += Math.sin(angle) * surfaceWallZ;
         this.cursor.position.z += Math.cos(angle) * surfaceWallZ;
@@ -785,6 +818,10 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number) {
     const piece = this.piece(kind, open, facing, powered);
+    if (kind === "window" || kind === "airlockDoor") {
+      piece.rotation.y = (rotation ?? 0) * Math.PI / 2;
+      return piece;
+    }
     const model = kind === "woodDoor"
       ? { file: open ? "porta-aberta" : "porta-fechada", width: 16, height: 32,
           depth: open ? 15 : 5, center: open ? -7 : -2 }
@@ -906,6 +943,7 @@ export class SurfaceWorld3D {
 
   dispose() {
     this.disposed = true;
+    this.windowGlass.dispose();
     this.terrainModels.clear();
     for (const child of this.ground.children)
       if (child instanceof T.InstancedMesh) child.dispose();

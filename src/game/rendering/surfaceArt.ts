@@ -1,3 +1,4 @@
+import { isDoor } from "../../construction/pieces";
 import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
 import { STONE_TILE } from "../procedural/terrain";
 import type Phaser from "phaser";
@@ -321,7 +322,7 @@ export class SurfaceArt {
       }
       return true;
     }
-    const door = kind === "woodDoor";
+    const door = isDoor(kind);
     if (door && state?.open) return this.openDoor(scene, x, y, state.facing);
     const drawn = this.sprite(
       scene,

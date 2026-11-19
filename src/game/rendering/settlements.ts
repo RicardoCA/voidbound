@@ -1,4 +1,4 @@
-import { cabinetWidths, isCabinet, isWall } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isWall, isDoor } from "../../construction/pieces";
 import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
@@ -211,7 +211,12 @@ export function drawPiece(
     }
     return;
   }
-  if (kind === "woodDoor") {
+  if (kind === "window") {
+    g.lineStyle(2, 0x829ba8, alpha).strokeRect(x + 1, y + 1, 14, 14);
+    g.fillStyle(0x9de4ec, alpha * .18).fillRect(x + 2, y + 2, 12, 12);
+    return;
+  }
+  if (isDoor(kind)) {
     g.fillStyle(material.shade, alpha);
     g.fillRect(x, y - 16, 2, 32);
     g.fillRect(x + 14, y - 16, 2, 32);

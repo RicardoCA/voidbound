@@ -1,3 +1,5 @@
+import { isDoor } from "../construction/pieces";
+import { toggleAirlockDoor, airlockPartner } from "../construction/airlock";
 import { fillCartridge, OXYGEN_FILL_TIME_MS, oxygenFillingProgress } from "../survival/autoOxygen";
 import { flight3D } from "../game/rendering/flight3D";
 import { defineStore, acceptHMRUpdate } from "pinia";
@@ -258,9 +260,19 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     }
     g.refreshHabitat();
-    piece.open = !piece.open;
+    if (piece.kind === "airlockDoor") {
+      const error = toggleAirlockDoor(settlement.value, key, g.state.player);
+      if (error) { g.notify(error); return false; }
+    } else piece.open = !piece.open;
     g.worldChanged();
     audio.play(piece.open ? 310 : 220, 0.12);
+    if (piece.kind === "airlockDoor") {
+      g.notify(!airlockPartner(settlement.value, key)
+        ? "Porta sem par · Instale outra porta de antecâmara alinhada, no mesmo piso, a até 5 blocos."
+        : piece.open ? "Antecâmara aberta · Porta parceira fechada." : "Porta de antecâmara fechada.");
+      void g.save();
+      return true;
+    }
     const hatch = piece.kind === "woodHatch";
     g.notify(
       hatch
@@ -488,6 +500,7 @@ export const useConstruction = defineStore("construction", () => {
       if (
         !isCabinet(piece.kind) &&
         ![
+          "airlockDoor",
           "woodDoor",
           "woodHatch",
           "stickLadder",
@@ -507,7 +520,7 @@ export const useConstruction = defineStore("construction", () => {
             (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
             g.state.player.x,
           depthDistance,
-          y! * 16 + (piece.kind === "woodDoor" ? 0 : 8) - g.state.player.y,
+          y! * 16 + (isDoor(piece.kind) ? 0 : 8) - g.state.player.y,
         );
       if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
         return { key: id, distance: d };

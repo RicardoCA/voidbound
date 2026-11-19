@@ -251,3 +251,10 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Arrastar no cenário controla a direção, com giro suavizado e limitado por quadro e resposta mais pesada na colossal. Na nave comum, o arrasto vertical controla a inclinação 3D. Interiores continuam com o joystick de caminhada.
 - Corrigida a exibição dos botões de pilotagem durante o comando da colossal. Cancelamento de toque e perda de foco limpam a entrada.
 - Verificação: 242 testes, ESLint, TypeScript e build passaram; teste Chromium móvel cobre superfície, nave comum e colossal, incluindo dois dedos simultâneos, retrato/paisagem e soltar os controles.
+
+## 2026-11-18 · Janelas e antecâmaras das bases
+
+- Janela vedada construível (2 silícios + 1 placa metálica), com vidro transparente de ambos os lados, moldura e fixações metálicas, rotação, colisão e vedação. Só ocupa vão livre, sem terreno, parede ou bloco; também impede sobrepor uma parede ao vidro.
+- Porta de antecâmara (4 placas + 1 circuito), com modelo metálico de duas folhas, indicadores e abertura. Duas portas alinhadas no mesmo piso, até 5 blocos, formam um par: abrir uma fecha a outra antes, sem fechar sobre o jogador. Pares não compartilham portas.
+- Integrados ao construtor, receitas de superfície, ícones, alcance, montagem/remoção, colisão, análise dos cômodos, interação no celular/PC e persistência existente. Guia do construtor explica montagem da câmara fechada entre as portas.
+- Testes cobrem janela nos quatro ângulos, rejeição de sobreposições, remoção, transparência, colisão, pressão da sala/câmara, intertravamento e save. 254 testes passaram, além de ESLint, TypeScript e build. Sem teste manual em navegador nesta etapa.

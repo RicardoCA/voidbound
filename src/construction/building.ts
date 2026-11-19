@@ -10,6 +10,7 @@ import {
   cabinetWidths,
   isCabinet,
   isOpening,
+  isDoor,
   isWall,
   keyAt,
   pieceAt,
@@ -35,6 +36,8 @@ export const buildItems: BuildItem[] = [
   "cabinet",
   "cabinetDouble",
   "cabinetTriple",
+  "window",
+  "airlockDoor",
   "woodDoor",
   "solarPanel",
   "campfire",
@@ -102,10 +105,16 @@ export function placementError(
   for (const cell of cells) {
     if (cell.y < 1) return "A porta precisa de dois blocos livres de altura.";
     if (hasGround(cell.x, cell.y))
-      return kind === "woodDoor"
+      return isDoor(kind)
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
         : "Minere o terreno antes de construir aqui.";
     const key = keyAt(cell.x, cell.y, depth);
+    const occupant = pieceAt(settlement, cell.x, cell.y, depth)?.piece;
+    if ((kind === "window" && (walls?.[key] || settlement.cornerWalls?.[key])) ||
+        (isWall(kind) && occupant?.kind === "window"))
+      return "A janela precisa de um vão livre, sem parede ou bloco de madeira.";
+    if (kind === "airlockDoor" && (walls?.[key] || settlement.cornerWalls?.[key]))
+      return "Abra um vão sem parede para instalar a porta da antecâmara.";
     const rotation = ctx.rotation;
     const wallOccupied = walls?.[key] && (
       rotation === undefined ||
@@ -116,7 +125,7 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (kind === "woodBlock" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
+    (kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
     (ctx.depth === undefined || Math.abs(depth * 16 - (ctx.player.surfaceZ ?? 0)) < 12) &&
     overlapsActor(kind, x, y, ctx.player)
   )
@@ -175,6 +184,7 @@ export function placementError(
         "campfire",
         "table",
         "bed",
+        "airlockDoor",
         "woodDoor",
         "solarPanel",
         "battery",

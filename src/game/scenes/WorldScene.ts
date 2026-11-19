@@ -94,7 +94,7 @@ import {
   stepClimb,
   stepSurface,
 } from "../physics/surface";
-import { cabinetWidths, isCabinet } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isDoor } from "../../construction/pieces";
 import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
@@ -3244,7 +3244,7 @@ export class WorldScene extends Phaser.Scene {
         this.building.removing || !this.building.errorAt(cursor.x, cursor.y);
       f.lineStyle(1, valid ? 0x9cf0cf : 0xf09d86, 0.9);
       const kind = this.building.selected;
-      const door = kind === "woodDoor";
+      const door = isDoor(kind);
       f.strokeRect(
         sx,
         sy - (door ? 16 : 0),

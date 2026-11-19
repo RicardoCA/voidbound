@@ -10,8 +10,11 @@ export type CabinetKind = keyof typeof cabinetWidths;
 export function isCabinet(kind: BuildItem | undefined): kind is CabinetKind {
   return kind !== undefined && Object.hasOwn(cabinetWidths, kind);
 }
+export function isDoor(kind: BuildItem | undefined) {
+  return kind === "woodDoor" || kind === "airlockDoor";
+}
 export function footprint(kind: BuildItem, x: number, y: number) {
-  return kind === "woodDoor"
+  return isDoor(kind)
     ? [
         { x, y: y - 1 },
         { x, y },
@@ -38,7 +41,7 @@ export function pieceAt(data: Settlement, x: number, y: number, depth = 0) {
   }
   const belowKey = keyAt(x, y + 1, depth),
     below = data.pieces[belowKey];
-  if (below?.kind === "woodDoor")
+  if (below && isDoor(below.kind))
     return { key: belowKey, piece: below, x, y: y + 1 };
 }
 export function isWall(
@@ -47,12 +50,13 @@ export function isWall(
   return kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
 }
 export function isOpening(kind: BuildItem | undefined) {
-  return kind === "woodDoor" || kind === "woodHatch";
+  return isDoor(kind) || kind === "woodHatch";
 }
 export function blocksAir(data: Settlement, x: number, y: number, depth = 0) {
   const piece = pieceAt(data, x, y, depth)?.piece;
   return (
     piece?.kind === "woodBlock" ||
+    piece?.kind === "window" ||
     (piece !== undefined && isOpening(piece.kind) && !piece.open)
   );
 }
@@ -62,7 +66,7 @@ export function overlapsActor(
   y: number,
   actor: { x: number; y: number },
 ) {
-  const top = (kind === "woodDoor" ? y - 1 : y) * 16;
+  const top = (isDoor(kind) ? y - 1 : y) * 16;
   return (
     actor.x + 5 > x * 16 &&
     actor.x - 5 < (x + 1) * 16 &&

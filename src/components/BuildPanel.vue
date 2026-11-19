@@ -31,6 +31,8 @@ const descriptions = {
     "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
   cabinetTriple:
     "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
+  window: "Vidro transparente e vedado. Instale em um vão sem parede nem bloco de madeira. Use Girar para alinhar ao cômodo.",
+  airlockDoor: "Monte duas portas alinhadas, separadas por 1 a 5 blocos, no mesmo piso, cercando uma câmara vedada. Ao abrir uma, a parceira fecha. A sala principal permanece pressurizada.",
   woodDoor:
     "Ocupa 1 × 2 blocos. E, INTERAGIR ou toque para abrir/fechar. Fecha a vedação da casa.",
   solarPanel:
@@ -85,9 +87,12 @@ function affordable(cost: Partial<Record<Item, number>>) {
     </div>
     <HabitatStatus always />
     <p class="habitat-guide">
-      Para recarregar o traje: feche piso, teto e laterais com blocos, preencha
-      o fundo com paredes e feche as portas. Deixe pelo menos dois blocos de
-      altura no interior. Coloque o gerador dentro e as placas no teto, até 12
+      Para recarregar o traje: feche piso, teto e todas as laterais, sem vãos,
+      usando blocos, paredes e janelas vedadas. Instale janelas somente nos
+      espaços livres da estrutura. Para uma antecâmara, construa um pequeno
+      cômodo fechado entre duas portas de antecâmara alinhadas; o intertravamento
+      fecha uma antes de abrir a outra. Deixe pelo menos dois blocos de altura
+      no interior. Coloque o gerador dentro e as placas no teto, até 12
       blocos da bateria, e a bateria até 12 blocos do gerador. A bateria
       carregada mantém o gerador durante a noite; sem bateria, as placas
       continuam alimentando o gerador diretamente. Componentes eletrônicos são
