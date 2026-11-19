@@ -245,6 +245,29 @@
     align-items: center;
     gap: 7px;
   }
+  .touch-walk {
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 92px;
+    height: 80px;
+    padding: 8px;
+    border: 1px solid #89b7c780;
+    border-radius: 16px;
+    background: #102839bf;
+    color: #bfdee2;
+    font-size: 12px;
+    letter-spacing: .6px;
+  }
+  .touch-walk span { font-size: 25px; line-height: 1; }
+  .touch-walk.active { background: #3c737be6; border-color: #b5e7e8aa; }
   .touch-stick {
     position: relative;
     width: 112px;

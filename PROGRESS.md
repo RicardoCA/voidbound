@@ -238,3 +238,9 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Progresso ausente/inválido agora é tratado como inativo, sem NaN nem botão travado. O store de construção passa a aceitar atualização a quente via Pinia, evitando manter métodos antigos com o painel atualizado.
 - Testes cobrem valores inválidos de progresso e dois abastecimentos completos consecutivos, além das validações anteriores (12 testes de cartuchos).
 - ESLint, TypeScript e build de produção verificados.
+
+## 2026-11-18 · Botão Andar na exploração móvel
+
+- Joystick da superfície substituído por botão Andar: mantém avanço enquanto pressionado e para ao soltar, cancelar o toque ou perder captura. Permite olhar arrastando a tela com outro dedo.
+- Pular e Interagir continuam à direita; controles dos outros ambientes preservados. Pausa, mudança de ambiente, aba sem foco e desmontagem limpam o movimento para evitar personagem andando sozinho.
+- Verificação: ESLint, TypeScript e build passaram. Chromium móvel validou retrato/paisagem, pressionar/soltar, câmera com dois dedos, parada na pausa e joystick espacial. Teste reproduzível em scripts/touch-walk-smoke.mjs.

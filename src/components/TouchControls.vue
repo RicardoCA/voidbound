@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { flight3D } from "../game/rendering/flight3D";
 import { useGame } from "../stores/game";
 import {
@@ -22,6 +22,22 @@ const x = ref(0),
   y = ref(0),
   active = ref(false);
 let stickPointer: number | undefined;
+let walkPointer: number | undefined;
+const advancing = ref(false);
+function startWalking(event: PointerEvent) {
+  if (walkPointer !== undefined) return;
+  event.preventDefault();
+  walkPointer = event.pointerId;
+  advancing.value = true;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  controls.up = true;
+}
+function stopWalking(event?: PointerEvent) {
+  if (event && event.pointerId !== walkPointer) return;
+  walkPointer = undefined;
+  advancing.value = false;
+  controls.up = false;
+}
 const directions: Control[] = ["left", "right", "up", "down"];
 function resetStick() {
   stickPointer = undefined;
@@ -72,16 +88,43 @@ function stop(id: Control, event: PointerEvent) {
   controls[id] = false;
 }
 function reset() {
+  stopWalking();
   resetStick();
   releaseControls();
 }
 watch(() => [g.state.mode, g.panel, g.paused, flight3D.surfaceView, piloting.value], reset, { flush: "sync" });
-onBeforeUnmount(reset);
+onMounted(() => {
+  window.addEventListener("blur", reset);
+  document.addEventListener("visibilitychange", reset);
+});
+onBeforeUnmount(() => {
+  reset();
+  window.removeEventListener("blur", reset);
+  document.removeEventListener("visibilitychange", reset);
+});
 </script>
 <template>
   <div class="touch-controls" aria-label="Controles de toque">
     <div class="touch-movement">
+      <button
+        v-if="surface"
+        class="touch-walk"
+        :class="{ active: advancing }"
+        aria-label="Segure para andar para a frente"
+        :aria-pressed="advancing"
+        @pointerdown="startWalking"
+        @pointerup="stopWalking"
+        @pointercancel="stopWalking"
+        @lostpointercapture="stopWalking"
+        @touchend.prevent
+        @dblclick.prevent
+        @contextmenu.prevent
+      >
+        <span aria-hidden="true">↑</span>
+        ANDAR
+      </button>
       <div
+        v-else
         class="touch-stick"
         :class="{ active }"
         role="group"
