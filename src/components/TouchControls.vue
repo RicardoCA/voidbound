@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
           station
             ? "CONVERSAR"
             : cabin || surface || g.aboardColossal
-              ? "INTERAGIR"
+              ? surface ? "INTERAGIR" : "Int."
               : g.flightContact?.wreck && g.flightContact.distance <= 95
                 ? "SAQUEAR"
                 : g.stationDistance <= 115
@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
                     ? "ESCANEAR"
                     : g.flightTarget.action === "orbit"
                       ? "ÓRBITA"
-                      : "INTERAGIR"
+                      : "Int."
         }}
       </button>
     </div>
