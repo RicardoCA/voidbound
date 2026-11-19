@@ -272,34 +272,6 @@ onBeforeUnmount(() => {
     <div v-if="inCabin && show3D && cabinLoading" class="cabin-loading" role="status">
       Carregando cabine…
     </div>
-    <div
-      v-if="
-        freeFlight &&
-        !gpuFailed &&
-        !g.panel &&
-        !g.paused &&
-        !g.colossalHelm
-      "
-      class="pitch-controls"
-    >
-      <button
-        v-for="[label, direction] in [
-          ['Subir', 1],
-          ['Descer', -1],
-        ] as const"
-        :key="direction"
-        type="button"
-        @pointerdown.prevent="
-          ($event.currentTarget as HTMLElement).setPointerCapture(
-            $event.pointerId,
-          );
-          flight3D.touchPitch = direction;
-        "
-        @lostpointercapture="flight3D.touchPitch = 0"
-      >
-        {{ label }}
-      </button>
-    </div>
     <div v-if="inShowroom && !g.paused && !g.panel" class="showroom-controls">
       <button type="button" class="secondary" @click="leaveShowroom">
         Voltar à estação
@@ -418,22 +390,5 @@ onBeforeUnmount(() => {
   background: #080f20;
   color: #a7dedb;
   pointer-events: none;
-}
-.pitch-controls {
-  display: none;
-}
-@media (pointer: coarse), (max-width: 760px) {
-  .pitch-controls {
-    position: absolute;
-    z-index: 2;
-    right: 8px;
-    top: 42px;
-    display: flex;
-    gap: 5px;
-  }
-  .pitch-controls button {
-    touch-action: none;
-    padding: 5px;
-  }
 }
 </style>
