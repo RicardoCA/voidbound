@@ -1,3 +1,4 @@
+import { isBaseLight, lightRate, advanceBaseLight } from "./lighting";
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
 import { blocksAir, isOpening, isDoor, keyAt, pieceAt } from "./pieces";
@@ -163,6 +164,7 @@ export interface PowerNetwork {
   }[];
   batteries: { key: string; x: number; y: number; depth: number; panels: number }[];
   fridges: { key: string; batteries: string[]; panels: string[] }[];
+  lights: { key: string; x: number; y: number; depth: number; batteries: string[]; panels: string[] }[];
   panels: number;
   exposedPanels: number;
 }
@@ -231,6 +233,14 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
+  const lights = Object.entries(data.pieces)
+    .filter(([, piece]) => isBaseLight(piece.kind))
+    .map(([key]) => {
+      const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+      return { key, x, y, depth,
+        batteries: batteries.filter(b => Math.hypot(b.x - x, b.y - y, b.depth - depth) <= POWER_RANGE).map(b => b.key),
+        panels: [] as string[] };
+    }).sort((a,b) => a.key.localeCompare(b.key));
   const exposed: { x: number; y: number; depth: number }[] = [];
   let exposedPanels = 0;
   for (const [key] of panels) {
@@ -253,9 +263,9 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       generator.panels++;
       generator.directPanels.push(key);
     }
-    for (const fridge of fridges)
-      if (Math.hypot(fridge.x - x!, fridge.y - y, fridge.depth - depth) <= POWER_RANGE)
-        fridge.panels.push(key);
+    for (const consumer of [...fridges, ...lights])
+      if (Math.hypot(consumer.x - x!, consumer.y - y, consumer.depth - depth) <= POWER_RANGE)
+        consumer.panels.push(key);
   }
   const planetary = Object.entries(data.pieces)
     .filter(([, piece]) => piece.kind === "planetaryOxygenGenerator")
@@ -272,6 +282,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
     generators,
     batteries,
     fridges,
+    lights,
     panels: panels.length,
     exposedPanels,
   };
@@ -283,7 +294,7 @@ export function advancePowerNetwork(
   from: number,
   to: number,
 ) {
-  if (network.fridges.length || network.planetary.length) {
+  if (network.fridges.length || network.planetary.length || network.lights.length) {
     for (let start = from; start < to;) {
       const end = Math.min(to, start + 1);
       advancePowerStep(data, network, start, end);
@@ -300,6 +311,14 @@ export function advancePowerNetwork(
         fridge.panels.length * daylight(to) * SOLAR_RATE >= FRIDGE_RATE ||
         fridge.batteries.some((key) => (data.pieces[key]?.energy ?? 0) > 0);
       piece.powered = available && (from === to || piece.powered === true);
+    }
+    for (const light of network.lights) {
+      const piece = data.pieces[light.key]!;
+      const available = light.panels.length * daylight(to) * SOLAR_RATE >= lightRate(piece.kind) ||
+        light.batteries.some(key => (data.pieces[key]?.energy ?? 0) > 0);
+      piece.powered = available && (from === to || piece.powered === true);
+      if (piece.kind === "emergencyLight")
+        piece.emergencyActive = !piece.powered && (piece.backupEnergy ?? 0) > 0;
     }
     return;
   }
@@ -337,7 +356,7 @@ function advancePowerStep(
   }
   for (const generator of network.generators) {
     const piece = data.pieces[generator.key]!;
-    if (!generator.batteries.length && !network.fridges.length) {
+    if (!generator.batteries.length && !network.fridges.length && !network.lights.length) {
       advanceGenerator(piece, generator.panels, from, to);
       continue;
     }
@@ -382,6 +401,20 @@ function advancePowerStep(
         expires: batch.expires - warmTime,
       }));
   }
+  // Life support and refrigeration get priority; lights consume only what remains.
+  for (const light of network.lights) {
+    const piece = data.pieces[light.key]!;
+    const demand = lightRate(piece.kind) * elapsed;
+    let supplied = takeSolar(light.panels, demand);
+    for (const key of light.batteries) {
+      const battery = data.pieces[key]!;
+      const used = Math.min(demand - supplied, battery.energy ?? 0);
+      battery.energy = Math.max(0, (battery.energy ?? 0) - used);
+      supplied += used;
+    }
+    advanceBaseLight(piece, supplied, elapsed);
+  }
+
 }
 
 export function advanceGenerator(

@@ -58,7 +58,8 @@ export class HabitatSystem {
       network.planetary.length ||
       network.generators.length ||
       network.batteries.length ||
-      network.fridges.length
+      network.fridges.length ||
+      network.lights.length
     )
       data.utilityTime = now;
     const report: HabitatReport = {

@@ -1,3 +1,4 @@
+import { isBaseLight, EMERGENCY_CAPACITY } from "../construction/lighting";
 import { isDoor } from "../construction/pieces";
 import { toggleAirlockDoor, airlockPartner } from "../construction/airlock";
 import { fillCartridge, OXYGEN_FILL_TIME_MS, oxygenFillingProgress } from "../survival/autoOxygen";
@@ -191,7 +192,7 @@ export const useConstruction = defineStore("construction", () => {
     lastError.value = "";
     if (
       !removing.value &&
-      ["solarPanel", "battery", "oxygenGenerator", "planetaryOxygenGenerator", "fridge"].includes(
+      ["solarPanel", "battery", "oxygenGenerator", "planetaryOxygenGenerator", "fridge", "floodlight", "emergencyLight"].includes(
         selected.value,
       )
     )
@@ -356,6 +357,13 @@ export const useConstruction = defineStore("construction", () => {
       openCabinet(found.key);
       return true;
     }
+    if (isBaseLight(found.piece.kind) && inReach(g.state.player, found.x, found.y, 76)) {
+      g.refreshHabitat();
+      g.notify(found.piece.kind === "floodlight"
+        ? found.piece.powered ? "Holofote ligado · Alimentação solar ou bateria próxima." : "Holofote sem energia · Conecte uma placa exposta ou bateria a até 12 blocos."
+        : `Emergência: ${found.piece.emergencyActive ? "sinalização acesa" : found.piece.powered ? "rede ativa, carregando reserva" : "sem carga"} · Reserva ${Math.floor(100 * (found.piece.backupEnergy ?? 0) / EMERGENCY_CAPACITY)}%.`);
+      return true;
+    }
     if (
       found.piece.kind === "battery" &&
       inReach(g.state.player, found.x, found.y, 76)
@@ -506,6 +514,8 @@ export const useConstruction = defineStore("construction", () => {
           "stickLadder",
           "campfire",
           "bed",
+          "floodlight",
+          "emergencyLight",
           "battery",
           "oxygenGenerator",
           "planetaryOxygenGenerator",

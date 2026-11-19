@@ -31,6 +31,8 @@ const descriptions = {
     "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
   cabinetTriple:
     "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
+  floodlight: "Ilumina de verdade o terreno. Instale sobre chão firme e gire para apontar. Usa 2 de energia/s de placas expostas ou baterias a até 12 blocos.",
+  emergencyLight: "Instale junto à saída. Carrega sua reserva na rede a até 12 blocos; sem energia, acende automaticamente. A reserva cheia dura 20 minutos ativos. Recarga completa: 2 minutos de alimentação. Instale e carregue antes de usar.",
   window: "Vidro transparente e vedado. Instale em um vão sem parede nem bloco de madeira. Use Girar para alinhar ao cômodo.",
   airlockDoor: "Monte duas portas alinhadas, separadas por 1 a 5 blocos, no mesmo piso, cercando uma câmara vedada. Ao abrir uma, a parceira fecha. A sala principal permanece pressurizada.",
   woodDoor:

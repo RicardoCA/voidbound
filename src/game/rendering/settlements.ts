@@ -211,6 +211,17 @@ export function drawPiece(
     }
     return;
   }
+  if (kind === "floodlight") {
+    g.fillStyle(0x3d5362, alpha).fillRect(x + 6, y + 6, 4, 8).fillRect(x + 2, y + 14, 12, 2);
+    g.fillStyle(0x2b3b48, alpha).fillRect(x + 1, y, 14, 8);
+    g.fillStyle(state?.powered ? 0xffedbd : 0x53646c, alpha).fillRect(x + 3, y + 2, 10, 4);
+    return;
+  }
+  if (kind === "emergencyLight") {
+    g.fillStyle(0x354a54, alpha).fillRect(x + 1, y + 4, 14, 8);
+    g.fillStyle(state?.emergencyActive ? 0x91ffc1 : 0x294f3a, alpha).fillRect(x + 3, y + 6, 10, 4);
+    return;
+  }
   if (kind === "window") {
     g.lineStyle(2, 0x829ba8, alpha).strokeRect(x + 1, y + 1, 14, 14);
     g.fillStyle(0x9de4ec, alpha * .18).fillRect(x + 2, y + 2, 12, 12);

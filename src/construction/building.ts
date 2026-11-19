@@ -36,6 +36,8 @@ export const buildItems: BuildItem[] = [
   "cabinet",
   "cabinetDouble",
   "cabinetTriple",
+  "floodlight",
+  "emergencyLight",
   "window",
   "airlockDoor",
   "woodDoor",
@@ -173,7 +175,7 @@ export function placementError(
     lowerStair?.kind === "woodStairs" &&
     lowerStair.facing === facing;
   const ladderBacking = kind === "stickLadder" && walls?.[keyAt(x, y, depth)];
-  const wallBacking = kind === "picture" && walls?.[keyAt(x, y, depth)];
+  const wallBacking = (kind === "picture" || kind === "emergencyLight") && walls?.[keyAt(x, y, depth)];
   if (kind === "picture" && !wallBacking)
     return "Instale o quadro sobre uma parede de fundo.";
   if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking)
@@ -181,6 +183,7 @@ export function placementError(
   if (
     (isCabinet(kind) ||
       [
+        "floodlight",
         "campfire",
         "table",
         "bed",
@@ -233,6 +236,8 @@ export function placePiece(
       ...(ctx.rotation !== undefined ? { rotation: ctx.rotation } : {}),
       ...(isOpening(kind) ? { open: false } : {}),
       ...(kind === "battery" ? { energy: 0 } : {}),
+      ...(kind === "emergencyLight" ? { backupEnergy: 0, powered: false, emergencyActive: false } : {}),
+      ...(kind === "floodlight" ? { powered: false } : {}),
       ...(kind === "oxygenGenerator" ? { energy: 0, oxygen: 0 } : {}),
     };
     if (isCabinet(kind)) ctx.settlement.cabinets[key] = {};

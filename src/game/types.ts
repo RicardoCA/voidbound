@@ -77,6 +77,8 @@ export type Item =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "floodlight"
+  | "emergencyLight"
   | "window"
   | "airlockDoor"
   | "woodDoor"
@@ -137,6 +139,8 @@ export type BuildItem =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "floodlight"
+  | "emergencyLight"
   | "window"
   | "airlockDoor"
   | "woodDoor"
@@ -153,6 +157,8 @@ export interface PlacedPiece {
   energy?: number;
   oxygen?: number;
   powered?: boolean;
+  backupEnergy?: number;
+  emergencyActive?: boolean;
 }
 export interface Settlement {
   cornerWalls?: Record<string, Settlement["walls"]>;
@@ -685,6 +691,8 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  floodlight: { name: "Holofote", color: "#f3e2af", icon: "☼", rarity: "Construção", stack: 99 },
+  emergencyLight: { name: "Iluminação de emergência", color: "#87f4ae", icon: "↧", rarity: "Construção", stack: 99 },
   window: { name: "Janela vedada", color: "#88dcea", icon: "▣", rarity: "Construção", stack: 99 },
   airlockDoor: { name: "Porta de antecâmara", color: "#93bbc9", icon: "▥", rarity: "Construção", stack: 99 },
   woodDoor: {

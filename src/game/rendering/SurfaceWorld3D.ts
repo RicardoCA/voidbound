@@ -1,3 +1,4 @@
+import { isBaseLight } from "../../construction/lighting";
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
 import { cabinetWidths, isCabinet, isDoor, keyAt } from "../../construction/pieces";
@@ -120,6 +121,10 @@ export class SurfaceWorld3D {
     color: 0xa4e4ed, transparent: true, opacity: .18, roughness: .12,
     metalness: .15, depthWrite: false, side: T.DoubleSide,
   });
+  private readonly floodGlow = new T.MeshStandardMaterial({ color: 0xffefc8, emissive: 0xffe5a1, emissiveIntensity: 2, roughness: .3 });
+  private readonly emergencyGlow = new T.MeshStandardMaterial({ color: 0xbaffd5, emissive: 0x48ff97, emissiveIntensity: 2.4, roughness: .35 });
+  private readonly baseSpots = Array.from({ length: 4 }, () => new T.SpotLight(0xffedce, 0, 150, .6, .45, 2));
+  private readonly exitLights = Array.from({ length: 2 }, () => new T.PointLight(0x68ffac, 0, 40, 2));
   private disposed = false;
   private groundTerrain?: Terrain;
   private planetKey = "";
@@ -127,6 +132,11 @@ export class SurfaceWorld3D {
   private bounds = { left: 0, right: 0, top: 0, bottom: 0 };
 
   constructor(private readonly loadModel?: (asset: string) => Promise<T.Group>) {
+    for (const spot of this.baseSpots) {
+      spot.castShadow = false;
+      this.scene.add(spot, spot.target);
+    }
+    this.scene.add(...this.exitLights);
     this.sun.position.set(-100, 150, 100);
     this.scene.background = this.backdrop;
     this.scene.fog = new T.Fog(this.backdrop, 85, 198);
@@ -315,6 +325,7 @@ export class SurfaceWorld3D {
     open: boolean,
     facing: number,
     powered: boolean,
+    emergencyActive = false,
   ) {
     const group = new T.Group();
     const block = (
@@ -342,6 +353,32 @@ export class SurfaceWorld3D {
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
       for (const y of [2, 7, 12]) block(trim, 0, y, 0, 15, 0.5, 0.32);
+    } else if (kind === "floodlight") {
+      block(0x263746, 0, 1.2, 0, 11, 2.4, 10);
+      block(metal, 0, 7, 0, 2.2, 12, 2.2);
+      for (const side of [-1, 1]) {
+        block(0xa4b1b5, side * 5.1, 1.7, 0, 1, .6, 8.5);
+        block(0xd7b865, side * 4.5, 12.5, 0, 1, 5, 3.5);
+      }
+      block(0x324350, 0, 16, 0, 11, 7, 5);
+      const lens = block(powered ? 0xfff2c9 : 0x475a62, 0, 16, 2.65, 9, 5, .4);
+      if (powered) lens.material = this.floodGlow;
+      for (const x of [-3, 0, 3]) block(0x879492, x, 16, 2.94, .22, 4.5, .15);
+      for (const side of [-1, 1]) for (const y of [13.4, 18.6])
+        block(0xa5b4b8, side * 4.9, y, 2.7, .5, .5, .3);
+      for (const y of [14, 16, 18]) block(0x182c37, 0, y, -2.6, 8, .4, .3);
+    } else if (kind === "emergencyLight") {
+      block(0x354a54, 0, 10, -4, 14, 8, 3);
+      block(0x152e29, 0, 10, -2.4, 11.8, 5.6, .3);
+      for (const x of [-6, 6]) for (const y of [7, 13]) block(0xa8b8bb, x, y, -2.3, .5, .5, .25);
+      const stem = block(emergencyActive ? 0x8bffc0 : 0x375e4b, 0, 10.3, -2.1, 1.3, 3.8, .35);
+      if (emergencyActive) stem.material = this.emergencyGlow;
+      for (const side of [-1, 1]) {
+        const arrow = block(emergencyActive ? 0x8bffc0 : 0x375e4b, side * 1.2, 8.7, -2.1, 1.2, 3.5, .35);
+        arrow.rotation.z = side * -.75;
+        if (emergencyActive) arrow.material = this.emergencyGlow;
+      }
+      block(powered ? 0x83e8c1 : 0xd5a15a, 4.5, 10, -2.1, .8, .8, .35);
     } else if (kind === "window") {
       const z = surfaceWallZ;
       for (const side of [-1, 1]) block(metal, side * 7, 8, z, 2, 16, 3);
@@ -537,6 +574,7 @@ export class SurfaceWorld3D {
       group.position.set(wx, -wy, z + 8);
       return group;
     };
+    this.updateBaseLights(frame);
     const { left, right, top, bottom } = this.bounds;
     for (let x = left - 2; x < right; x++)
       for (let y = top; y < bottom; y++) {
@@ -550,9 +588,9 @@ export class SurfaceWorld3D {
           Math.abs(depth * TILE - z) > 224) continue;
       const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
       put(
-        `piece:${key}:${piece.kind}:${piece.open}:${piece.facing}:${piece.powered}:${piece.rotation}`,
+        `piece:${key}:${piece.kind}:${piece.open}:${piece.facing}:${piece.powered}:${piece.rotation}:${piece.emergencyActive}`,
         (x + size / 2) * TILE, (y + 1) * TILE, depth * TILE,
-        () => this.orientedPiece(piece.kind, !!piece.open, piece.facing, !!piece.powered, piece.rotation),
+        () => this.orientedPiece(piece.kind, !!piece.open, piece.facing, !!piece.powered, piece.rotation, !!piece.emergencyActive),
       ).userData.cell = { x, y, depth };
     }
     const trees = [
@@ -808,6 +846,34 @@ export class SurfaceWorld3D {
     this.targetFrame = frame;
   }
 
+  private updateBaseLights(frame: SurfaceFrame) {
+    const lights = Object.entries(frame.settlement.pieces)
+      .filter(([, piece]) => isBaseLight(piece.kind))
+      .map(([key, piece]) => {
+        const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+        const world = new T.Vector3((x + .5) * TILE, -(y + 1) * TILE + 16, depth * TILE);
+        const distance = world.distanceTo(new T.Vector3(frame.camera.x, -frame.camera.y, frame.camera.z));
+        return { key, piece, world, distance };
+      }).filter(light => light.distance <= 160)
+      .sort((a,b) => a.distance - b.distance || a.key.localeCompare(b.key));
+    const floods = lights.filter(light => light.piece.kind === "floodlight" && light.piece.powered);
+    this.baseSpots.forEach((spot, index) => {
+      const source = floods[index];
+      spot.intensity = source ? 18000 : 0;
+      if (!source) return;
+      const angle = (source.piece.rotation ?? 0) * Math.PI / 2;
+      const direction = new T.Vector3(Math.sin(angle), -.32, Math.cos(angle)).normalize();
+      spot.position.copy(source.world).addScaledVector(direction, 3);
+      spot.target.position.copy(spot.position).addScaledVector(direction, 100);
+    });
+    const exits = lights.filter(light => light.piece.kind === "emergencyLight" && light.piece.emergencyActive);
+    this.exitLights.forEach((light, index) => {
+      const source = exits[index];
+      light.intensity = source ? 450 : 0;
+      if (source) light.position.copy(source.world).add(new T.Vector3(0, -5, 0));
+    });
+  }
+
   project(x: number, y: number, z: number, width: number, height: number) {
     const point = this.ndc.set(x, -y, z).project(this.camera);
     return {
@@ -816,11 +882,14 @@ export class SurfaceWorld3D {
     };
   }
 
-  private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number) {
-    const piece = this.piece(kind, open, facing, powered);
-    if (kind === "window" || kind === "airlockDoor") {
+  private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number, emergencyActive = false) {
+    const piece = this.piece(kind, open, facing, powered, emergencyActive);
+    if (kind === "window" || kind === "airlockDoor" || isBaseLight(kind)) {
+      const aligned = new T.Group();
+      piece.position.z = -8;
       piece.rotation.y = (rotation ?? 0) * Math.PI / 2;
-      return piece;
+      aligned.add(piece);
+      return aligned;
     }
     const model = kind === "woodDoor"
       ? { file: open ? "porta-aberta" : "porta-fechada", width: 16, height: 32,
@@ -944,6 +1013,8 @@ export class SurfaceWorld3D {
   dispose() {
     this.disposed = true;
     this.windowGlass.dispose();
+    this.floodGlow.dispose(); this.emergencyGlow.dispose();
+    for (const light of [...this.baseSpots, ...this.exitLights]) light.dispose();
     this.terrainModels.clear();
     for (const child of this.ground.children)
       if (child instanceof T.InstancedMesh) child.dispose();

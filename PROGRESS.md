@@ -258,3 +258,11 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Porta de antecâmara (4 placas + 1 circuito), com modelo metálico de duas folhas, indicadores e abertura. Duas portas alinhadas no mesmo piso, até 5 blocos, formam um par: abrir uma fecha a outra antes, sem fechar sobre o jogador. Pares não compartilham portas.
 - Integrados ao construtor, receitas de superfície, ícones, alcance, montagem/remoção, colisão, análise dos cômodos, interação no celular/PC e persistência existente. Guia do construtor explica montagem da câmara fechada entre as portas.
 - Testes cobrem janela nos quatro ângulos, rejeição de sobreposições, remoção, transparência, colisão, pressão da sala/câmara, intertravamento e save. 254 testes passaram, além de ESLint, TypeScript e build. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-18 · Holofotes e sinalização de emergência
+
+- Holofote construível (2 placas metálicas, 2 cobres, 1 circuito e 1 cristal), girável, com pedestal, lente emissiva e feixe real de luz no terreno. Consome 2 de energia por segundo de placas expostas ou baterias a até 12 blocos.
+- Iluminação de emergência (1 placa, 1 circuito e 1 célula) montável nas bases junto às saídas. Reserva própria começa vazia, carrega em 2 minutos de rede e dura 20 minutos ativos no apagão; sinal verde e luz local acendem automaticamente. A carga persiste e não é recriada ao desmontar/reinstalar.
+- Rede compartilha energia sem duplicar produção e prioriza suporte de vida/refrigeração. Holofote desliga quando não há alimentação. Interagir mostra alimentação e reserva; os itens estão no construtor e usam inventário e save existentes.
+- Renderização usa grupos de luzes reutilizados e limitados às proximidades para reduzir custo no celular, sem mapas de sombra adicionais. Alinhamento das novas peças de painel corrigido em relação à colisão.
+- Testes: consumo e esgotamento, divisão de energia, alcance, sol/noite, recarga e ativação de reserva, persistência, montagem/remoção e iluminação 3D. 262 testes, ESLint, TypeScript e build passaram. Sem teste manual em navegador nesta etapa.
