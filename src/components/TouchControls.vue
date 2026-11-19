@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
           station
             ? "CONVERSAR"
             : cabin || surface || g.aboardColossal
-              ? surface ? "INTERAGIR" : "Int."
+              ? "Int."
               : g.flightContact?.wreck && g.flightContact.distance <= 95
                 ? "SAQUEAR"
                 : g.stationDistance <= 115
