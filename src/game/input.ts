@@ -28,6 +28,22 @@ export function flightSteering(keyboard: number, dt: number, response = 1) {
   return touchSteering.turn;
 }
 
+/** Drag changes heading, with a capped, smoothed turn instead of a sudden spin. */
+export const touchFlightLook = { yaw: 0, pitch: 0 };
+export function dragFlightLook(dx: number, dy: number) {
+  touchFlightLook.yaw = Math.max(-1.2, Math.min(1.2, touchFlightLook.yaw + dx * .004));
+  touchFlightLook.pitch = Math.max(-.8, Math.min(.8, touchFlightLook.pitch - dy * .004));
+}
+export function stepFlightLook(dt: number, response = 1) {
+  const blend = 1 - Math.exp(-Math.max(0, dt) * 12 * response);
+  const yaw = Math.max(-dt * 1.3 * response, Math.min(dt * 1.3 * response, touchFlightLook.yaw * blend));
+  const pitch = Math.max(-dt * response, Math.min(dt * response, touchFlightLook.pitch * blend));
+  touchFlightLook.yaw -= yaw;
+  touchFlightLook.pitch -= pitch;
+  return { yaw, pitch };
+}
+export function clearFlightLook() { touchFlightLook.yaw = touchFlightLook.pitch = 0; }
+
 const pulses = new Set<Control>();
 export function queuePulse(id: Control) {
   pulses.add(id);
@@ -44,6 +60,7 @@ export function takePulse(id: Control) {
 export function releaseControls() {
   for (const key of Object.keys(controls) as Control[]) controls[key] = false;
   pulses.clear();
+  clearFlightLook();
   touchSteering.target = touchSteering.turn = 0;
 }
 

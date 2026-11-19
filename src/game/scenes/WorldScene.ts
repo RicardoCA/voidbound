@@ -102,6 +102,9 @@ import { random, hash } from "../procedural/random";
 import { planetPosition, spatialPlanet } from "../../universe/generator";
 import {
   controls,
+  dragFlightLook,
+  stepFlightLook,
+  clearFlightLook,
   flightSteering,
   touchSteering,
   takePulse,
@@ -226,6 +229,10 @@ export class WorldScene extends Phaser.Scene {
       !this.store.paused &&
       !this.store.busy &&
       !this.store.inSequence;
+    const onFlight = () => this.store.started &&
+      ((this.store.state.mode === "space" && !this.store.flightCabin && !this.store.aboardColossal) || this.store.colossalHelm) &&
+      !this.store.panel && !this.store.paused && !this.store.busy && !this.store.inSequence;
+    let flightLook: { id: number; x: number; y: number } | undefined;
     const targetSurface = (event: PointerEvent, confirm = false) => {
       if (!onSurface()) return;
       const target = this.surfacePoint(event, confirm);
@@ -234,6 +241,13 @@ export class WorldScene extends Phaser.Scene {
     };
     let touchLook: { id: number; x: number; y: number; drag: boolean } | undefined;
     const press = (event: PointerEvent) => {
+      if (event.pointerType === "touch" && onFlight()) {
+        if (flightLook) return;
+        event.preventDefault();
+        flightLook = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        canvas.setPointerCapture(event.pointerId);
+        return;
+      }
       if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
         if (touchLook) return;
         touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
@@ -273,6 +287,13 @@ export class WorldScene extends Phaser.Scene {
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
+      if (flightLook?.id === event.pointerId) {
+        if (!onFlight()) { flightLook = undefined; clearFlightLook(); return; }
+        event.preventDefault();
+        dragFlightLook(event.clientX - flightLook.x, event.clientY - flightLook.y);
+        flightLook = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        return;
+      }
       if (flight3D.surfaceView && onSurface()) {
         if (touchLook?.id === event.pointerId) {
           const dx = event.clientX - touchLook.x, dy = event.clientY - touchLook.y;
@@ -295,13 +316,14 @@ export class WorldScene extends Phaser.Scene {
     canvas.addEventListener("pointerdown", press);
     canvas.addEventListener("pointermove", move);
     const finish = (event: PointerEvent) => {
+      if (flightLook?.id === event.pointerId) { flightLook = undefined; clearFlightLook(); }
       if (touchLook?.id === event.pointerId) {
         if (!touchLook.drag) this.surfaceTap = targetSurface(event, true);
         touchLook = undefined;
       }
       clearMouse();
     };
-    const cancel = () => { touchLook = undefined; clearMouse(); };
+    const cancel = () => { touchLook = undefined; flightLook = undefined; clearFlightLook(); clearMouse(); };
     const contextMenu = (event: MouseEvent) => {
       if (onSurface() && flight3D.surfaceView) event.preventDefault();
     };
@@ -309,6 +331,8 @@ export class WorldScene extends Phaser.Scene {
     canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointerleave", clearMouse);
     canvas.addEventListener("pointercancel", cancel);
+    canvas.addEventListener("lostpointercapture", finish);
+    this.game.events.on("blur", cancel);
     const silenceEngine = () => audio.flightEngine("idle");
     this.game.events.on("blur", clearMouse);
     this.game.events.on("blur", silenceEngine);
@@ -319,6 +343,8 @@ export class WorldScene extends Phaser.Scene {
       canvas.removeEventListener("contextmenu", contextMenu);
       canvas.removeEventListener("pointerleave", clearMouse);
       canvas.removeEventListener("pointercancel", cancel);
+      canvas.removeEventListener("lostpointercapture", finish);
+      this.game.events.off("blur", cancel);
       this.game.events.off("blur", clearMouse);
       this.game.events.off("blur", silenceEngine);
       silenceEngine();
@@ -733,6 +759,8 @@ export class WorldScene extends Phaser.Scene {
             g.colossalHelm = false;
             void g.save();
           } else if (carrierHelm) {
+            const drag = stepFlightLook(dt, .6);
+            carrier.angle = (carrier.angle ?? 0) + drag.yaw;
             flight3D.thrust = !!thrusting;
             steerColossal(
               carrier,
@@ -1168,6 +1196,7 @@ export class WorldScene extends Phaser.Scene {
   private spacePhysics(dt: number, piloting = true) {
     const g = this.store,
       s = g.state.ship;
+    const drag = piloting ? stepFlightLook(dt) : { yaw: 0, pitch: 0 };
     const keyboardTurn = Number(this.down("D")) - Number(this.down("A"));
     const steeringResponse = Phaser.Math.Clamp(g.model.acceleration / 65, .65, 1.25);
     const rotate = piloting ? flightSteering(keyboardTurn, dt, steeringResponse) : 0;
@@ -1181,7 +1210,7 @@ export class WorldScene extends Phaser.Scene {
       : 0;
     if (spatial)
       flight3D.pitch = Phaser.Math.Clamp(
-        flight3D.pitch + pitchInput * dt,
+        flight3D.pitch + pitchInput * dt + drag.pitch,
         -1.2,
         1.2,
       );
@@ -1189,11 +1218,11 @@ export class WorldScene extends Phaser.Scene {
       spatial &&
       ((thrust && s.fuel > 0) ||
         (!!g.routeDestination && s.fuel > 0 && !this.routeBraking));
-    if (g.routeDestination && ((piloting && (keyboardTurn || touchSteering.target)) || thrust || brake || pitchInput)) {
+    if (g.routeDestination && ((piloting && (keyboardTurn || touchSteering.target || drag.yaw || drag.pitch)) || thrust || brake || pitchInput)) {
       g.clearRoute("Piloto automático desativado. Controle manual.");
     }
     if (g.routeDestination) this.followRoute(dt, g.routeDestination, spatial);
-    if (!g.routeDestination) s.angle += rotate * 2.5 * dt;
+    if (!g.routeDestination) s.angle += rotate * 2.5 * dt + drag.yaw;
     if (thrust && s.fuel > 0) {
       const acceleration =
         g.model.acceleration *

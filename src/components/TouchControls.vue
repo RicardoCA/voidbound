@@ -107,10 +107,10 @@ onBeforeUnmount(() => {
   <div class="touch-controls" aria-label="Controles de toque">
     <div class="touch-movement">
       <button
-        v-if="surface"
+        v-if="surface || piloting"
         class="touch-walk"
         :class="{ active: advancing }"
-        aria-label="Segure para andar para a frente"
+        :aria-label="piloting ? 'Segure para acelerar a nave' : 'Segure para andar para a frente'"
         :aria-pressed="advancing"
         @pointerdown="startWalking"
         @pointerup="stopWalking"
@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
         @contextmenu.prevent
       >
         <span aria-hidden="true">↑</span>
-        ANDAR
+        {{ piloting ? "ACELERAR" : "ANDAR" }}
       </button>
       <div
         v-else
@@ -149,16 +149,16 @@ onBeforeUnmount(() => {
           :style="{ transform: `translate(${x}px, ${y}px)` }"
         />
       </div>
-      <span v-if="!walking || g.colossalHelm" class="touch-hint"
-        >GIRAR / ACELERAR</span
+      <span v-if="piloting" class="touch-hint"
+        >ARRASTE A TELA PARA VIRAR</span
       >
     </div>
     <div
       class="touch-actions"
-      :class="{ 'space-actions': !walking, 'station-actions-only': indoors }"
+      :class="{ 'space-actions': piloting, 'station-actions-only': indoors && !piloting }"
     >
       <button
-        v-if="!walking"
+        v-if="piloting"
         class="touch-brake"
         aria-label="Frear nave"
         @pointerdown="action('down', $event)"
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
         PULAR
       </button>
       <button
-        v-if="!walking"
+        v-if="piloting"
         class="touch-mine"
         aria-label="Minerar asteroides ou extrair cristal estelar"
         @pointerdown="action('mine', $event)"
@@ -191,7 +191,7 @@ onBeforeUnmount(() => {
         <span aria-hidden="true">⌁</span>LASER
       </button>
       <button
-        v-if="!walking"
+        v-if="piloting"
         class="touch-fire"
         aria-label="Disparar arma"
         @pointerdown="action('fire', $event)"

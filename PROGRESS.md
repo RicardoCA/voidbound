@@ -244,3 +244,10 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Joystick da superfície substituído por botão Andar: mantém avanço enquanto pressionado e para ao soltar, cancelar o toque ou perder captura. Permite olhar arrastando a tela com outro dedo.
 - Pular e Interagir continuam à direita; controles dos outros ambientes preservados. Pausa, mudança de ambiente, aba sem foco e desmontagem limpam o movimento para evitar personagem andando sozinho.
 - Verificação: ESLint, TypeScript e build passaram. Chromium móvel validou retrato/paisagem, pressionar/soltar, câmera com dois dedos, parada na pausa e joystick espacial. Teste reproduzível em scripts/touch-walk-smoke.mjs.
+
+## 2026-11-18 · Pilotagem móvel por botão e arrasto
+
+- Nave comum e colossal usam botão Acelerar no lugar do joystick. Segurar mantém propulsão; soltar interrompe o impulso, preservando o embalo e o botão Frear.
+- Arrastar no cenário controla a direção, com giro suavizado e limitado por quadro e resposta mais pesada na colossal. Na nave comum, o arrasto vertical controla a inclinação 3D. Interiores continuam com o joystick de caminhada.
+- Corrigida a exibição dos botões de pilotagem durante o comando da colossal. Cancelamento de toque e perda de foco limpam a entrada.
+- Verificação: 242 testes, ESLint, TypeScript e build passaram; teste Chromium móvel cobre superfície, nave comum e colossal, incluindo dois dedos simultâneos, retrato/paisagem e soltar os controles.

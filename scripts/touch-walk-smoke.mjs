@@ -20,7 +20,11 @@ try {
         "game",
       );
     window.g.newGame("VOIDBOUND");
-    window.input = await import("/src/game/input.ts");
+    const inputUrl = performance
+      .getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .find((url) => new URL(url).pathname === "/src/game/input.ts");
+    window.input = await import(inputUrl || "/src/game/input.ts");
     window.flight = (await import("/src/game/rendering/flight3D.ts")).flight3D;
     window.g.state.mode = "surface";
     window.g.panel = "";
@@ -30,6 +34,8 @@ try {
     name: "Segure para andar para a frente",
   });
   await walk.waitFor();
+  await page.waitForFunction(() => window.flight.surfaceView && !window.g.busy);
+  await page.waitForTimeout(300);
   assert.equal(await page.locator(".touch-stick").count(), 0);
   const box = await walk.boundingBox();
   assert.ok(box.width >= 44 && box.height >= 44);
@@ -74,7 +80,83 @@ try {
     window.g.paused = false;
     window.g.state.mode = "space";
   });
-  await page.locator(".touch-stick").waitFor();
+  const accelerate = page.getByRole("button", {
+    name: "Segure para acelerar a nave",
+  });
+  async function flightControls(colossal) {
+    await accelerate.waitFor();
+    assert.equal(await page.locator(".touch-stick").count(), 0);
+    assert.equal(
+      await page.getByRole("button", { name: "Frear nave" }).isVisible(),
+      true,
+    );
+    const button = await accelerate.boundingBox();
+    const throttle = {
+      x: button.x + button.width / 2,
+      y: button.y + button.height / 2,
+      id: 1,
+    };
+    const before = await page.evaluate(
+      (colossal) =>
+        colossal
+          ? (window.g.localColossal.angle ?? 0)
+          : window.g.state.ship.angle,
+      colossal,
+    );
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [throttle],
+    });
+    assert.equal(await page.evaluate(() => window.input.controls.up), true);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [throttle, look],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [throttle, { ...look, x: 280, y: 340 }],
+    });
+    await page.waitForFunction(
+      ({ colossal, before }) =>
+        Math.abs(
+          (colossal
+            ? (window.g.localColossal.angle ?? 0)
+            : window.g.state.ship.angle) - before,
+        ) > 0.001,
+      { colossal, before },
+    );
+    assert.equal(await page.evaluate(() => window.input.controls.up), true);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    assert.equal(await page.evaluate(() => window.input.controls.up), false);
+    assert.equal(
+      await page.evaluate(() => window.input.touchFlightLook.yaw),
+      0,
+    );
+  }
+  await flightControls(false);
+  await page.evaluate(() => {
+    window.g.state.colossal = {
+      stage: 3,
+      sector: { x: 0, y: 0 },
+      x: 5000,
+      y: 5000,
+      angle: 0,
+      slots: 1,
+      ships: [],
+      fuel: 100,
+      warp: 10,
+      aboard: window.g.state.activeShip.id,
+    };
+    window.g.colossalHelm = true;
+  });
+  await flightControls(true);
+  await page.evaluate(() => {
+    window.g.colossalHelm = false;
+    delete window.g.state.colossal;
+  });
   assert.equal(await walk.count(), 0);
   await page.evaluate(() => (window.g.state.mode = "surface"));
   await page.setViewportSize({ width: 844, height: 390 });
@@ -87,7 +169,7 @@ try {
       landscape.y + landscape.height <= 390,
   );
   console.log(
-    "PASS: portrait/landscape, hold/release, multitouch look, pause reset, space joystick preserved",
+    "PASS: portrait/landscape, hold/release, multitouch look, pause reset, normal/colossal acceleration and drag steering",
   );
 } finally {
   await browser.close();
