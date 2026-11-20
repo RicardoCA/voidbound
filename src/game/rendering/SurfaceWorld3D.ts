@@ -1,7 +1,7 @@
 import { isBaseLight } from "../../construction/lighting";
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
-import { cabinetWidths, isCabinet, isDoor, keyAt } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isDoor, pieceWidth, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
 import { TILE, type Terrain } from "../procedural/terrain";
@@ -15,6 +15,7 @@ const terrainKits = [
 const surfaceTileOffset = 16;
 
 const equipmentModels = {
+  workbench: { file: "bancada-planetaria", width: 30, height: 16, depth: 12, center: -8 },
   planetaryOxygenGenerator: { file: "gerador-oxigenio", width: 15, height: 23, depth: 12, center: -3 },
   campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
   stickLadder: { file: "escada-vertical", width: 12, height: 16, depth: 3, center: -2 },
@@ -353,6 +354,12 @@ export class SurfaceWorld3D {
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
       for (const y of [2, 7, 12]) block(trim, 0, y, 0, 15, 0.5, 0.32);
+    } else if (kind === "workbench") {
+      block(0x8f6445, 0, 11, -8, 30, 2, 12);
+      for (const x of [-12, 12]) for (const z of [-12, -4]) block(metal, x, 5, z, 2, 10, 2);
+      block(0x344855, 0, 3, -8, 26, 2, 10);
+      block(0x456b5a, -4, 12.3, -7, 12, .5, 8);
+      block(metal, 10, 14, -6, 6, 4, 4);
     } else if (kind === "floodlight") {
       block(0x263746, 0, 1.2, 0, 11, 2.4, 10);
       block(metal, 0, 7, 0, 2.2, 12, 2.2);
@@ -586,7 +593,7 @@ export class SurfaceWorld3D {
       const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
       if (x < left - 3 || x > right || y < top || y > bottom ||
           Math.abs(depth * TILE - z) > 224) continue;
-      const size = isCabinet(piece.kind) ? cabinetWidths[piece.kind] : 1;
+      const size = pieceWidth(piece.kind);
       put(
         `piece:${key}:${piece.kind}:${piece.open}:${piece.facing}:${piece.powered}:${piece.rotation}:${piece.emergencyActive}`,
         (x + size / 2) * TILE, (y + 1) * TILE, depth * TILE,
@@ -786,11 +793,11 @@ export class SurfaceWorld3D {
       const angle = rotation * Math.PI / 2;
       this.cursor.rotation.y = angle;
       this.cursor.scale.set(
-        kind && isCabinet(kind) ? cabinetWidths[kind] * TILE : TILE + 0.3,
+        kind ? pieceWidth(kind) * TILE : TILE + 0.3,
         isDoor(kind) ? TILE * 2 : TILE + 0.3,
         panel ? 4 : TILE + 0.3,
       );
-      if (kind && isCabinet(kind)) this.cursor.position.x += (cabinetWidths[kind] - 1) * TILE / 2;
+      if (kind) this.cursor.position.x += (pieceWidth(kind) - 1) * TILE / 2;
       if (isDoor(kind)) this.cursor.position.y += TILE / 2;
       if (panel) {
         this.cursor.position.x += Math.sin(angle) * surfaceWallZ;

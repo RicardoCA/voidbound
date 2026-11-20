@@ -1,5 +1,5 @@
 import { isBaseLight, EMERGENCY_CAPACITY } from "../construction/lighting";
-import { isDoor } from "../construction/pieces";
+import { isDoor, pieceWidth } from "../construction/pieces";
 import { toggleAirlockDoor, airlockPartner } from "../construction/airlock";
 import { fillCartridge, OXYGEN_FILL_TIME_MS, oxygenFillingProgress } from "../survival/autoOxygen";
 import { flight3D } from "../game/rendering/flight3D";
@@ -91,7 +91,7 @@ export const useConstruction = defineStore("construction", () => {
       : undefined,
   );
   const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
-  const canRotate = computed(() => flight3D.surfaceView ? selected.value !== "woodBlock" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
+  const canRotate = computed(() => flight3D.surfaceView ? selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
   function context(depth?: number) {
     return {
       terrain: terrain.value,
@@ -116,6 +116,7 @@ export const useConstruction = defineStore("construction", () => {
     if (g.state.mode !== "surface") return;
     lastError.value = "";
     selected.value = kind;
+    if (kind === "workbench") rotation.value = 0;
     cursor.value = null;
     enabled.value = true;
     removing.value = false;
@@ -308,6 +309,10 @@ export const useConstruction = defineStore("construction", () => {
   function interactAt(x: number, y: number, depth = 0) {
     const found = pieceAt(settlement.value, x, y, depth);
     if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
+    if (found.piece.kind === "workbench") {
+      g.openWorkbench(found.key);
+      return true;
+    }
     if (found.piece.kind === "bed") {
       if (
         g.state.mode === "surface" &&
@@ -514,6 +519,7 @@ export const useConstruction = defineStore("construction", () => {
           "stickLadder",
           "campfire",
           "bed",
+          "workbench",
           "floodlight",
           "emergencyLight",
           "battery",
@@ -527,7 +533,7 @@ export const useConstruction = defineStore("construction", () => {
       if (Math.abs(depthDistance) > 24) continue;
       const d = Math.hypot(
           x! * 16 +
-            (isCabinet(piece.kind) ? cabinetWidths[piece.kind] * 8 : 8) -
+            pieceWidth(piece.kind) * 8 -
             g.state.player.x,
           depthDistance,
           y! * 16 + (isDoor(piece.kind) ? 0 : 8) - g.state.player.y,

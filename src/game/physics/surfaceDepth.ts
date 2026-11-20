@@ -18,6 +18,7 @@ export function solidSurfaceVoxel(
   return terrain.getAt(x, y, depth) !== 0 ||
     !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
     piece?.kind === "woodBlock" ||
+    piece?.kind === "workbench" ||
     (piece?.kind === "window" && piece.rotation === undefined) ||
     (!!piece && !piece.open && (piece.kind === "woodHatch" ||
       (isDoor(piece.kind) && piece.rotation === undefined)));

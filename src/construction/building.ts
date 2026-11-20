@@ -36,6 +36,7 @@ export const buildItems: BuildItem[] = [
   "cabinet",
   "cabinetDouble",
   "cabinetTriple",
+  "workbench",
   "floodlight",
   "emergencyLight",
   "window",
@@ -127,7 +128,7 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
+    (kind === "workbench" || kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
     (ctx.depth === undefined || Math.abs(depth * 16 - (ctx.player.surfaceZ ?? 0)) < 12) &&
     overlapsActor(kind, x, y, ctx.player)
   )
@@ -183,6 +184,7 @@ export function placementError(
   if (
     (isCabinet(kind) ||
       [
+        "workbench",
         "floodlight",
         "campfire",
         "table",

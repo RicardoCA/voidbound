@@ -31,6 +31,7 @@ const descriptions = {
     "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
   cabinetTriple:
     "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
+  workbench: "Ocupa 2 blocos de largura. Instale sobre chão firme e interaja para fabricar itens usando apenas os materiais da mochila. Não acessa a carga da nave nem os armários.",
   floodlight: "Ilumina de verdade o terreno. Instale sobre chão firme e gire para apontar. Usa 2 de energia/s de placas expostas ou baterias a até 12 blocos.",
   emergencyLight: "Instale junto à saída. Carrega sua reserva na rede a até 12 blocos; sem energia, acende automaticamente. A reserva cheia dura 20 minutos ativos. Recarga completa: 2 minutos de alimentação. Instale e carregue antes de usar.",
   window: "Vidro transparente e vedado. Instale em um vão sem parede nem bloco de madeira. Use Girar para alinhar ao cômodo.",

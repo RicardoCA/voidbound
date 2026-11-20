@@ -211,6 +211,12 @@ export function drawPiece(
     }
     return;
   }
+  if (kind === "workbench") {
+    g.fillStyle(0x946846, alpha).fillRect(x, y + 3, 32, 3);
+    g.fillStyle(0x445e6d, alpha).fillRect(x + 2, y + 6, 3, 10).fillRect(x + 27, y + 6, 3, 10).fillRect(x + 2, y + 12, 28, 2);
+    g.fillStyle(0x548974, alpha).fillRect(x + 7, y + 1, 13, 2);
+    return;
+  }
   if (kind === "floodlight") {
     g.fillStyle(0x3d5362, alpha).fillRect(x + 6, y + 6, 4, 8).fillRect(x + 2, y + 14, 12, 2);
     g.fillStyle(0x2b3b48, alpha).fillRect(x + 1, y, 14, 8);

@@ -15,6 +15,9 @@ const g = useGame();
 function open(id: string) {
   g.panel = g.panel === id ? "" : id;
 }
+const inventory = computed(() =>
+  g.state.mode === "surface" ? g.state.backpack : g.state.inventory,
+);
 const tab = ref("all"),
   inShip = computed(
     () =>
@@ -37,7 +40,7 @@ const tab = ref("all"),
   );
 function affordable(cost: Partial<Record<Item, number>>) {
   return inventoryEntries(cost).every(
-    ([id, n]) => (g.state.inventory[id as Item] ?? 0) >= n!,
+    ([id, n]) => (inventory.value[id as Item] ?? 0) >= n!,
   );
 }
 </script>
@@ -45,7 +48,13 @@ function affordable(cost: Partial<Record<Item, number>>) {
   <section class="dialog">
     <div class="dialog-heading">
       <div>
-        <div class="eyebrow">ENGENHARIA / ESTAÇÃO DE FABRICAÇÃO</div>
+        <div class="eyebrow">
+          {{
+            g.atWorkbench
+              ? "BANCADA PLANETÁRIA / MOCHILA"
+              : "ENGENHARIA / ESTAÇÃO DE FABRICAÇÃO"
+          }}
+        </div>
         <h2>Construa seu próximo passo.</h2>
       </div>
       <button
@@ -56,9 +65,13 @@ function affordable(cost: Partial<Record<Item, number>>) {
         ×
       </button>
     </div>
-    <p v-if="!inShip" class="warning">
-      Receitas da oficina exigem a nave. Peças de madeira também podem ser
-      fabricadas à mão.
+    <p v-if="!inShip && !g.atWorkbench" class="warning">
+      Receitas da oficina exigem uma bancada planetária ou a nave. Peças de
+      madeira também podem ser fabricadas à mão.
+    </p>
+    <p v-if="g.atWorkbench">
+      Os materiais e os itens fabricados ficam na sua mochila. A bancada mantém
+      as exigências de projetos e desbloqueios.
     </p>
     <div class="tabs">
       <button :class="{ active: tab === 'all' }" @click="tab = 'all'">
@@ -87,10 +100,10 @@ function affordable(cost: Partial<Record<Item, number>>) {
             <span
               v-for="[id, n] in inventoryEntries(r.cost)"
               :key="id"
-              :class="{ missing: (g.state.inventory[id] ?? 0) < n! }"
+              :class="{ missing: (inventory[id] ?? 0) < n! }"
             >
               <ItemIcon :item="id" />
-              {{ g.state.inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}
+              {{ inventory[id] ?? 0 }}/{{ n }} {{ items[id].name }}
             </span>
           </div>
         </div>
@@ -98,6 +111,7 @@ function affordable(cost: Partial<Record<Item, number>>) {
           class="secondary"
           :disabled="
             (!inShip &&
+              !g.atWorkbench &&
               !(g.state.mode === 'surface' && r.station === 'hand')) ||
             !canCraftWeapon(g.state, r.id) ||
             !canCraftScanner(g.state, r.id) ||

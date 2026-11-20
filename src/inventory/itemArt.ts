@@ -411,6 +411,7 @@ export const itemArt: Record<Item, ItemArt> = {
       "M8 11h1v7H8zM15 11h1v7h-1zM5 13h2v2H5zM12 13h2v2h-2zM19 13h2v2h-2z",
     accent: "#c7b27e",
   },
+  workbench: { body: "M2 8h20v4H2zM4 12h3v10H4zM17 12h3v10h-3z", shade: "M7 12h10v6H7z", light: "M3 8h18v2H3z", detail: "M5 4h6v4H5zM14 5h5v3h-5zM9 14h6v1H9z" },
   floodlight: { body: "M3 3h18v11H3zM10 14h4v5h4v3H6v-3h4z", shade: "M5 5h14v7H5z", light: "M7 6h10v4H7z", detail: "M9 7h1v2H9zM13 7h1v2h-1z" },
   emergencyLight: { body: "M2 4h20v16H2z", shade: "M4 6h16v12H4z", light: "M6 8h12v8H6z", detail: "M11 8h2v5h3l-4 4-4-4h3z" },
   window: { body: "M3 3h18v18H3z", shade: "M5 5h14v14H5z", light: "M7 7h10v10H7z", detail: "M8 8h2v6H8zM14 10h2v6h-2z" },

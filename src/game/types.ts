@@ -77,6 +77,7 @@ export type Item =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "workbench"
   | "floodlight"
   | "emergencyLight"
   | "window"
@@ -139,6 +140,7 @@ export type BuildItem =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "workbench"
   | "floodlight"
   | "emergencyLight"
   | "window"
@@ -691,6 +693,7 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  workbench: { name: "Bancada planetária", color: "#b2c3a4", icon: "⚒", rarity: "Construção", stack: 10 },
   floodlight: { name: "Holofote", color: "#f3e2af", icon: "☼", rarity: "Construção", stack: 99 },
   emergencyLight: { name: "Iluminação de emergência", color: "#87f4ae", icon: "↧", rarity: "Construção", stack: 99 },
   window: { name: "Janela vedada", color: "#88dcea", icon: "▣", rarity: "Construção", stack: 99 },

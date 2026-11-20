@@ -13,6 +13,9 @@ export function isCabinet(kind: BuildItem | undefined): kind is CabinetKind {
 export function isDoor(kind: BuildItem | undefined) {
   return kind === "woodDoor" || kind === "airlockDoor";
 }
+export function pieceWidth(kind: BuildItem) {
+  return kind === "workbench" ? 2 : isCabinet(kind) ? cabinetWidths[kind] : 1;
+}
 export function footprint(kind: BuildItem, x: number, y: number) {
   return isDoor(kind)
     ? [
@@ -20,7 +23,7 @@ export function footprint(kind: BuildItem, x: number, y: number) {
         { x, y },
       ]
     : Array.from(
-        { length: isCabinet(kind) ? cabinetWidths[kind] : 1 },
+        { length: pieceWidth(kind) },
         (_, offset) => ({ x: x + offset, y }),
       );
 }
@@ -34,8 +37,7 @@ export function pieceAt(data: Settlement, x: number, y: number, depth = 0) {
     const cabinet = data.pieces[cabinetKey];
     if (
       cabinet &&
-      isCabinet(cabinet.kind) &&
-      cabinetWidths[cabinet.kind] > offset
+      pieceWidth(cabinet.kind) > offset
     )
       return { key: cabinetKey, piece: cabinet, x: anchor, y };
   }
@@ -69,7 +71,7 @@ export function overlapsActor(
   const top = (isDoor(kind) ? y - 1 : y) * 16;
   return (
     actor.x + 5 > x * 16 &&
-    actor.x - 5 < (x + 1) * 16 &&
+    actor.x - 5 < (x + pieceWidth(kind)) * 16 &&
     actor.y + 12 > top &&
     actor.y - 12 < (y + 1) * 16
   );

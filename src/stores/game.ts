@@ -1,3 +1,4 @@
+import { workbenchInReach } from "../crafting/workbench";
 import { cartridgeCount, loadCartridges, refillAutomatically, OXYGEN_CARTRIDGE_CAPACITY } from "../survival/autoOxygen";
 import {
   feedAutomatically,
@@ -507,6 +508,28 @@ export const useGame = defineStore("game", () => {
     jumpRange = computed(() =>
       state.value.upgrades.includes("engine") ? 4 : 2,
     );
+  const workbenchTarget = ref<{ planetId: string; key: string }>();
+  const atWorkbench = computed(() => {
+    const target = workbenchTarget.value;
+    return !!target && panel.value === "craft" && !paused.value &&
+      target.planetId === planet.value.id && workbenchInReach(state.value, target.planetId, target.key);
+  });
+  watch(panel, () => {
+    if (panel.value !== "craft") workbenchTarget.value = undefined;
+  }, { flush: "sync" });
+  watch(state, () => { workbenchTarget.value = undefined; }, { flush: "sync" });
+  watch(() => [state.value.mode, state.value.systemX, state.value.systemY, state.value.planetIndex, paused.value],
+    () => { workbenchTarget.value = undefined; }, { flush: "sync" });
+  function openWorkbench(key: string) {
+    if (paused.value || busy.value || !workbenchInReach(state.value, planet.value.id, key)) {
+      notify("Aproxime-se da bancada planetária para fabricar.");
+      return false;
+    }
+    releaseControls();
+    workbenchTarget.value = { planetId: planet.value.id, key };
+    panel.value = "craft";
+    return true;
+  }
   function notify(message: string) {
     notice.value = message;
   }
@@ -789,9 +812,9 @@ export const useGame = defineStore("game", () => {
       !flightCabin.value &&
       !state.value.colossal?.aboard &&
       state.value.mode !== "docked" &&
-      !(state.value.mode === "surface" && recipe?.station === "hand")
+      !(state.value.mode === "surface" && (recipe?.station === "hand" || atWorkbench.value))
     ) {
-      notify("Entre na nave para acessar a estação de fabricação.");
+      notify("Interaja com uma bancada planetária ou entre na nave para fabricar este item.");
       return;
     }
     if (!canCraftScanner(state.value, id)) {
@@ -1977,6 +2000,8 @@ export const useGame = defineStore("game", () => {
     moveAutoOxygen,
     toggleFeeder,
     moveFeeder,
+    atWorkbench,
+    openWorkbench,
     state,
     habitat,
     planetTerrain,

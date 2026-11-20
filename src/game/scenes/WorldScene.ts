@@ -94,7 +94,7 @@ import {
   stepClimb,
   stepSurface,
 } from "../physics/surface";
-import { cabinetWidths, isCabinet, isDoor } from "../../construction/pieces";
+import { isDoor, pieceWidth } from "../../construction/pieces";
 import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { Terrain } from "../procedural/terrain";
@@ -3248,7 +3248,7 @@ export class WorldScene extends Phaser.Scene {
       f.strokeRect(
         sx,
         sy - (door ? 16 : 0),
-        16 * (isCabinet(kind) ? cabinetWidths[kind] : 1),
+        16 * pieceWidth(kind),
         door ? 32 : 16,
       );
     }

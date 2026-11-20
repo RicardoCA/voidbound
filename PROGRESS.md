@@ -266,3 +266,12 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Rede compartilha energia sem duplicar produção e prioriza suporte de vida/refrigeração. Holofote desliga quando não há alimentação. Interagir mostra alimentação e reserva; os itens estão no construtor e usam inventário e save existentes.
 - Renderização usa grupos de luzes reutilizados e limitados às proximidades para reduzir custo no celular, sem mapas de sombra adicionais. Alinhamento das novas peças de painel corrigido em relação à colisão.
 - Testes: consumo e esgotamento, divisão de energia, alcance, sol/noite, recarga e ativação de reserva, persistência, montagem/remoção e iluminação 3D. 262 testes, ESLint, TypeScript e build passaram. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Bancada planetária modelada no Blender
+
+- Nova construção Bancada planetária: 30 pedras, 50 madeiras alienígenas e 100 ferros. Ocupa dois blocos de largura, exige apoio nos dois lados, possui colisão e devolve uma bancada ao desmontar por qualquer metade.
+- Interagir abre a fabricação existente em modo mochila: ingredientes, validação de capacidade e resultados usam exclusivamente o inventário do jogador. Não retira recursos da nave nem dos armários. Projetos restritos e desbloqueios continuam obrigatórios.
+- Autorização valida bancada real, planeta, distância e profundidade em cada fabricação; fecha/perde acesso ao sair do painel, trocar de mundo/save ou pausar. Receita da bancada permanece disponível nas construções à mão.
+- Modelo próprio criado em scripts/modelar-bancada.py: tampo laminado, armação metálica, morsa/fuso, gavetas, tapete de corte, régua, ferramentas, terminal e prateleira. Fonte editável em assets/blender/bancada-planetaria.blend e prévia PNG; GLB incorporado em public/models/equipamentos-base/bancada-planetaria.glb e carregado pelo renderizador da superfície.
+- Modelo validado por scripts/check-workbench-model.mjs: 9 meshes por material, 7 texturas incorporadas, 13.472 triângulos. Fonte Blender mantém 137 peças editáveis.
+- Verificação: 275 testes, ESLint, TypeScript, build e validação do GLB passaram. Prévia renderizada no Blender e inspecionada; sem teste manual em navegador nesta etapa.
