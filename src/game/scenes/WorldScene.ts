@@ -1,3 +1,4 @@
+import { HeldMining } from "../physics/heldMining";
 import { fallbackLandedHull, landedHullOverlap } from "../physics/landedShip";
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
 import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
@@ -126,6 +127,9 @@ export class WorldScene extends Phaser.Scene {
   private fruit: Fruit[] = [];
   private surfaceMouse?: PointerEvent;
   private surfaceTap?: SurfaceTarget;
+  private surfaceHold?: { id: number; event: PointerEvent; acted: boolean };
+  private readonly heldMining = new HeldMining();
+  private miningBlock?: { x: number; y: number; depth: number; progress: number };
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
   private clandestineStation!: Phaser.GameObjects.Image;
@@ -251,6 +255,7 @@ export class WorldScene extends Phaser.Scene {
       if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
         if (touchLook) return;
         touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
+        this.surfaceHold = { id: event.pointerId, event, acted: false };
         canvas.setPointerCapture(event.pointerId);
         return;
       }
@@ -283,10 +288,15 @@ export class WorldScene extends Phaser.Scene {
           return;
         }
       }
+      if (onSurface()) {
+        this.surfaceHold = { id: event.pointerId, event, acted: false };
+        if (document.pointerLockElement !== canvas) canvas.setPointerCapture(event.pointerId);
+      }
       this.surfaceTap = targetSurface(event, true);
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
+      if (this.surfaceHold?.id === event.pointerId) this.surfaceHold.event = event;
       if (flightLook?.id === event.pointerId) {
         if (!onFlight()) { flightLook = undefined; clearFlightLook(); return; }
         event.preventDefault();
@@ -299,6 +309,8 @@ export class WorldScene extends Phaser.Scene {
           const dx = event.clientX - touchLook.x, dy = event.clientY - touchLook.y;
           if (touchLook.drag || Math.hypot(dx, dy) > 5) {
             touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: true };
+            this.surfaceHold = undefined;
+            this.resetBlockMining();
             turnSurfaceCamera(dx, dy, .007);
           }
           return;
@@ -318,12 +330,16 @@ export class WorldScene extends Phaser.Scene {
     const finish = (event: PointerEvent) => {
       if (flightLook?.id === event.pointerId) { flightLook = undefined; clearFlightLook(); }
       if (touchLook?.id === event.pointerId) {
-        if (!touchLook.drag) this.surfaceTap = targetSurface(event, true);
+        if (!touchLook.drag && !this.surfaceHold?.acted) this.surfaceTap = targetSurface(event, true);
         touchLook = undefined;
+      }
+      if (this.surfaceHold?.id === event.pointerId) {
+        this.surfaceHold = undefined;
+        this.resetBlockMining();
       }
       clearMouse();
     };
-    const cancel = () => { touchLook = undefined; flightLook = undefined; clearFlightLook(); clearMouse(); };
+    const cancel = () => { this.surfaceHold = undefined; this.resetBlockMining(); touchLook = undefined; flightLook = undefined; clearFlightLook(); clearMouse(); };
     const contextMenu = (event: MouseEvent) => {
       if (onSurface() && flight3D.surfaceView) event.preventDefault();
     };
@@ -564,6 +580,10 @@ export class WorldScene extends Phaser.Scene {
     this.elapsed += dt;
     const g = this.store;
     if (!g) return;
+    if (!g.started || g.state.mode !== "surface" || g.paused || g.panel || g.busy || g.inSequence || document.hidden) {
+      this.surfaceHold = undefined;
+      this.resetBlockMining();
+    }
     if (g.started) g.refreshJumpCooldown();
     const piloting =
       g.started &&
@@ -997,7 +1017,7 @@ export class WorldScene extends Phaser.Scene {
         if (s.mode !== "space") return;
       }
       if (s.mode === "surface") {
-        this.surfacePhysics(dt);
+        this.surfacePhysics(dt, activeDt);
         if (g.resolvePlayerDeath()) return;
       }
       const pressed = takePulse("interact");
@@ -1629,6 +1649,10 @@ export class WorldScene extends Phaser.Scene {
     }
     void g.save();
   }
+  private resetBlockMining() {
+    this.heldMining.reset();
+    this.miningBlock = undefined;
+  }
   private mineSurfaceVoxel(target: SurfaceTarget, notify: boolean) {
     const g = this.store;
     const player = g.state.player;
@@ -1651,6 +1675,7 @@ export class WorldScene extends Phaser.Scene {
       return g.mineTerrain(terrain, tx, ty, tz);
     };
     if (!mine(x, y, depth)) return;
+    if (this.surfaceHold) this.surfaceHold.acted = true;
     for (let dz = -radius; dz <= radius; dz++)
       for (let dy = -radius; dy <= radius; dy++)
         for (let dx = -radius; dx <= radius; dx++) {
@@ -1714,7 +1739,7 @@ export class WorldScene extends Phaser.Scene {
   }
   private surfaceStride = 0;
 
-  private surfacePhysics(dt: number) {
+  private surfacePhysics(dt: number, miningDt = dt) {
     const g = this.store,
       p = g.state.player,
       t = this.terrain!;
@@ -1826,11 +1851,13 @@ export class WorldScene extends Phaser.Scene {
       g.state.time,
       dt,
     );
+    this.miningBlock = undefined;
     const mineButton = takePulse("mine") || controls.mine;
     const mouse = this.surfaceMouse;
     const tap = this.surfaceTap;
     this.surfaceTap = undefined;
     if (this.building.enabled) {
+      this.resetBlockMining();
       if (tap) {
         this.building.apply(tap.x, tap.y, tap.depth, tap.wallFace);
         this.mineTime = 0.2;
@@ -1865,10 +1892,14 @@ export class WorldScene extends Phaser.Scene {
       this.surfaceTap = tap;
       return;
     }
+    const heldTarget = this.surfaceHold ? this.surfacePoint(this.surfaceHold.event) : undefined;
     const aim =
       tap ??
+      (!g.equippedSaber && heldTarget?.terrain ? heldTarget : undefined) ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
+    if (!aim?.terrain && flight3D.surfaceView) this.heldMining.reset();
+    if (!this.surfaceHold && !(mouse && (mouse.buttons & 1)) && !controls.mine) this.resetBlockMining();
     if (aim?.treeId && flight3D.surfaceView) {
       if (this.mineTime > 0 || p.energy < 3) return;
       const [kind, x, z] = aim.treeId.split(":");
@@ -1882,6 +1913,7 @@ export class WorldScene extends Phaser.Scene {
         return;
       }
       if (this.building.harvest(tree)) {
+        if (this.surfaceHold) this.surfaceHold.acted = true;
         this.treeHits.delete(tree.id);
         this.mineTime = g.equippedSaber ? .45 : .28;
         this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
@@ -1889,7 +1921,26 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     if (aim?.terrain && flight3D.surfaceView) {
-      if (this.mineTime <= 0 && p.energy >= 1) this.mineSurfaceVoxel(aim, !!tap);
+      const held = !!this.surfaceHold || !!(mouse && (mouse.buttons & 1)) || controls.mine;
+      if ((aim.distance ?? Infinity) > 77 || p.energy < 1 || !t.getAt(aim.x, aim.y, aim.depth)) {
+        this.resetBlockMining();
+        if (tap) g.notify("Aproxime-se do bloco e segure para minerar.");
+        return;
+      }
+      if (g.equippedSaber) {
+        this.resetBlockMining();
+        if (this.mineTime <= 0) this.mineSurfaceVoxel(aim, !!tap);
+      } else {
+        const key = `${g.planet.id}:${aim.x},${aim.y},${aim.depth}`;
+        const result = this.heldMining.advance(key, held, miningDt);
+        if (held) {
+          if (this.surfaceHold) this.surfaceHold.acted = true;
+          this.miningBlock = { x: aim.x, y: aim.y, depth: aim.depth, progress: result.progress };
+          this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: aim.depth, life: .12 };
+        }
+        if (result.complete) { this.mineSurfaceVoxel(aim, false); this.resetBlockMining(); }
+        else if (tap && !held) g.notify("Segure no mesmo bloco por 3 segundos para minerar.");
+      }
       return;
     }
     if (Math.abs(p.surfaceZ ?? 0) > 72) return;
@@ -1979,6 +2030,9 @@ export class WorldScene extends Phaser.Scene {
       if (tap && tile && distance >= 77)
         g.notify("Aproxime-se do bloco para minerar.");
       if (tile && ty < 63 && distance < 77) {
+        const result = this.heldMining.advance(`${g.planet.id}:${tx},${ty},0`, !!this.surfaceHold || !!(mouse && (mouse.buttons & 1)) || controls.mine, miningDt);
+        if (!result.complete) return;
+        this.resetBlockMining();
         const rootedTree = trees.find(
           (tree) => tree.x === tx && tree.ground === ty,
         );
@@ -2073,6 +2127,7 @@ export class WorldScene extends Phaser.Scene {
           ? this.building.rotation : undefined,
         cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
         beam: this.beam,
+        mining: this.miningBlock,
       };
       this.particles = [];
       return;

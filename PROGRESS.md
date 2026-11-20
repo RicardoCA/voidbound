@@ -275,3 +275,17 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Modelo próprio criado em scripts/modelar-bancada.py: tampo laminado, armação metálica, morsa/fuso, gavetas, tapete de corte, régua, ferramentas, terminal e prateleira. Fonte editável em assets/blender/bancada-planetaria.blend e prévia PNG; GLB incorporado em public/models/equipamentos-base/bancada-planetaria.glb e carregado pelo renderizador da superfície.
 - Modelo validado por scripts/check-workbench-model.mjs: 9 meshes por material, 7 texturas incorporadas, 13.472 triângulos. Fonte Blender mantém 137 peças editáveis.
 - Verificação: 275 testes, ESLint, TypeScript, build e validação do GLB passaram. Prévia renderizada no Blender e inspecionada; sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Animação de varredura planetária
+
+- Durante o escaneamento de 10 segundos, a nave emite um feixe central com cone translúcido em direção ao planeta. Uma área de leitura percorre a superfície e uma faixa luminosa acompanha a varredura esférica.
+- A animação usa o mesmo progresso da barra, não um relógio separado: congela na pausa, acompanha nave/alvo nas alturas 3D reais e desaparece ao concluir ou cancelar. Não altera alcance, duração ou recompensa do catálogo.
+- Efeito independente em PlanetScanEffect.ts, integrado ao Space3D, com buffers, geometrias e materiais reutilizados e descarte ao destruir a cena.
+- Verificação: 281 testes, ESLint, TypeScript e build passaram. Testes cobrem origem na nave, alcance da superfície, varredura sincronizada, pausa, múltiplas direções e liberação de recursos. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Mineração contínua de blocos
+
+- Ferramenta exige manter o clique/toque no mesmo bloco por 3 segundos reais. O bloco fica progressivamente transparente e só entrega o recurso ao concluir; soltar, mudar de alvo, arrastar a câmera no celular, pausar ou abrir um painel cancela o progresso e restaura o visual.
+- Sabre equipado mantém a quebra imediata e seu ataque em área. Construção, remoção de peças, coleta de frutas e corte de árvores preservam suas interações existentes.
+- Contagem independente da taxa de quadros; efeito reutiliza a geometria do bloco e descarta apenas os materiais temporários. Blocos continuam sólidos até a conclusão.
+- Verificação: 285 testes, ESLint, TypeScript e build passaram. Testes incluem duração, reinício, taxas de quadros e transparência/restauração do bloco. Sem teste manual em navegador nesta etapa.

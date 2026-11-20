@@ -1,3 +1,5 @@
+import { PlanetScanEffect } from "./PlanetScanEffect";
+import { PLANET_SCAN_SECONDS } from "../../stores/game";
 import { SurfaceWorld3D, type SurfaceFrame } from "./SurfaceWorld3D";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { emptySettlement } from "../../construction/building";
@@ -144,6 +146,9 @@ export class Space3D {
   private cabinHatch?: T.Group;
   private readonly cabinCamera = new T.PerspectiveCamera(57, 1, 1, 1900);
   private readonly camera = new T.PerspectiveCamera(65, 1, 1, 45_000);
+  private readonly planetScanEffect = new PlanetScanEffect();
+  private readonly scanOrigin = new T.Vector3();
+  private readonly scanCenter = new T.Vector3();
   private readonly objects = new Map<string, T.Object3D>();
   private readonly sphere = new T.SphereGeometry(1, 32, 20);
   private readonly rock = new T.IcosahedronGeometry(1, 1);
@@ -167,7 +172,7 @@ export class Space3D {
     this.scene.add(new T.HemisphereLight(0xc4e1ff, 0x30214c, 1.05));
     const sun = new T.DirectionalLight(0xffe3b9, 2.8);
     sun.position.set(300, 450, -500);
-    this.scene.add(sun, this.flightFill);
+    this.scene.add(sun, this.flightFill, this.planetScanEffect.group);
     void this.loadEnvironmentAsset("voo-planetario")
       .then((rig) => {
         if (this.disposed) return;
@@ -2464,6 +2469,16 @@ export class Space3D {
       ship.y + dz * horizontal * 90,
     );
 
+    const scan = g.planetScan;
+    const scanningPlanet = scan ? g.system.planets[scan.index] : undefined;
+    if (scan && scanningPlanet && !fromCabin && !pilotedCarrier && g.state.mode === "space" && !g.inSequence) {
+      const target = spatialPlanet(scan.index, scanningPlanet.id);
+      player.updateWorldMatrix(true, false);
+      player.localToWorld(this.scanOrigin.set(0, 5, -24));
+      this.planetScanEffect.update(this.scanOrigin, this.scanCenter.set(target.x, target.altitude, target.y),
+        target.radius, scan.elapsed / PLANET_SCAN_SECONDS);
+    } else this.planetScanEffect.hide();
+
     const docking = g.dockingSequence;
     const dock = g.system.station;
     if (docking && dock) {
@@ -2807,6 +2822,7 @@ export class Space3D {
   }
 
   destroy() {
+    this.planetScanEffect.dispose();
     this.disposed = true;
     for (const object of this.objects.values()) this.disposeCatalogLabel(object);
     for (const model of this.environmentTemplates)

@@ -386,3 +386,26 @@ it("exige pulo para subir um bloco durante a caminhada", () => {
   expect(actor.x).toBeGreaterThan(32);
   expect(actor.y).toBeLessThan(140);
 });
+
+it("desaparece gradualmente só o bloco minerado e restaura ao cancelar sem alterar o terreno", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, { "0,9,-2": 2 });
+  const frame: SurfaceFrame = {
+    terrain, settlement: emptySettlement(), camera: { x: 8, y: 153, z: 16, yaw: 0, pitch: 0 },
+    revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0, animals: [], fruit: [], drops: [],
+  };
+  try {
+    world.update({ ...frame, mining: { x: 0, y: 9, depth: -2, progress: .5 } }, 960, 540);
+    const fading = world.scene.getObjectByName("mining-block-fade") as Mesh;
+    expect(fading).toBeDefined();
+    expect((fading.material as MeshStandardMaterial).opacity).toBe(.5);
+    expect(terrain.getAt(0,9,-2)).toBe(2);
+    world.update({ ...frame, mining: { x: 0, y: 9, depth: -2, progress: .8 } }, 960, 540);
+    expect(world.scene.getObjectByName("mining-block-fade")).toBe(fading);
+    expect((fading.material as MeshStandardMaterial).opacity).toBeCloseTo(.2);
+    world.update(frame, 960, 540);
+    expect(world.scene.getObjectByName("mining-block-fade")).toBeUndefined();
+    expect(terrain.getAt(0,9,-2)).toBe(2);
+  } finally { world.dispose(); }
+});

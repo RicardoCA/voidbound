@@ -63,6 +63,7 @@ export interface SurfaceFrame {
   storm?: { kind: Precipitation; intensity: number };
   wallPlacementFace?: number;
   cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
+  mining?: { x: number; y: number; depth: number; progress: number };
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
 }
 
@@ -115,6 +116,9 @@ export class SurfaceWorld3D {
   private readonly pointer = new T.Vector2();
   private readonly ray = new T.Raycaster();
   private readonly rayPoint = new T.Vector3();
+  private readonly terrainInstances = new Map<string, { mesh: T.InstancedMesh; index: number }>();
+  private miningFade?: { key: string; mesh: T.InstancedMesh; index: number; original: T.Matrix4; ghost: T.Mesh };
+  private readonly miningMatrix = new T.Matrix4();
   private groundKey = "";
   private readonly terrainModels = new Map<number, Map<number, T.Mesh>>();
   private readonly requestedTerrainKits = new Set<number>();
@@ -268,6 +272,8 @@ export class SurfaceWorld3D {
     if (terrain === this.groundTerrain && key === this.groundKey) return;
     this.groundTerrain = terrain;
     this.groundKey = key;
+    this.clearMiningFade();
+    this.terrainInstances.clear();
     const solidTiles = new Map<number, { x: number; y: number; z: number }[]>();
     for (let x = centerX - radius; x <= centerX + radius + 2; x++)
       for (
@@ -315,10 +321,50 @@ export class SurfaceWorld3D {
         matrix.makeScale(TILE, TILE, TILE)
           .setPosition((x + .5) * TILE, -(y + .5) * TILE, z * TILE);
         surface.setMatrixAt(index, matrix);
+        this.terrainInstances.set(keyAt(x, y, z), { mesh: surface, index });
       });
       surface.instanceMatrix.needsUpdate = true;
       this.ground.add(surface);
     }
+  }
+
+  private clearMiningFade() {
+    const fade = this.miningFade;
+    if (!fade) return;
+    fade.mesh.setMatrixAt(fade.index, fade.original);
+    fade.mesh.instanceMatrix.needsUpdate = true;
+    fade.ghost.removeFromParent();
+    const materials = Array.isArray(fade.ghost.material) ? fade.ghost.material : [fade.ghost.material];
+    for (const material of materials) material.dispose();
+    this.miningFade = undefined;
+  }
+
+  private updateMiningFade(frame: SurfaceFrame) {
+    const mining = frame.mining;
+    if (!mining || mining.progress <= 0) { this.clearMiningFade(); return; }
+    const key = keyAt(mining.x, mining.y, mining.depth);
+    const instance = this.terrainInstances.get(key);
+    if (!instance) { this.clearMiningFade(); return; }
+    if (this.miningFade?.key !== key || this.miningFade.mesh !== instance.mesh) {
+      this.clearMiningFade();
+      const original = new T.Matrix4();
+      instance.mesh.getMatrixAt(instance.index, original);
+      const cloneMaterial = (material: T.Material) => {
+        const copy = material.clone(); copy.transparent = true; copy.depthWrite = false; return copy;
+      };
+      const material = Array.isArray(instance.mesh.material)
+        ? instance.mesh.material.map(cloneMaterial) : cloneMaterial(instance.mesh.material);
+      const ghost = new T.Mesh(instance.mesh.geometry, material);
+      ghost.name = "mining-block-fade";
+      ghost.matrixAutoUpdate = false; ghost.matrix.copy(original);
+      this.scene.add(ghost);
+      this.miningFade = { key, ...instance, original, ghost };
+      instance.mesh.setMatrixAt(instance.index, this.miningMatrix.makeScale(0, 0, 0));
+      instance.mesh.instanceMatrix.needsUpdate = true;
+    }
+    const ghost = this.miningFade.ghost;
+    const materials = Array.isArray(ghost.material) ? ghost.material : [ghost.material];
+    for (const material of materials) material.opacity = Math.max(.04, 1 - mining.progress);
   }
 
   private piece(
@@ -563,6 +609,7 @@ export class SurfaceWorld3D {
       bottom: Math.max(1, Math.ceil(y / TILE) + 9),
     };
     this.updateTerrain(frame);
+    this.updateMiningFade(frame);
     const seen = new Set<string>();
     const put = (
       key: string,
@@ -1019,6 +1066,8 @@ export class SurfaceWorld3D {
 
   dispose() {
     this.disposed = true;
+    this.clearMiningFade();
+    this.terrainInstances.clear();
     this.windowGlass.dispose();
     this.floodGlow.dispose(); this.emergencyGlow.dispose();
     for (const light of [...this.baseSpots, ...this.exitLights]) light.dispose();
