@@ -303,3 +303,17 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Mochila cheia não impede cortar nem elimina a madeira: o drop permanece até haver espaço. Árvore entrega um único drop, e recolher remove-o antes de salvar, sem duplicação.
 - Quantidade, posição e liberação do drop ficam no Settlement, preservados no save local/nuvem. Campo opcional mantém compatibilidade com saves existentes; não recria madeira de árvores cortadas anteriormente.
 - Troncos 3D com casca e extremidades claras, também visíveis do interior da nave pousada. Verificação: 288 testes, ESLint, TypeScript e build; testes de mochila cheia, alcance/profundidade, queda, coleta única, save/load e visual. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Transferências de inventários
+
+- Componente reutilizável InventoryTransfer para mochila/nave e mochila/armários normal, duplo, triplo e geladeira. Painéis lado a lado no PC e empilhados no celular; seleção por toque/clique e botões 1, 10 e Todos, Shift + clique e arrastar pilhas entre painéis no PC.
+- Guardar semelhantes, Guardar tudo e Retirar tudo transferem apenas o que couber, incluindo completar pilhas em inventários com slots cheios, mantendo sobras na origem. Busca, categorias, ordenação por nome/quantidade, capacidade, confirmação e destaque do destino.
+- Mantidas as transações existentes dos stores, autorização de acesso/distância, inventários isolados, autosave e lotes/validade da carne. Geladeira continua aceitando somente carne crua e mostra refrigeração/validade. Usar/equipar e gerenciamento do alimentador/reabastecedor permanecem disponíveis.
+- Verificação: 294 testes, ESLint, TypeScript e build passaram. Novo teste de navegador em scripts/inventory-transfer-smoke.mjs validou PC e celular (1440×900 e 390×844), seleção, quantidades, Shift, drag-and-drop, busca, três baús, restrição da geladeira e ausência de overflow horizontal. Renderização 3D desativada somente no contexto desse teste de interface. Prévias inspecionadas em /tmp/voidbound-transfer-qa/.
+
+## 2026-11-19 · Mochila com seleção e detalhes
+
+- Inventário aberto por I/botão da interface agora possui busca sem acentos, categorias, ordenação por nome/quantidade, capacidade ocupada e grade com ícones/quantidades. Selecionar não consome nem equipa: painel separado apresenta informações e botão explícito de ação.
+- Detalhes mostram categoria, raridade, quantidade, tamanho da pilha, slots ocupados, nutrição, risco de intoxicação e validade da carne. Instalações de nave ficam indisponíveis fora dela; consumo de alimentos respeita fome desativada/cheia. Sabre indica equipado e permite guardar.
+- Alimentador e reabastecedor continuam acessíveis em seções recolhíveis; alimentos e cartuchos selecionados possuem atalho para abastecer equipamentos equipados. Nave e depósitos compartilham a mesma classificação/busca do inventário normal.
+- Verificação: 296 testes, ESLint e TypeScript passaram. Navegador validou PC e celular, seleção sem consumo, consumo explícito de uma unidade, nutrição, filtros, busca e ausência de overflow; screenshots em /tmp/voidbound-transfer-qa/backpack-*.png inspecionadas. Build validado separadamente após interrupção da primeira execução.

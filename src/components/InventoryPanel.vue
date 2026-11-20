@@ -4,15 +4,17 @@ import { isScannerEquipment } from "../combat/shipScanners";
 import { isHeatDeflector, isPhotonSaber } from "../universe/stars";
 import { cartridgeCount } from "../survival/autoOxygen";
 import { feederCount } from "../survival/autoFeeder";
+import InventoryBrowser from "./InventoryBrowser.vue";
+import InventoryTransfer from "./InventoryTransfer.vue";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
 import { computed, ref } from "vue";
 import { items, type Item } from "../game/types";
-import { RAW_MEAT_RISK, foodValue } from "../survival/food";
+import { foodValue } from "../survival/food";
 import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { inventoryEntries, slots } from "../inventory/inventory";
+import { inventoryEntries } from "../inventory/inventory";
 import { isBuildItem } from "../construction/building";
 const g = useGame(),
   b = useConstruction();
@@ -58,9 +60,58 @@ function canUse(id: Item) {
     ].includes(id)
   );
 }
+function actionLabel(id: Item) {
+  if (isPhotonSaber(id))
+    return g.equippedSaber === id ? "Guardar sabre" : "Equipar sabre";
+  if (foodValue(id)) return "Comer 1 unidade";
+  if (isBuildItem(id)) return "Equipar construção";
+  if (id === "autoFeeder" || id === "autoOxygen") return "Equipar no traje";
+  if (shipEquipment(id)) return "Instalar na nave";
+  return canUse(id) ? "Usar 1 unidade" : "";
+}
+function shipEquipment(id: Item) {
+  return (
+    isWeaponModule(id) ||
+    isHeatDeflector(id) ||
+    isScannerEquipment(id) ||
+    ["engine", "laser", "tank", "shield", "cargo", "jump", "drill"].includes(id)
+  );
+}
+function actionHint(id: Item) {
+  if (shipEquipment(id)) return "Instale este equipamento no interior da nave.";
+  if (isBuildItem(id))
+    return "Equipe e escolha onde colocar a peça na superfície.";
+  if (isPhotonSaber(id))
+    return "Use na exploração para cortar árvores, blocos e atacar animais.";
+  if (id === "emptyOxygenCartridge")
+    return "Abasteça em um gerador de oxigênio ativo.";
+  if (id === "oxygenCartridge")
+    return "Guarde no reabastecedor automático do traje para recuperar oxigênio.";
+  if (foodValue(id))
+    return !g.hungerEnabled
+      ? "A fome está desativada nas opções."
+      : (g.state.player.hunger ?? 100) >= 100
+        ? "Você já está alimentado."
+        : "Consome uma unidade deste inventário.";
+  if (id === "autoFeeder")
+    return "Guarda alimentos e recupera a fome automaticamente abaixo de 30%.";
+  if (id === "autoOxygen")
+    return "Guarda cartuchos cheios e recupera o oxigênio automaticamente abaixo de 30%.";
+  return canUse(id)
+    ? "Usa uma unidade do item selecionado."
+    : "Material para fabricação ou comércio. Guarde na nave ou em um depósito para liberar espaço.";
+}
+function actionDisabled(id: Item) {
+  return (
+    (shipEquipment(id) && !g.canAccessShipCargo) ||
+    (isBuildItem(id) && g.state.mode !== "surface") ||
+    (!!foodValue(id) &&
+      (!g.hungerEnabled || (g.state.player.hunger ?? 100) >= 100))
+  );
+}
 </script>
 <template>
-  <section class="dialog">
+  <section class="dialog inventory-dialog">
     <div class="dialog-heading">
       <div>
         <div class="eyebrow">{{ g.model.name }}</div>
@@ -76,31 +127,92 @@ function canUse(id: Item) {
         ×
       </button>
     </div>
-    <template v-if="g.canAccessShipCargo">
-      <div class="station-actions" role="group" aria-label="Inventário">
+    <InventoryTransfer
+      v-if="g.canAccessShipCargo"
+      :left="g.state.backpack"
+      :right="g.state.inventory"
+      :left-capacity="BACKPACK_SLOTS"
+      :right-capacity="g.capacity"
+      left-title="Mochila do jogador"
+      :right-title="`Carga da nave · ${g.model.name}`"
+      :time="g.state.time"
+      :move="
+        (fromLeft, item, quantity) => g.moveCargo(fromLeft, item, quantity)
+      "
+      :use-label="
+        (id) =>
+          foodValue(id)
+            ? 'Comer'
+            : isBuildItem(id) || isPhotonSaber(id) || canUse(id)
+              ? 'Usar / equipar'
+              : ''
+      "
+      @select="(fromLeft) => (selected = fromLeft ? 'backpack' : 'ship')"
+      @use="
+        (fromLeft, id) => {
+          selected = fromLeft ? 'backpack' : 'ship';
+          use(id);
+        }
+      "
+    />
+    <InventoryBrowser
+      v-if="!g.canAccessShipCargo"
+      :inventory="source"
+      :capacity="fromBackpack ? BACKPACK_SLOTS : g.capacity"
+      :time="g.state.time"
+      :equipped="g.equippedSaber"
+      :action-label="actionLabel"
+      :action-hint="actionHint"
+      :action-disabled="actionDisabled"
+      @use="use"
+    >
+      <template #actions="{ item }">
         <button
+          v-if="g.state.player.autoFeeder && foodValue(item)"
           class="secondary"
-          :aria-pressed="!fromBackpack"
-          @click="selected = 'ship'"
+          :disabled="feederCount(g.state.player.autoFeeder.food) >= 100"
+          @click="
+            g.moveFeeder(
+              item,
+              Math.min(
+                source[item] ?? 0,
+                100 - feederCount(g.state.player.autoFeeder.food),
+              ),
+              true,
+              fromBackpack,
+            )
+          "
         >
-          Carga da nave
+          Abastecer alimentador
         </button>
         <button
+          v-if="g.state.player.autoOxygen && item === 'oxygenCartridge'"
           class="secondary"
-          :aria-pressed="fromBackpack"
-          @click="selected = 'backpack'"
+          :disabled="cartridgeCount(g.state.player.autoOxygen.cartridges) >= 10"
+          @click="
+            g.moveAutoOxygen(
+              item,
+              Math.min(
+                source[item] ?? 0,
+                10 - cartridgeCount(g.state.player.autoOxygen.cartridges),
+              ),
+              true,
+              fromBackpack,
+            )
+          "
         >
-          Mochila
+          Abastecer reabastecedor
         </button>
-      </div>
-      <p>
-        Transfira itens entre a mochila e o armário de carga. A bancada e o
-        mercado usam a carga da nave.
-      </p>
-      <TransferAmount v-model="amount" />
-    </template>
-    <section v-if="g.state.player.autoOxygen" class="storage-column">
-      <h3>Reabastecedor automático · equipado no traje</h3>
+      </template>
+    </InventoryBrowser>
+    <p v-if="g.sicknessRemaining" class="warning">
+      Intoxicação · {{ g.sicknessRemaining }} s
+    </p>
+    <details v-if="g.state.player.autoOxygen" class="suit-device">
+      <summary>
+        Reabastecedor equipado ·
+        {{ cartridgeCount(g.state.player.autoOxygen.cartridges) }}/10 cartuchos
+      </summary>
       <p>
         {{ cartridgeCount(g.state.player.autoOxygen.cartridges) }}/10 cartuchos.
         Abaixo de 30% de O₂, usa um cartucho cheio para chegar a 100%. O
@@ -168,9 +280,12 @@ function canUse(id: Item) {
       >
         Desequipar (retire os cartuchos)
       </button>
-    </section>
-    <section v-if="g.state.player.autoFeeder" class="storage-column">
-      <h3>Alimentador automático · equipado no traje</h3>
+    </details>
+    <details v-if="g.state.player.autoFeeder" class="suit-device">
+      <summary>
+        Alimentador equipado ·
+        {{ feederCount(g.state.player.autoFeeder.food) }}/100 alimentos
+      </summary>
       <p>
         Reserva {{ feederCount(g.state.player.autoFeeder.food) }}/100. Abaixo de
         30% de fome, come até 100% ou até acabar a reserva. Um tipo de alimento
@@ -239,104 +354,7 @@ function canUse(id: Item) {
       >
         Desequipar (esvazie a reserva)
       </button>
-    </section>
-    <div class="inventory-heading">
-      <span
-        >{{ slots(source) }} /
-        {{ fromBackpack ? BACKPACK_SLOTS : g.capacity }} SLOTS</span
-      ><span v-if="g.hungerEnabled"
-        >FOME {{ Math.ceil(g.state.player.hunger ?? 100) }}%</span
-      >
-    </div>
-    <p v-if="source.rawMeat" class="warning">
-      Carne crua tem {{ Math.round(RAW_MEAT_RISK * 100) }}% de chance de
-      intoxicação. Asse na fogueira ou guarde na geladeira antes de completar 24
-      horas fora dela.
-    </p>
-    <p v-if="g.sicknessRemaining" class="warning">
-      Intoxicação · {{ g.sicknessRemaining }} s
-    </p>
-    <div class="inventory-grid">
-      <button
-        v-for="[id, n] in inventory"
-        :key="id"
-        class="item-cell"
-        :style="{ '--item-color': items[id].color }"
-        @click="use(id)"
-      >
-        <ItemIcon :item="id" />
-        <b>{{ n }}</b
-        ><span>{{ items[id].name }}</span
-        ><small>{{
-          isPhotonSaber(id)
-            ? !fromBackpack
-              ? "TRANSFIRA PARA A MOCHILA"
-              : g.equippedSaber === id
-                ? "GUARDAR SABRE"
-                : "EQUIPAR SABRE"
-            : foodValue(id)
-              ? `COMER · +${foodValue(id)} SACIEDADE`
-              : isWeaponModule(id)
-                ? "INSTALAR ARMA"
-                : isBuildItem(id)
-                  ? "EQUIPAR CONSTRUÇÃO"
-                  : id === "autoFeeder" || id === "autoOxygen"
-                    ? "EQUIPAR NO TRAJE"
-                    : canUse(id)
-                      ? "USAR / INSTALAR"
-                      : items[id].rarity
-        }}</small>
-        <MeatShelfLife
-          v-if="id === 'rawMeat'"
-          :inventory="source"
-          :time="g.state.time"
-        />
-      </button>
-      <div
-        v-for="n in Math.max(0, 12 - inventory.length)"
-        :key="`empty-${n}`"
-        class="empty-cell"
-      >
-        +
-      </div>
-    </div>
-    <p v-if="!inventory.length" class="empty-message">
-      Seu próximo recurso está lá fora. Minere blocos na superfície ou
-      asteroides no espaço.
-    </p>
-    <section
-      v-if="g.canAccessShipCargo && inventory.length"
-      class="storage-column"
-    >
-      <h3>
-        Transferir para {{ fromBackpack ? "a carga da nave" : "a mochila" }}
-      </h3>
-      <div v-for="[id, n] in inventory" :key="id" class="storage-row">
-        <ItemIcon :item="id" />
-        <div>
-          <b>{{ items[id].name }}</b
-          ><small>{{ n }} unidades</small>
-          <MeatShelfLife
-            v-if="id === 'rawMeat'"
-            :inventory="source"
-            :time="g.state.time"
-          />
-        </div>
-        <button
-          class="secondary"
-          :aria-label="`Transferir ${items[id].name}`"
-          @click="
-            g.moveCargo(
-              fromBackpack,
-              id,
-              amount === 'all' ? n : Math.min(n, Number(amount)),
-            )
-          "
-        >
-          Transferir {{ amount === "all" ? n : Math.min(n, Number(amount)) }}
-        </button>
-      </div>
-    </section>
+    </details>
     <div v-if="!fromBackpack" class="installed">
       MELHORIAS INSTALADAS <span v-if="!g.state.upgrades.length">Nenhuma</span
       ><b v-for="id in g.state.upgrades" :key="id"
@@ -354,3 +372,21 @@ function canUse(id: Item) {
     </div>
   </section>
 </template>
+
+<style scoped>
+.inventory-dialog {
+  width: min(1080px, 100%);
+}
+.suit-device {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #344b58;
+  background: #0e1b28;
+}
+.suit-device summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #a5d7ce;
+  min-height: 28px;
+}
+</style>

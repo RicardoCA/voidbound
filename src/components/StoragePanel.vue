@@ -1,43 +1,10 @@
 <script setup lang="ts">
-import MeatShelfLife from "./MeatShelfLife.vue";
-import ItemIcon from "./ItemIcon.vue";
-import TransferAmount from "./TransferAmount.vue";
-import { computed, ref } from "vue";
+import InventoryTransfer from "./InventoryTransfer.vue";
 import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { items, type Inventory } from "../game/types";
-import { inventoryEntries, slots } from "../inventory/inventory";
+import { items } from "../game/types";
 const g = useGame(),
-  b = useConstruction(),
-  amount = ref<"1" | "10" | "all">("1");
-const lists = computed(() => [
-  {
-    id: "deposit" as const,
-    title: "Sua mochila",
-    data: g.state.backpack,
-    capacity: BACKPACK_SLOTS,
-    action: "Guardar",
-  },
-  {
-    id: "withdraw" as const,
-    title:
-      b.containerKind === "fridge"
-        ? "Geladeira no planeta"
-        : "Armário no planeta",
-    data: b.container ?? {},
-    capacity: b.containerCapacity,
-    action: "Retirar",
-  },
-]);
-const entries = (inventory: Inventory, meatOnly: boolean) =>
-  inventoryEntries(inventory).filter(
-    ([id, n]) => n > 0 && (!meatOnly || id === "rawMeat"),
-  );
-function quantity(available: number) {
-  return amount.value === "all"
-    ? available
-    : Math.min(Number(amount.value), available);
-}
+  b = useConstruction();
 </script>
 <template>
   <section class="dialog storage-panel">
@@ -64,59 +31,34 @@ function quantity(available: number) {
     <button class="text-button" @click="g.panel = 'bases'">
       Ver meus depósitos em todos os planetas →
     </button>
-    <TransferAmount v-model="amount" />
-    <div v-if="b.container" class="storage-columns">
-      <section v-for="list in lists" :key="list.id" class="storage-column">
-        <div class="storage-heading">
-          <h3>{{ list.title }}</h3>
-          <span>{{ slots(list.data) }} / {{ list.capacity }} slots</span>
-        </div>
-        <p
-          v-if="
-            !entries(
-              list.data,
-              b.containerKind === 'fridge' && list.id === 'deposit',
-            ).length
-          "
-          class="storage-empty"
-        >
-          Nenhum item guardado aqui.
-        </p>
-        <div
-          v-for="[id, n] in entries(
-            list.data,
-            b.containerKind === 'fridge' && list.id === 'deposit',
-          )"
-          :key="id"
-          class="storage-row"
-        >
-          <ItemIcon :item="id" />
-          <div>
-            <b>{{ items[id].name }}</b
-            ><small>{{ n }} unidades</small>
-            <MeatShelfLife
-              v-if="id === 'rawMeat'"
-              :inventory="list.data"
-              :time="g.state.time"
-              :in-fridge="
-                list.id === 'withdraw' && b.containerKind === 'fridge'
-              "
-              :paused="list.id === 'withdraw' && b.fridgePowered"
-            />
-          </div>
-          <button
-            class="secondary"
-            :aria-label="`${list.action} ${items[id].name}`"
-            @click="b.moveItem(list.id, id, quantity(n))"
-          >
-            {{ list.action }} {{ quantity(n) }}
-            {{ list.id === "deposit" ? "→" : "←" }}
-          </button>
-        </div>
-      </section>
-    </div>
+    <InventoryTransfer
+      v-if="b.container"
+      :left="g.state.backpack"
+      :right="b.container"
+      :left-capacity="BACKPACK_SLOTS"
+      :right-capacity="b.containerCapacity"
+      left-title="Sua mochila"
+      :right-title="items[b.containerKind ?? 'cabinet'].name"
+      :time="g.state.time"
+      :refrigerated="b.containerKind === 'fridge'"
+      :cooling="b.fridgePowered"
+      :allowed="
+        (fromLeft, item) =>
+          !fromLeft || b.containerKind !== 'fridge' || item === 'rawMeat'
+      "
+      :move="
+        (fromLeft, item, quantity) =>
+          b.moveItem(fromLeft ? 'deposit' : 'withdraw', item, quantity)
+      "
+    />
     <p v-else class="warning">
       Armário indisponível. Volte à superfície e abra um armário próximo.
     </p>
   </section>
 </template>
+
+<style scoped>
+.storage-panel {
+  width: min(1080px, 100%);
+}
+</style>
