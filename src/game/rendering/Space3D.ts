@@ -1834,7 +1834,7 @@ export class Space3D {
     exterior.world.update({
       terrain, settlement, revision: g.worldRevision,
       camera, terrainRadius,
-      elapsed: time, light: daylight(time) * (1 - .32 * (weather?.intensity ?? 0)),
+      elapsed: time, gameTime: time, light: daylight(time) * (1 - .32 * (weather?.intensity ?? 0)),
       sunPhase: solarPhase(time), facing: 1, stride: 0,
       animals: [...exterior.wildlife.animals.values()], fruit: exterior.fruit,
       drops: g.surfaceBackpacks(), ruin: g.surfaceRuin, storm: weather,

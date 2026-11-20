@@ -289,3 +289,17 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 - Sabre equipado mantém a quebra imediata e seu ataque em área. Construção, remoção de peças, coleta de frutas e corte de árvores preservam suas interações existentes.
 - Contagem independente da taxa de quadros; efeito reutiliza a geometria do bloco e descarta apenas os materiais temporários. Blocos continuam sólidos até a conclusão.
 - Verificação: 285 testes, ESLint, TypeScript e build passaram. Testes incluem duração, reinício, taxas de quadros e transparência/restauração do bloco. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Corte e queda das árvores
+
+- Na superfície 3D, segurar o clique/toque no tronco por 3 segundos corta a árvore. Soltar ou mudar de alvo reinicia; sabre mantém o corte imediato. Mantidos validação de alcance, energia, capacidade da mochila e persistência das árvores cortadas.
+- Todas as espécies/biomas, incluindo árvores espaciais em profundidade, balançam e exibem marca de corte, lascas com a cor do tronco e som de impacto durante a extração. Ao concluir, tombam para longe do jogador e desaparecem ao fim da queda; madeira continua coletada automaticamente uma única vez.
+- Modelos Blender existentes participam da mesma animação. Árvores caindo deixam de ser alvos da ferramenta; efeitos usam geometrias e materiais compartilhados.
+- Verificação: 286 testes, ESLint, TypeScript e build passaram. Testes verificam balanço, cancelamento visual, permanência durante a queda, exclusão da mira e remoção final. Sem teste manual em navegador nesta etapa.
+
+## 2026-11-19 · Madeira coletável após cortar árvores
+
+- Cortar árvores agora cria troncos coletáveis no planeta em vez de adicionar madeira diretamente à mochila. Disponíveis após a queda, são recolhidos automaticamente ao se aproximar na mesma profundidade.
+- Mochila cheia não impede cortar nem elimina a madeira: o drop permanece até haver espaço. Árvore entrega um único drop, e recolher remove-o antes de salvar, sem duplicação.
+- Quantidade, posição e liberação do drop ficam no Settlement, preservados no save local/nuvem. Campo opcional mantém compatibilidade com saves existentes; não recria madeira de árvores cortadas anteriormente.
+- Troncos 3D com casca e extremidades claras, também visíveis do interior da nave pousada. Verificação: 288 testes, ESLint, TypeScript e build; testes de mochila cheia, alcance/profundidade, queda, coleta única, save/load e visual. Sem teste manual em navegador nesta etapa.

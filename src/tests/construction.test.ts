@@ -73,27 +73,48 @@ describe("Florestas alienígenas", () => {
     expect(variants.size).toBe(6);
     expect(treesInRange(p, a, -90, 150).some((t) => t.x < 0)).toBe(true);
   });
-  it("coleta madeira uma única vez, sem cortar à distância nem perder recurso por carga cheia", () => {
-    const { g, terrain, data } = setup(),
-      b = useConstruction(),
-      tree = treeAt(g.planet, terrain, 0)!;
+  it("deixa madeira após a queda, preserva com mochila cheia e recolhe uma única vez", () => {
+    const { g, terrain, data } = setup(), b = useConstruction();
+    const tree = treeAt(g.planet, terrain, 0)!;
     g.state.player.x = 500;
     expect(b.harvest(tree)).toBe(false);
     g.state.player.x = 40;
-    const inventory: Inventory = {};
     g.state.backpack = { woodBlock: 99 * 24 };
-    expect(b.harvest(tree)).toBe(false);
-    expect(data.cutTrees).toEqual([]);
-    g.state.backpack = inventory;
     expect(b.harvest(tree)).toBe(true);
-    expect(g.state.backpack.wood).toBe(tree.wood);
+    expect(data.cutTrees).toContain(tree.id);
+    expect(data.woodDrops?.[tree.id]?.quantity).toBe(tree.wood);
+    expect(g.state.backpack.wood).toBeUndefined();
     expect(b.harvest(tree)).toBe(false);
+    const drop = data.woodDrops![tree.id]!;
+    Object.assign(g.state.player, { x: drop.x, y: drop.y, surfaceZ: drop.z });
+    expect(b.collectWoodDrops()).toBe(0); // árvore ainda caindo
+    g.state.time = drop.availableAt;
+    expect(b.collectWoodDrops()).toBe(0); // mochila cheia: não perde o drop
+    expect(data.woodDrops?.[tree.id]?.quantity).toBe(tree.wood);
+    g.state.backpack = {};
+    g.state.player.surfaceZ = drop.z + 100;
+    expect(b.collectWoodDrops()).toBe(0); // outra profundidade
+    g.state.player.surfaceZ = drop.z;
+    expect(b.collectWoodDrops()).toBe(tree.wood);
     expect(g.state.backpack.wood).toBe(tree.wood);
-    expect(
-      treesInRange(g.planet, terrain, -8, 10, data.cutTrees).some(
-        (t) => t.id === tree.id,
-      ),
-    ).toBe(false);
+    expect(b.collectWoodDrops()).toBe(0);
+    expect(data.woodDrops?.[tree.id]).toBeUndefined();
+    expect(treesInRange(g.planet, terrain, -8, 10, data.cutTrees).some(t => t.id === tree.id)).toBe(false);
+  });
+  it("preserva madeira coletável no save/load sem alterar saves antigos", async () => {
+    const { g, terrain } = setup(), b = useConstruction();
+    const tree = treeAt(g.planet, terrain, 0)!;
+    expect(b.harvest(tree)).toBe(true);
+    const db = new SaveDatabase("wood-drops-test");
+    try {
+      await db.write(g.state);
+      const row = await db.localSlot();
+      const restored = migrateSave(row!.data);
+      expect(restored.settlements[g.planet.id]?.woodDrops).toEqual(b.settlement.woodDrops);
+      const old = JSON.parse(JSON.stringify(restored)) as Save;
+      delete old.settlements[g.planet.id]!.woodDrops;
+      expect(migrateSave(old).settlements[g.planet.id]?.woodDrops).toBeUndefined();
+    } finally { await db.delete(); }
   });
 });
 describe("Construção e armazenamento transacionais", () => {

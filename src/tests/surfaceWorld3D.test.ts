@@ -409,3 +409,61 @@ it("desaparece gradualmente só o bloco minerado e restaura ao cancelar sem alte
     expect(terrain.getAt(0,9,-2)).toBe(2);
   } finally { world.dispose(); }
 });
+
+it("balança a árvore durante o corte e anima a queda antes de removê-la", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, {});
+  const tree = treeAt(planet, terrain, 0)!;
+  const settlement = emptySettlement();
+  const frame: SurfaceFrame = {
+    terrain, settlement, revision: 0, light: 1, elapsed: 0.2,
+    sunPhase: 0, facing: 1, stride: 0, animals: [], fruit: [], drops: [],
+    camera: { x: tree.x * 16 + 8, y: tree.ground * 16 - 15, z: 27, yaw: 0, pitch: 0 },
+    chopping: { id: tree.id, progress: .5, saber: false },
+  };
+  try {
+    world.update(frame, 960, 540);
+    const group = world.scene.children.find(node => node.userData.flora?.treeId === tree.id)!;
+    expect(group.rotation.z).not.toBe(0);
+    expect(group.getObjectByName("tree-cut-chips")?.visible).toBe(true);
+    world.update({ ...frame, chopping: undefined }, 960, 540);
+    expect(group.rotation.z).toBe(0);
+    expect(group.getObjectByName("tree-cut-chips")?.visible).toBe(false);
+    settlement.cutTrees.push(tree.id);
+    world.update({ ...frame, elapsed: 1, chopping: undefined }, 960, 540);
+    expect(group.parent).toBe(world.scene);
+    expect(world.pointAt(0, 0, true)?.treeId).not.toBe(tree.id);
+    world.update({ ...frame, elapsed: 1.7, chopping: undefined }, 960, 540);
+    expect(Math.abs(group.rotation.x) + Math.abs(group.rotation.z)).toBeGreaterThan(.1);
+    world.update({ ...frame, elapsed: 3, chopping: undefined }, 960, 540);
+    expect(group.parent).toBe(null);
+  } finally { world.dispose(); }
+});
+
+it("exibe os troncos coletáveis somente após a queda e remove o visual após recolher", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, {});
+  const tree = treeAt(planet, terrain, 0)!;
+  const settlement = emptySettlement();
+  settlement.woodDrops = { [tree.id]: {
+    x: tree.x * 16 + 8, y: tree.ground * 16 - 8, z: 5,
+    quantity: 8, availableAt: 1.2,
+  } };
+  const frame: SurfaceFrame = {
+    terrain, settlement, revision: 0, light: 1, elapsed: 0,
+    sunPhase: 0, facing: 1, stride: 0, animals: [], fruit: [], drops: [],
+    camera: { x: tree.x * 16 + 8, y: tree.ground * 16 - 15, z: 27, yaw: 0, pitch: 0 },
+  };
+  const logs = () => world.scene.children.filter(group => group.userData.woodDrop);
+  try {
+    world.update({ ...frame, gameTime: 1 }, 960, 540);
+    expect(logs()).toHaveLength(0);
+    world.update({ ...frame, gameTime: 1.2 }, 960, 540);
+    expect(logs()).toHaveLength(1);
+    delete settlement.woodDrops[tree.id];
+    world.update({ ...frame, gameTime: 2 }, 960, 540);
+    expect(logs()).toHaveLength(0);
+  } finally { world.dispose(); }
+});

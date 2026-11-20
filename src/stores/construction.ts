@@ -221,17 +221,39 @@ export const useConstruction = defineStore("construction", () => {
       return false;
     const data = settlementFor(g.state, g.planet.id);
     if (data.cutTrees.includes(current.id)) return false;
-    if (!addBatch(g.state.backpack, { wood: current.wood }, BACKPACK_SLOTS)) {
-      g.notify("Mochila cheia. Libere espaço antes de cortar a árvore.");
-      return false;
-    }
     data.cutTrees.push(current.id);
+    (data.woodDrops ??= {})[current.id] = {
+      x: current.x * 16 + 8, y: current.ground * 16 - 8,
+      z: current.depth ? current.depth * 16 : 5,
+      quantity: current.wood, availableAt: g.state.time + 1.2,
+    };
     g.state.player.energy -= 3;
     audio.play(170, 0.15);
-    g.notify(`${treeNames[current.kind]}: +${current.wood} de madeira alienígena.`);
+    g.notify(`${treeNames[current.kind]} cortada. Aproxime-se da madeira para recolher.`);
     void g.save();
     return true;
   }
+  function collectWoodDrops() {
+    if (g.state.mode !== "surface" || g.paused || g.panel || g.busy) return 0;
+    const drops = settlement.value.woodDrops;
+    if (!drops) return 0;
+    const player = g.state.player;
+    let collected = 0;
+    for (const [id, drop] of Object.entries(drops)) {
+      if (g.state.time < drop.availableAt ||
+        Math.hypot(drop.x - player.x, drop.y - player.y, drop.z - (player.surfaceZ ?? 0)) > 23) continue;
+      if (!addBatch(g.state.backpack, { wood: drop.quantity }, BACKPACK_SLOTS)) continue;
+      collected += drop.quantity;
+      delete drops[id];
+    }
+    if (collected) {
+      audio.play(340, .08);
+      g.notify(`+${collected} de madeira alienígena recolhida.`);
+      void g.save();
+    }
+    return collected;
+  }
+
   function openCabinet(key: string) {
     if (
       g.state.mode !== "surface" ||
@@ -635,6 +657,7 @@ export const useConstruction = defineStore("construction", () => {
     errorAt,
     apply,
     harvest,
+    collectWoodDrops,
     openCabinet,
     nearestInteraction,
     toggleDoor,

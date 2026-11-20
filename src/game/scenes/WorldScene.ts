@@ -129,6 +129,8 @@ export class WorldScene extends Phaser.Scene {
   private surfaceTap?: SurfaceTarget;
   private surfaceHold?: { id: number; event: PointerEvent; acted: boolean };
   private readonly heldMining = new HeldMining();
+  private choppingTree?: { id: string; progress: number; saber: boolean };
+  private treeSoundAt = 0;
   private miningBlock?: { x: number; y: number; depth: number; progress: number };
   private shipSprites: Phaser.GameObjects.Image[] = [];
   private usedShipSprites = 0;
@@ -1652,6 +1654,7 @@ export class WorldScene extends Phaser.Scene {
   private resetBlockMining() {
     this.heldMining.reset();
     this.miningBlock = undefined;
+    this.choppingTree = undefined;
   }
   private mineSurfaceVoxel(target: SurfaceTarget, notify: boolean) {
     const g = this.store;
@@ -1843,6 +1846,7 @@ export class WorldScene extends Phaser.Scene {
     }
     this.camX = Phaser.Math.Linear(this.camX, p.x, 0.12);
     this.camY = Phaser.Math.Linear(this.camY, p.y - 32, 0.1);
+    this.building.collectWoodDrops();
     this.wildlife.update(
       g.planet,
       t,
@@ -1852,6 +1856,7 @@ export class WorldScene extends Phaser.Scene {
       dt,
     );
     this.miningBlock = undefined;
+    this.choppingTree = undefined;
     const mineButton = takePulse("mine") || controls.mine;
     const mouse = this.surfaceMouse;
     const tap = this.surfaceTap;
@@ -1895,10 +1900,10 @@ export class WorldScene extends Phaser.Scene {
     const heldTarget = this.surfaceHold ? this.surfacePoint(this.surfaceHold.event) : undefined;
     const aim =
       tap ??
-      (!g.equippedSaber && heldTarget?.terrain ? heldTarget : undefined) ??
+      (!g.equippedSaber && (heldTarget?.terrain || heldTarget?.treeId) ? heldTarget : undefined) ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
     const mobileMine = !aim && mineButton;
-    if (!aim?.terrain && flight3D.surfaceView) this.heldMining.reset();
+    if (!aim?.terrain && !aim?.treeId && flight3D.surfaceView) this.heldMining.reset();
     if (!this.surfaceHold && !(mouse && (mouse.buttons & 1)) && !controls.mine) this.resetBlockMining();
     if (aim?.treeId && flight3D.surfaceView) {
       if (this.mineTime > 0 || p.energy < 3) return;
@@ -1906,18 +1911,33 @@ export class WorldScene extends Phaser.Scene {
       const tree = kind === "grove"
         ? spatialTreeAt(g.planet, t, Number(x), Number(z))
         : treeAt(g.planet, t, Number(x));
-      if (!tree || this.building.settlement.cutTrees.includes(tree.id)) return;
+      if (!tree || this.building.settlement.cutTrees.includes(tree.id)) { this.resetBlockMining(); return; }
       if (Math.hypot(tree.x * 16 + 8 - p.x, tree.ground * 16 - 8 - p.y,
                     (tree.depth ?? 0) * 16 - (p.surfaceZ ?? 0)) > 96) {
+        this.resetBlockMining();
         if (tap) g.notify("Aproxime-se do tronco para cortar a árvore.");
         return;
       }
-      if (this.building.harvest(tree)) {
+      const held = !!this.surfaceHold || !!(mouse && (mouse.buttons & 1)) || controls.mine;
+      const saber = !!g.equippedSaber;
+      const result = this.heldMining.advance(`${g.planet.id}:tree:${tree.id}`, held || saber, miningDt, saber);
+      if (held || saber) {
         if (this.surfaceHold) this.surfaceHold.acted = true;
-        this.treeHits.delete(tree.id);
-        this.mineTime = g.equippedSaber ? .45 : .28;
+        this.choppingTree = { id: tree.id, progress: result.progress, saber };
         this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
+        if (this.elapsed >= this.treeSoundAt) {
+          audio.play(saber ? 225 : 115 + tree.kind * 12, .07, "triangle");
+          this.treeSoundAt = this.elapsed + .35;
+        }
       }
+      if (result.complete) {
+        if (this.building.harvest(tree)) {
+          this.treeHits.delete(tree.id);
+          this.mineTime = saber ? .45 : .28;
+          audio.play(70, .3, "triangle");
+        }
+        this.heldMining.reset();
+      } else if (tap && !held) g.notify("Segure no tronco por 3 segundos para cortar a árvore.");
       return;
     }
     if (aim?.terrain && flight3D.surfaceView) {
@@ -2127,7 +2147,9 @@ export class WorldScene extends Phaser.Scene {
           ? this.building.rotation : undefined,
         cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
         beam: this.beam,
+        gameTime: g.state.time,
         mining: this.miningBlock,
+        chopping: this.choppingTree,
       };
       this.particles = [];
       return;

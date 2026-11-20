@@ -52,6 +52,7 @@ export interface SurfaceFrame {
   revision: number;
   light: number;
   elapsed: number;
+  gameTime?: number;
   sunPhase: number;
   facing: number;
   stride: number;
@@ -63,6 +64,7 @@ export interface SurfaceFrame {
   storm?: { kind: Precipitation; intensity: number };
   wallPlacementFace?: number;
   cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
+  chopping?: { id: string; progress: number; saber: boolean };
   mining?: { x: number; y: number; depth: number; progress: number };
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
 }
@@ -78,6 +80,7 @@ export class SurfaceWorld3D {
   showPilot = false;
   private readonly colors = new Map<number, T.MeshStandardMaterial>();
   private readonly meshes = new Map<string, T.Group>();
+  private readonly fallingTrees = new Map<string, { start: number; dx: number; dz: number }>();
   private readonly ground = new T.Group();
   private readonly box = new T.BoxGeometry();
   private readonly gem = new T.DodecahedronGeometry(0.64);
@@ -654,7 +657,7 @@ export class SurfaceWorld3D {
     for (const tree of trees) {
       const depth = tree.depth ?? 0;
       if (Math.abs(depth * TILE - z) > 215 || tree.x < left || tree.x > right) continue;
-      put(
+      const treeGroup = put(
         tree.id + ":" + planet.id,
         (tree.x + 0.5) * TILE,
         tree.ground * TILE,
@@ -662,6 +665,7 @@ export class SurfaceWorld3D {
         () => {
           const group = new T.Group();
           group.userData.flora = { treeId: tree.id, depth };
+          group.userData.treeColor = tree.trunk;
           const height = tree.height * TILE;
           group.userData.trunkHeight = height * .78;
           this.part(
@@ -694,6 +698,27 @@ export class SurfaceWorld3D {
           return group;
         },
       );
+      const cutting = frame.chopping?.id === tree.id ? frame.chopping : undefined;
+      treeGroup.rotation.set(0, 0, cutting ? Math.sin(frame.elapsed * 28) * .025 * cutting.progress : 0);
+      this.treeChips(treeGroup, cutting ? cutting.progress * 3 : undefined);
+    }
+    for (const [id, drop] of Object.entries(settlement.woodDrops ?? {})) {
+      if ((frame.gameTime ?? 0) < drop.availableAt || Math.abs(drop.x - x) > 215 ||
+          Math.abs(drop.z - z) > 215) continue;
+      const logs = put("woodDrop:" + planet.id + ":" + id, drop.x, drop.y + 7, drop.z - 8, () => {
+        const group = new T.Group();
+        for (let i = 0; i < Math.min(3, drop.quantity); i++) {
+          const log = this.part(group, this.cylinder, 0x81502c,
+            0, 2 + i * 2, (i % 2) * 3 - 1.5, 5, 13, 5);
+          log.rotation.z = Math.PI / 2;
+          const end = this.part(group, this.cylinder, 0xd5aa6c,
+            6.6, 2 + i * 2, (i % 2) * 3 - 1.5, 4.4, .6, 4.4);
+          end.rotation.z = Math.PI / 2;
+        }
+        group.userData.woodDrop = id;
+        return group;
+      });
+      logs.position.y += Math.sin(frame.elapsed * 3) * .7;
     }
     const near = (point: Point) =>
       Math.abs(z) < 220 && point.x >= left * TILE && point.x <= right * TILE;
@@ -825,8 +850,27 @@ export class SurfaceWorld3D {
     }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
+        const treeId = group.userData.flora?.treeId as string | undefined;
+        const cut = treeId && key === treeId + ":" + planet.id && settlement.cutTrees.includes(treeId);
+        if (cut) {
+          let fall = this.fallingTrees.get(key);
+          if (!fall) {
+            const dx = group.position.x - x, dz = group.position.z - z;
+            const distance = Math.hypot(dx, dz) || 1;
+            fall = { start: frame.elapsed, dx: dx === 0 && dz === 0 ? 1 : dx / distance, dz: dz / distance };
+            this.fallingTrees.set(key, fall);
+            group.userData.flora = { ...group.userData.flora, falling: true };
+          }
+          const age = Math.max(0, frame.elapsed - fall.start);
+          const angle = Math.min(1, age / 1.1) ** 2 * Math.PI * .49;
+          group.rotation.set(angle * fall.dz, 0, -angle * fall.dx);
+          group.scale.setScalar(age <= 1.2 ? 1 : Math.max(0, 1 - (age - 1.2) / .6));
+          this.treeChips(group, age + 3);
+          if (age < 1.8) continue;
+        }
         group.removeFromParent();
         this.meshes.delete(key);
+        this.fallingTrees.delete(key);
       }
     this.cursor.visible = !!frame.cursor;
     if (frame.cursor) {
@@ -898,6 +942,36 @@ export class SurfaceWorld3D {
       this.weather.material.opacity = intensity * 0.76;
     }
     this.targetFrame = frame;
+  }
+
+  private treeChips(tree: T.Group, phase?: number) {
+    let chips = tree.getObjectByName("tree-cut-chips") as T.Group | undefined;
+    if (!chips && phase !== undefined) {
+      chips = new T.Group(); chips.name = "tree-cut-chips";
+      for (let i = 0; i < 10; i++) {
+        this.part(chips, this.box, tree.userData.treeColor ?? 0x98704a,
+          0, 0, 0, 1.4, .5, .7);
+      }
+      tree.add(chips);
+    }
+    if (!chips) return;
+    let scar = tree.getObjectByName("tree-cut-scar") as T.Mesh | undefined;
+    if (!scar) {
+      scar = this.part(tree, this.box, 0x382318, 0, 8, 3.8, 8, 1.3, 1);
+      scar.name = "tree-cut-scar";
+    }
+    scar.visible = phase !== undefined;
+    scar.scale.x = 8 * Math.min(1, (phase ?? 0) / 3);
+    chips.visible = phase !== undefined;
+    if (phase === undefined) return;
+    chips.children.forEach((chip, i) => {
+      const life = (phase * 3 + i / 10) % 1;
+      const angle = i * 2.4;
+      chip.position.set(Math.cos(angle) * life * 13, 8 + life * 9 - life * life * 17,
+        Math.sin(angle) * life * 13);
+      chip.rotation.set(life * 6, angle, life * 4);
+      chip.scale.setScalar(1 - life * .7);
+    });
   }
 
   private updateBaseLights(frame: SurfaceFrame) {
@@ -986,6 +1060,7 @@ export class SurfaceWorld3D {
     this.scene.updateMatrixWorld();
     const objects = this.ray.intersectObjects(
           [...this.meshes]
+            .filter(([id, group]) => !id.startsWith("woodDrop:") && !group.userData.flora?.falling)
             .filter(([id]) => hitSolid ? !id.startsWith("depthBlock:") : id.startsWith("wall:"))
             .map(([, group]) => group),
           true,
@@ -995,7 +1070,7 @@ export class SurfaceWorld3D {
       const trunk = new T.Box3();
       for (const group of this.meshes.values()) {
         const height = group.userData.trunkHeight as number | undefined;
-        if (!height) continue;
+        if (!height || group.userData.flora?.falling) continue;
         const { x, y, z } = group.position;
         trunk.min.set(x - 4.7, y, z - 4.3);
         trunk.max.set(x + 4.7, y + height, z + 4.3);
@@ -1052,7 +1127,7 @@ export class SurfaceWorld3D {
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
           depth: target?.cell?.depth ?? target?.dropDepth ?? 0,
           ...(target?.cell?.wall ? { wallFace: target.cell.rotation ?? 0 } : {}),
-          ...target?.flora,
+          ...(target?.flora?.falling ? {} : target?.flora),
         };
       }
       const target = { wx, wy, x, y, depth };
@@ -1066,6 +1141,7 @@ export class SurfaceWorld3D {
 
   dispose() {
     this.disposed = true;
+    this.fallingTrees.clear();
     this.clearMiningFade();
     this.terrainInstances.clear();
     this.windowGlass.dispose();

@@ -171,6 +171,7 @@ export interface Settlement {
   walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
   cutTrees: string[];
+  woodDrops?: Record<string, { x: number; y: number; z: number; quantity: number; availableAt: number }>;
   foraged?: Record<string, number>;
   hunted?: Record<string, number>;
   utilityTime?: number;
