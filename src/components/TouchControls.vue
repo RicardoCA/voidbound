@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="touch-controls" aria-label="Controles de toque">
+  <div class="touch-controls" :class="{ 'touch-controls--surface': surface }" aria-label="Controles de toque">
     <QuickSlots v-if="surface" touch />
     <div class="touch-movement">
       <button
