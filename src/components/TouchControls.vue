@@ -157,7 +157,7 @@ onBeforeUnmount(() => {
     </div>
     <div
       class="touch-actions"
-      :class="{ 'space-actions': piloting, 'station-actions-only': indoors && !piloting }"
+      :class="{ 'space-actions': piloting, 'surface-actions': surface, 'station-actions-only': indoors && !piloting }"
     >
       <button
         v-if="piloting"

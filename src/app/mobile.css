@@ -228,6 +228,7 @@
     background: #19232def;
   }
   .touch-controls {
+    --surface-walk-height: 80px;
     display: block;
     position: absolute;
     inset: 0;
@@ -241,7 +242,7 @@
   .touch-controls > .quick-slots--touch {
     inset-inline: max(10px, env(safe-area-inset-left, 0px))
       max(10px, env(safe-area-inset-right, 0px));
-    bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 110px);
+    bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + var(--surface-walk-height) + 8px);
     width: auto;
     max-width: 431px;
     margin-inline: auto;
@@ -265,7 +266,7 @@
     justify-content: center;
     gap: 4px;
     width: 92px;
-    height: 80px;
+    height: var(--surface-walk-height);
     padding: 8px;
     border: 1px solid #89b7c780;
     border-radius: 16px;
@@ -391,6 +392,18 @@
     min-height: 44px;
     border-color: #b7a17b88;
     color: #e2cdab;
+  }
+  .touch-actions.surface-actions {
+    inset-inline: 0;
+    height: var(--surface-walk-height);
+    grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+    grid-template-areas: ". aux interact";
+    gap: 0;
+  }
+  .surface-actions .touch-interact {
+    justify-self: end;
+    width: 92px;
+    margin-inline-end: max(10px, env(safe-area-inset-right, 0px));
   }
   .is-playing .overlay {
     z-index: 15;
@@ -618,6 +631,18 @@
       max(154px, calc(env(safe-area-inset-right, 0px) + 138px));
     bottom: max(10px, env(safe-area-inset-bottom, 0px));
   }
+  .touch-actions.surface-actions {
+    inset-inline: auto max(16px, env(safe-area-inset-right, 0px));
+    height: auto;
+    grid-template-columns: 52px 64px;
+    grid-template-areas: "aux ." "interact interact";
+    gap: 6px;
+  }
+  .surface-actions .touch-interact {
+    justify-self: stretch;
+    width: auto;
+    margin-inline-end: 0;
+  }
 }
 @media (max-width: 360px) {
   .mobile-hud {
@@ -631,7 +656,7 @@
   .touch-movement {
     left: 10px;
   }
-  .touch-actions {
+  .touch-actions:not(.surface-actions) {
     right: 10px;
   }
   .is-playing .map-toolbar {
