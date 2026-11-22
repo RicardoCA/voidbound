@@ -72,6 +72,7 @@ export interface SurfaceFrame {
   mining?: { x: number; y: number; depth: number; progress: number };
   building?: boolean;
   heldMaterial?: Item;
+  bucketEquipped?: boolean;
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number; tz?: number };
 }
 
@@ -1177,7 +1178,7 @@ export class SurfaceWorld3D {
     position.needsUpdate = true;
   }
 
-  pointAt(nx: number, ny: number, hitSolid: boolean, pickPreview = false): SurfaceTarget | undefined {
+  pointAt(nx: number, ny: number, hitSolid: boolean, pickPreview = false, pickWater = false): SurfaceTarget | undefined {
     const frame = this.targetFrame;
     if (!frame) return;
     this.ray.setFromCamera(this.pointer.set(nx, ny), this.camera);
@@ -1257,15 +1258,17 @@ export class SurfaceWorld3D {
         };
       }
       const target = { wx, wy, wz: position.z, x, y, depth };
+      const tile = frame.terrain.getAt(x, y, depth);
+      if (pickWater && tile === WATER_TILE) return target;
       if (solidSurfaceVoxel(frame.terrain, frame.settlement, x, y, depth))
         return hitSolid
           ? {
               ...target,
-              terrain: tileItems[frame.terrain.getAt(x, y, depth)] !== undefined,
+              terrain: tileItems[tile] !== undefined,
               distance: this.cameraEye.distanceTo(position),
             }
           : lastAir;
-      if (!isLiquidTile(frame.terrain.getAt(x, y, depth))) lastAir = target;
+      if (!isLiquidTile(tile)) lastAir = target;
       else lastAir = undefined;
     }
   }

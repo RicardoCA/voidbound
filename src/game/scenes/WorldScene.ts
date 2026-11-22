@@ -560,6 +560,7 @@ export class WorldScene extends Phaser.Scene {
         rect ? rect.top + rect.height / 2 : event.clientY,
         !this.building.enabled || this.building.removing,
         confirm || (!locked && !(event.buttons & 2)),
+        this.building.bucketEquipped,
       );
     }
     const rect = this.game.canvas.getBoundingClientRect();
@@ -1889,6 +1890,11 @@ export class WorldScene extends Phaser.Scene {
       }
       return;
     }
+    if (this.building.bucketEquipped) {
+      this.resetBlockMining();
+      if (tap) g.collectSurfaceWater(t, tap.x, tap.y, tap.depth);
+      return;
+    }
     if (
       tap &&
       (g.recoverBackpack(tap) ||
@@ -2165,6 +2171,7 @@ export class WorldScene extends Phaser.Scene {
         storm,
         building: this.building.enabled,
         heldMaterial: this.building.enabled && !this.building.removing ? this.building.selectedMaterial : undefined,
+        bucketEquipped: this.building.bucketEquipped,
         wallPlacementFace: this.building.enabled && !this.building.removing &&
           ["woodWall", "metalWall", "stoneWall"].includes(this.building.selected)
           ? this.building.rotation : undefined,

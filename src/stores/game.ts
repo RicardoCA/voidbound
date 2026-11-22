@@ -97,7 +97,7 @@ import {
   recordMining,
   miningEfficiency,
 } from "../progression/careers";
-import { Terrain, tileItems } from "../game/procedural/terrain";
+import { Terrain, TILE, tileItems, WATER_TILE } from "../game/procedural/terrain";
 import { fillQuickSlot } from "../inventory/quickSlots";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
 import {
@@ -751,6 +751,28 @@ export const useGame = defineStore("game", () => {
     )
       flag("collected");
     progress();
+    return true;
+  }
+  function collectSurfaceWater(terrain: Terrain, x: number, y: number, depth: number) {
+    const s = state.value;
+    if (s.mode !== "surface" || !s.backpack.bucket ||
+        terrain.planet.id !== planet.value.id ||
+        terrain.changes !== s.changes[planet.value.id] ||
+        terrain.getAt(x, y, depth) !== WATER_TILE)
+      return false;
+    const p = s.player;
+    const distanceToCell = Math.hypot(
+      Math.max(0, Math.abs(p.x - (x + .5) * TILE) - TILE / 2),
+      Math.max(0, Math.abs(p.y - (y + .5) * TILE) - TILE / 2),
+      Math.max(0, Math.abs((p.surfaceZ ?? 0) - depth * TILE) - TILE / 2),
+    );
+    if (distanceToCell > 77) {
+      notify("Aproxime-se da água para coletar.");
+      return false;
+    }
+    if (!collect("water")) return false;
+    notify("Água coletada com o balde.");
+    void save();
     return true;
   }
   function mineTerrain(terrain: Terrain, x: number, y: number, depth = 0) {
@@ -2122,6 +2144,7 @@ export const useGame = defineStore("game", () => {
     resume,
     collect,
     mineTerrain,
+    collectSurfaceWater,
     mineAsteroid,
     scanPlanet,
     planetScan,

@@ -41,6 +41,7 @@ it("desenha água e lava, mantém passagem livre e permite mirar no minério ao 
     expect(touchesSurfaceLiquid(terrain, { x: 8, y: 148, surfaceZ: -32 }, LAVA_TILE, true)).toBe(true);
     expect(touchesSurfaceLiquid(terrain, { x: 8, y: 130, surfaceZ: -32 }, LAVA_TILE, true)).toBe(false);
     expect(world.pointAt(0, 0, true)).toMatchObject({ x: 0, y: 9, depth: -3, terrain: true });
+    expect(world.pointAt(0, 0, true, false, true)).toMatchObject({ x: 0, y: 9, depth: -1 });
   } finally {
     world.dispose();
   }

@@ -57,6 +57,7 @@ export const useConstruction = defineStore("construction", () => {
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
     selectedMaterial = ref<Item>(),
+    holdingBucket = ref(false),
     rotation = ref(0),
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
@@ -100,11 +101,12 @@ export const useConstruction = defineStore("construction", () => {
       : undefined,
   );
   const selectedItem = computed(() => selectedMaterial.value ?? selected.value);
+  const bucketEquipped = computed(() => holdingBucket.value && (g.state.backpack.bucket ?? 0) > 0 && !g.equippedSaber);
   const selectedCount = computed(() => g.state.backpack[selectedItem.value] ?? 0);
   const canRotate = computed(() => !selectedMaterial.value && (flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs"));
   const activeQuickSlot = computed(() => {
     if (removing.value && enabled.value) return;
-    const item = enabled.value ? selectedItem.value : g.equippedSaber;
+    const item = enabled.value ? selectedItem.value : bucketEquipped.value ? "bucket" : g.equippedSaber;
     return item ? assignableQuickSlots.find((slot) => g.state.quickSlots?.[slot] === item) : 1;
   });
   function assignQuickSlot(slot: number, item: Item) {
@@ -161,7 +163,17 @@ export const useConstruction = defineStore("construction", () => {
   function equip(kind: Item) {
     if (g.state.mode !== "surface") return;
     const construction = isBuildItem(kind);
+    if (kind === "bucket") {
+      if (!g.state.backpack.bucket) return;
+      disable();
+      if (g.equippedSaber) g.use(g.equippedSaber, true);
+      holdingBucket.value = true;
+      g.panel = "";
+      g.notify("Balde equipado. Mire na água e toque ou clique para coletar.");
+      return;
+    }
     if (!construction && tileForItem(kind) === undefined) return;
+    holdingBucket.value = false;
     lastError.value = "";
     selected.value = construction ? kind : "woodBlock";
     selectedMaterial.value = construction ? undefined : kind;
@@ -176,6 +188,7 @@ export const useConstruction = defineStore("construction", () => {
     );
   }
   function disable() {
+    holdingBucket.value = false;
     enabled.value = false;
     lastError.value = "";
     cursor.value = null;
@@ -756,8 +769,10 @@ export const useConstruction = defineStore("construction", () => {
     { immediate: true, flush: "sync" },
   );
   watch(
-    () => [g.state, g.state.mode, g.planet.id],
+    () => [g.state, g.state.mode, g.planet.id, g.state.backpack.bucket, g.equippedSaber],
     () => {
+      if (g.state.mode !== "surface" || !g.state.backpack.bucket || g.equippedSaber)
+        holdingBucket.value = false;
       if (g.state.mode !== "surface") {
         enabled.value = false;
         cursor.value = null;
@@ -777,6 +792,7 @@ export const useConstruction = defineStore("construction", () => {
     selected,
     selectedItem,
     selectedMaterial,
+    bucketEquipped,
     activeQuickSlot,
     assignQuickSlot,
     activateQuickSlot,

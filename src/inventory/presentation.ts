@@ -17,6 +17,7 @@ export function itemCategory(id: Item): Exclude<ItemCategory, "all"> {
     isScannerEquipment(id) ||
     [
       "autoFeeder",
+      "bucket",
       "autoOxygen",
       "engine",
       "laser",

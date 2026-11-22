@@ -7,7 +7,7 @@ export const quickSlotNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const assignableQuickSlots = quickSlotNumbers.slice(1);
 
 export function canAssignQuickSlot(item: Item) {
-  return isBuildItem(item) || tileForItem(item) !== undefined || isPhotonSaber(item);
+  return item === "bucket" || isBuildItem(item) || tileForItem(item) !== undefined || isPhotonSaber(item);
 }
 
 export function fillQuickSlot(state: Save, item: Item) {

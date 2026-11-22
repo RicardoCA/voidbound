@@ -32,6 +32,7 @@ export const itemArt: Record<Item, ItemArt> = {
       sampleLab: "M2 14h20v9h-3v-5H5v5H2zM5 5l4-3 4 7-4 3zM10 10h3v4H7v-2h3zM17 3h3v10h-3z",
     } as Record<FacilityKind, string>)[id as FacilityKind], shade: "M16 8h4v12h-4z", light: "M5 9h9v5H5z", detail: "M5 17h10v2H5zM17 10h2v2h-2z", accent: spec.color }])) as Record<FacilityKind, ItemArt>,
   water: { body: "M12 2L4 13q-2 8 8 9 10-1 8-9z", shade: "M12 22V4l8 10q2 7-8 8", light: "M8 11h2v7H7z", accent: "#8cdefa" },
+  bucket: { body: "M3 7h18l-3 14H6zM6 7V5a6 4 0 0 1 12 0v2h-2V5a4 2 0 0 0-8 0v2z", shade: "M13 10h7l-2 11h-5z", light: "M4 7h16v3H4zM7 11h2l1 7H8z" },
   acidResidue: { body: "M5 8l9-5 6 8-3 9H6L3 15z", shade: "M12 7l8 4-3 9h-6z", light: "M6 9l7-4-3 7H6z", accent: "#b4ef6a" },
   ruinFragment: { body: "M4 5l11-2 6 7-4 11-12-3z", shade: "M13 4l8 6-4 11-5-4z", light: "M7 7h5v3H7zM8 13h3v4H8z", accent: "#b38ee8" },
   ...(Object.fromEntries(

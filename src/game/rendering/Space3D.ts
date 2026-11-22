@@ -2078,7 +2078,7 @@ export class Space3D {
     this.renderer.render(scene, this.cabinCamera);
   }
 
-  surfacePointAt(clientX: number, clientY: number, snapTerrain: boolean, pickPreview = false) {
+  surfacePointAt(clientX: number, clientY: number, snapTerrain: boolean, pickPreview = false, pickWater = false) {
     const bounds = this.canvas.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     return this.exploration?.world.pointAt(
@@ -2086,6 +2086,7 @@ export class Space3D {
       1 - ((clientY - bounds.top) / bounds.height) * 2,
       snapTerrain,
       pickPreview,
+      pickWater,
     );
   }
 
@@ -2217,7 +2218,7 @@ export class Space3D {
     const showHeldTool = firstPerson && (!frame.building || !!frame.heldMaterial);
     if (showHeldTool) {
       view.heldTool.update(view.world.camera, frame, outfit, !!saber);
-      if (frame.beam && !saber && !frame.building) {
+      if (frame.beam && !saber && !frame.building && !frame.bucketEquipped) {
         view.heldTool.muzzle.getWorldPosition(this.toolPosition);
         view.world.setBeamOrigin(view.world.camera.localToWorld(this.toolPosition));
       }

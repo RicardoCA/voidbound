@@ -118,6 +118,29 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("fabrica e equipa o balde para coletar água sem remover a fonte", () => {
+    const { g } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    terrain.setAt(4, 28, -1, WATER_TILE);
+    terrain.setAt(5, 28, -1, LAVA_TILE);
+    terrain.setAt(25, 28, -1, WATER_TILE);
+    expect(g.collectSurfaceWater(terrain, 4, 28, -1)).toBe(false);
+    g.state.backpack = { iron: 3 };
+    g.make("bucket");
+    expect(g.state.quickSlots?.[2]).toBe("bucket");
+    b.activateQuickSlot(2);
+    expect(b.bucketEquipped).toBe(true);
+    expect(b.activeQuickSlot).toBe(2);
+    expect(g.collectSurfaceWater(terrain, 4, 28, -1)).toBe(true);
+    expect(g.collectSurfaceWater(terrain, 5, 28, -1)).toBe(false);
+    expect(g.collectSurfaceWater(terrain, 25, 28, -1)).toBe(false);
+    expect(g.state.backpack).toEqual({ bucket: 1, water: 1 });
+    expect(terrain.getAt(4, 28, -1)).toBe(WATER_TILE);
+    b.activateQuickSlot(1);
+    expect(b.bucketEquipped).toBe(false);
+  });
+
   it("não minera nem permite colocar um bloco dentro de água ou lava", () => {
     const { g } = setup();
     const b = useConstruction();

@@ -12,16 +12,22 @@ export class SurfaceHeldTool {
   private readonly pistol = new T.Group();
   private readonly box = new RoundedBoxGeometry(1, 1, 1, 2, .16);
   private readonly cylinder = new T.CylinderGeometry(.5, .5, 1, 12);
+  private readonly bucketBody = new T.CylinderGeometry(.81, .62, 1.3, 16, 1, true);
+  private readonly bucketHandle = new T.TorusGeometry(.77, .065, 6, 16, Math.PI);
   private readonly sleeve = new T.MeshStandardMaterial({ roughness: .85 });
   private readonly armor = new T.MeshStandardMaterial({ roughness: .55 });
   private readonly rubber = new T.MeshStandardMaterial({ color: 0x252c37, roughness: .8 });
   private readonly shell = new T.MeshStandardMaterial({ color: 0xa0b9be, roughness: .43, metalness: .2 });
+  private readonly bucketMetal = new T.MeshStandardMaterial({
+    color: 0x849eaa, metalness: .28, roughness: .38, side: T.DoubleSide,
+  });
   private readonly safety = new T.MeshStandardMaterial({ color: 0xe29b39, roughness: .49 });
   private readonly lens = new T.MeshStandardMaterial({
     color: 0x227e8e, emissive: 0x44e5ff, emissiveIntensity: .65, roughness: .34,
   });
   private readonly blockMaterial = new T.MeshStandardMaterial({ roughness: .94 });
   private readonly block = new T.Mesh(this.box, this.blockMaterial);
+  private readonly bucket = new T.Group();
   private readonly fill = new T.HemisphereLight(0xdaf0ff, 0x556075, 1.5);
 
   constructor() {
@@ -31,10 +37,13 @@ export class SurfaceHeldTool {
     this.scene.add(key);
 
     const hand = new T.Group();
-    this.grip.add(hand, this.pistol, this.block);
+    this.grip.add(hand, this.pistol, this.block, this.bucket);
     this.block.position.set(-.38, .57, -.45);
     this.block.scale.setScalar(1.93);
     this.block.rotation.set(.12, .22, -.08);
+    this.part(this.bucket, this.bucketBody, this.bucketMetal, [-.76, -.88, -.38], [1, 1, 1]);
+    this.part(this.bucket, this.cylinder, this.bucketMetal, [-.76, -1.51, -.38], [1.25, .11, 1.25]);
+    this.part(this.bucket, this.bucketHandle, this.bucketMetal, [-.76, -.24, -.38], [1, 1, 1]);
     this.part(hand, this.box, this.rubber, [.60, -.04, .32], [.85, 1.72, 1.07]).rotation.z = -.13;
     this.part(hand, this.box, this.armor, [.78, .05, .77], [.56, 1.09, .26]).rotation.z = -.12;
     for (let finger = 0; finger < 4; finger++) {
@@ -95,14 +104,15 @@ export class SurfaceHeldTool {
     this.armor.color.set(shirt?.trim ?? 0x516878);
     this.fill.intensity = .80 + frame.light * .85;
     const material = frame.heldMaterial;
-    this.pistol.visible = !saber && !frame.building;
+    this.pistol.visible = !saber && !frame.building && !frame.bucketEquipped;
+    this.bucket.visible = !!frame.bucketEquipped;
     this.block.visible = !!material;
     if (material) this.blockMaterial.color.set(items[material].color);
     this.lens.emissiveIntensity = frame.beam ? 2.2 : .65;
     const step = Math.sin(frame.stride);
     const right = Math.min(7, 8.5 * camera.aspect);
     this.grip.position.set(right + step * .28, -6.55 + (1 - Math.cos(frame.stride * 2)) * .12, -18);
-    const raised = saber || !!material;
+    const raised = saber || !!material || !!frame.bucketEquipped;
     this.grip.rotation.set(raised ? -.07 : .25, raised ? -.10 : .28,
       raised ? (frame.beam && saber ? .70 : .21) : -.12);
     if (this.pistol.visible && frame.beam) this.grip.position.z += .35;
@@ -122,7 +132,9 @@ export class SurfaceHeldTool {
   dispose() {
     this.box.dispose();
     this.cylinder.dispose();
-    for (const material of [this.sleeve, this.armor, this.rubber, this.shell, this.safety, this.lens, this.blockMaterial])
+    this.bucketBody.dispose();
+    this.bucketHandle.dispose();
+    for (const material of [this.sleeve, this.armor, this.rubber, this.shell, this.safety, this.lens, this.blockMaterial, this.bucketMetal])
       material.dispose();
   }
 }

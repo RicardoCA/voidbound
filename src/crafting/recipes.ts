@@ -67,6 +67,7 @@ export const recipes: Recipe[] = [
     station: "ship",
   })),
   ...Object.entries(facilityDefinitions).map(([id, definition]): Recipe => ({ id: id as FacilityKind, cost: definition.cost, unlock: 0, station: "hand" })),
+  { id: "bucket", cost: { iron: 3 }, unlock: 0, station: "hand" },
   { id: "stick", cost: { wood: 1 }, amount: 8, unlock: 0, station: "ship" },
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   {

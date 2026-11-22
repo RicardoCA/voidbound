@@ -84,6 +84,9 @@ function make() {
       <span>{{ constructionRecipes.length }} projetos</span
       ><span>{{ readyCount }} fabricáveis</span
       ><span>{{ ownedCount }} peças na mochila</span>
+      <button type="button" class="secondary" @click="g.panel = 'craft'">
+        Receitas de fabricação
+      </button>
     </div>
     <div class="build-materials">
       <span v-for="id in ['wood', 'stone', 'iron'] as const" :key="id"

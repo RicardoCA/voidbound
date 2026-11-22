@@ -27,6 +27,7 @@ export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
   | FacilityKind
   | "water"
+  | "bucket"
   | "acidResidue"
   | "ruinFragment"
   | "warpFuel"
@@ -299,6 +300,7 @@ type ItemDetails = {
 export const items: Record<Item, ItemDetails> = {
   ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { name: spec.name, color: spec.color, icon: "⚙", rarity: "Construção científica", stack: 20 }])) as Record<FacilityKind, ItemDetails>,
   water: { name: "Água coletada", color: "#7acff1", icon: "◇", rarity: "Material climático", stack: 99 },
+  bucket: { name: "Balde", color: "#a3b7bf", icon: "▣", rarity: "Ferramenta", stack: 1 },
   acidResidue: { name: "Resíduo mineral ácido", color: "#b8eb72", icon: "◇", rarity: "Material climático", stack: 99 },
   ruinFragment: { name: "Fragmento de ruína", color: "#ccabf5", icon: "◇", rarity: "Amostra científica", stack: 99 },
   asteroidRadar: {
