@@ -1,3 +1,4 @@
+import { facilityDefinitions, isFacility, type FacilityKind } from "../../construction/facilityTypes";
 import { isBaseLight } from "../../construction/lighting";
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
@@ -15,6 +16,7 @@ const terrainKits = [
 const surfaceTileOffset = 16;
 
 const equipmentModels = {
+  ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { file: spec.file, width: 29, height: id === "observatory" ? 30 : id === "geoProbe" ? 24 : 23, depth: 14, center: -8 }])) as Record<FacilityKind, { file: string; width: number; height: number; depth: number; center: number }>,
   workbench: { file: "bancada-planetaria", width: 30, height: 16, depth: 12, center: -8 },
   planetaryOxygenGenerator: { file: "gerador-oxigenio", width: 15, height: 23, depth: 12, center: -3 },
   campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
@@ -391,7 +393,10 @@ export class SurfaceWorld3D {
       trim = 0xc28a51,
       metal = 0x495e73,
       light = 0x75d9d3;
-    if (kind === "woodWall" || kind === "stoneWall" || kind === "metalWall") {
+    if (isFacility(kind)) {
+      block(0x293d49, 0, 8, -8, 29, 16, 14);
+      block(0x68cfe5, 0, 14, 0, 18, 3, 1);
+    } else if (kind === "woodWall" || kind === "stoneWall" || kind === "metalWall") {
       const color =
         kind === "woodWall"
           ? 0x634237
@@ -885,11 +890,11 @@ export class SurfaceWorld3D {
       this.cursor.rotation.y = angle;
       this.cursor.scale.set(
         kind ? pieceWidth(kind) * TILE : TILE + 0.3,
-        isDoor(kind) ? TILE * 2 : TILE + 0.3,
+        isDoor(kind) || (kind && isFacility(kind)) ? TILE * 2 : TILE + 0.3,
         panel ? 4 : TILE + 0.3,
       );
       if (kind) this.cursor.position.x += (pieceWidth(kind) - 1) * TILE / 2;
-      if (isDoor(kind)) this.cursor.position.y += TILE / 2;
+      if (isDoor(kind) || (kind && isFacility(kind))) this.cursor.position.y += TILE / 2;
       if (panel) {
         this.cursor.position.x += Math.sin(angle) * surfaceWallZ;
         this.cursor.position.z += Math.cos(angle) * surfaceWallZ;

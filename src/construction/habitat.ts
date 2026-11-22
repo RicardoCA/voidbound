@@ -1,3 +1,5 @@
+import { facilityDefinitions, isFacility, emptyFacility } from "./facilityTypes";
+import { weatherAt } from "../game/procedural/weather";
 import { isBaseLight, lightRate, advanceBaseLight } from "./lighting";
 import type { Settlement } from "../game/types";
 import type { Terrain } from "../game/procedural/terrain";
@@ -151,6 +153,8 @@ export function hasPlanetaryOxygenGenerator(data?: Settlement) {
 }
 
 export interface PowerNetwork {
+  facilities: { key: string; exposed: boolean; batteries: string[]; panels: string[] }[];
+  facilityPlanet?: import("../game/types").Planet;
   planetary: { key: string; battery?: string; panels: number }[];
   generators: {
     key: string;
@@ -241,6 +245,11 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
         batteries: batteries.filter(b => Math.hypot(b.x - x, b.y - y, b.depth - depth) <= POWER_RANGE).map(b => b.key),
         panels: [] as string[] };
     }).sort((a,b) => a.key.localeCompare(b.key));
+  const facilities = Object.entries(data.pieces).filter(([, piece]) => isFacility(piece.kind)).map(([key, piece]) => {
+    const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+    return { key, x, y, depth, exposed: !["observatory", "climateCollector", "weatherStation"].includes(piece.kind) || exposedToSky(terrain, data, x, y, depth),
+      batteries: batteries.filter(b => Math.hypot(b.x - x, b.y - y, b.depth - depth) <= POWER_RANGE).map(b => b.key), panels: [] as string[] };
+  }).sort((a, b) => a.key.localeCompare(b.key));
   const exposed: { x: number; y: number; depth: number }[] = [];
   let exposedPanels = 0;
   for (const [key] of panels) {
@@ -263,7 +272,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       generator.panels++;
       generator.directPanels.push(key);
     }
-    for (const consumer of [...fridges, ...lights])
+    for (const consumer of [...fridges, ...lights, ...facilities])
       if (Math.hypot(consumer.x - x!, consumer.y - y, consumer.depth - depth) <= POWER_RANGE)
         consumer.panels.push(key);
   }
@@ -278,6 +287,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       };
     });
   return {
+    facilities, facilityPlanet: terrain.planet,
     planetary,
     generators,
     batteries,
@@ -293,11 +303,12 @@ export function advancePowerNetwork(
   network: PowerNetwork,
   from: number,
   to: number,
+  runFacilities = false,
 ) {
-  if (network.fridges.length || network.planetary.length || network.lights.length) {
+  if (network.fridges.length || network.planetary.length || network.lights.length || network.facilities.length) {
     for (let start = from; start < to;) {
       const end = Math.min(to, start + 1);
-      advancePowerStep(data, network, start, end);
+      advancePowerStep(data, network, start, end, runFacilities);
       start = end;
     }
     if (from === to)
@@ -322,7 +333,7 @@ export function advancePowerNetwork(
     }
     return;
   }
-  advancePowerStep(data, network, from, to);
+  advancePowerStep(data, network, from, to, runFacilities);
 }
 
 function advancePowerStep(
@@ -330,6 +341,7 @@ function advancePowerStep(
   network: PowerNetwork,
   from: number,
   to: number,
+  runFacilities = false,
 ) {
   const sun = sunlightBetween(from, to),
     elapsed = Math.max(0, to - from);
@@ -356,7 +368,7 @@ function advancePowerStep(
   }
   for (const generator of network.generators) {
     const piece = data.pieces[generator.key]!;
-    if (!generator.batteries.length && !network.fridges.length && !network.lights.length) {
+    if (!generator.batteries.length && !network.fridges.length && !network.lights.length && !network.facilities.length) {
       advanceGenerator(piece, generator.panels, from, to);
       continue;
     }
@@ -400,6 +412,26 @@ function advancePowerStep(
         ...batch,
         expires: batch.expires - warmTime,
       }));
+  }
+  // Scientific/industrial facilities share the same energy pool after life support.
+  for (const node of runFacilities ? network.facilities : []) {
+    const piece = data.pieces[node.key]!;
+    if (!isFacility(piece.kind)) continue;
+    const machine = ((data.machines ??= {})[node.key] ??= emptyFacility());
+    const collecting = piece.kind === "climateCollector" && !!(network.facilityPlanet && weatherAt(network.facilityPlanet, to));
+    const active = node.exposed && !machine.blocked && (piece.kind === "weatherStation" || collecting || machine.queue.length > 0);
+    piece.powered = false;
+    if (!active) continue;
+    const rate = facilityDefinitions[piece.kind].watts;
+    const demand = rate * elapsed;
+    let supplied = takeSolar(node.panels, demand);
+    for (const key of node.batteries) {
+      const battery = data.pieces[key]!;
+      const used = Math.min(demand - supplied, Math.max(0, battery.energy ?? 0));
+      battery.energy = (battery.energy ?? 0) - used; supplied += used;
+    }
+    machine.energySeconds = (machine.energySeconds ?? 0) + supplied / rate;
+    piece.powered = supplied >= demand - 1e-8;
   }
   // Life support and refrigeration get priority; lights consume only what remains.
   for (const light of network.lights) {

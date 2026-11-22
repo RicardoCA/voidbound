@@ -1,3 +1,5 @@
+import { isFacility } from "../construction/facilityTypes";
+import { facilityInReach, machineAt, enqueueFacility, FACILITY_SLOTS, facilityAccepts } from "../construction/facilities";
 import { isBaseLight, EMERGENCY_CAPACITY } from "../construction/lighting";
 import { isDoor, pieceWidth } from "../construction/pieces";
 import { toggleAirlockDoor, airlockPartner } from "../construction/airlock";
@@ -91,7 +93,7 @@ export const useConstruction = defineStore("construction", () => {
       : undefined,
   );
   const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
-  const canRotate = computed(() => flight3D.surfaceView ? selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
+  const canRotate = computed(() => flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
   function context(depth?: number) {
     return {
       terrain: terrain.value,
@@ -116,7 +118,7 @@ export const useConstruction = defineStore("construction", () => {
     if (g.state.mode !== "surface") return;
     lastError.value = "";
     selected.value = kind;
-    if (kind === "workbench") rotation.value = 0;
+    if (kind === "workbench" || isFacility(kind)) rotation.value = 0;
     cursor.value = null;
     enabled.value = true;
     removing.value = false;
@@ -328,9 +330,39 @@ export const useConstruction = defineStore("construction", () => {
     g.sleepInBed();
     return true;
   }
+  const activeFacility = ref<{ planetId: string; key: string }>();
+  const facility = computed(() => {
+    const active = activeFacility.value;
+    if (!active || g.paused || g.busy || g.panel !== "facility" || active.planetId !== g.planet.id || !facilityInReach(g.state, active.planetId, active.key)) return;
+    const piece = settlement.value.pieces[active.key]!;
+    if (!isFacility(piece.kind)) return;
+    return { key: active.key, kind: piece.kind, piece, machine: machineAt(settlement.value, active.key)! };
+  });
+  function queueFacility(recipe: string, quantity: number) {
+    const current = facility.value;
+    if (!current) return false;
+    const error = enqueueFacility(settlement.value, current.key, recipe, quantity);
+    if (error) { g.notify(error); return false; }
+    void g.save(); return true;
+  }
+  function moveFacility(input: boolean, deposit: boolean, id: Item, quantity: number) {
+    const current = facility.value;
+    if (!current || (!input && deposit) || (deposit && !facilityAccepts(current.kind, id))) return false;
+    const inventory = input ? current.machine.input : current.machine.output;
+    if (!transfer(deposit ? g.state.backpack : inventory, deposit ? inventory : g.state.backpack, id, quantity, deposit ? FACILITY_SLOTS : BACKPACK_SLOTS)) return false;
+    current.machine.blocked = false;
+    void g.save(); return true;
+  }
   function interactAt(x: number, y: number, depth = 0) {
     const found = pieceAt(settlement.value, x, y, depth);
     if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
+    if (isFacility(found.piece.kind)) {
+      if (g.state.mode !== "surface" || !facilityInReach(g.state, g.planet.id, found.key)) return false;
+      activeFacility.value = { planetId: g.planet.id, key: found.key };
+      machineAt(settlement.value, found.key);
+      releaseControls(); g.panel = "facility";
+      return true;
+    }
     if (found.piece.kind === "workbench") {
       g.openWorkbench(found.key);
       return true;
@@ -533,7 +565,7 @@ export const useConstruction = defineStore("construction", () => {
       distance = 76;
     for (const [id, piece] of Object.entries(settlement.value.pieces)) {
       if (
-        !isCabinet(piece.kind) &&
+        !isFacility(piece.kind) && !isCabinet(piece.kind) &&
         ![
           "airlockDoor",
           "woodDoor",
@@ -656,6 +688,7 @@ export const useConstruction = defineStore("construction", () => {
     rotate,
     errorAt,
     apply,
+    facility, queueFacility, moveFacility,
     harvest,
     collectWoodDrops,
     openCabinet,

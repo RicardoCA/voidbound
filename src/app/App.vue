@@ -16,6 +16,7 @@ import TouchControls from "../components/TouchControls.vue";
 import BuildPanel from "../components/BuildPanel.vue";
 import HabitatStatus from "../components/HabitatStatus.vue";
 import BuildToolbar from "../components/BuildToolbar.vue";
+import FacilityPanel from "../components/FacilityPanel.vue";
 import StoragePanel from "../components/StoragePanel.vue";
 import { useConstruction } from "../stores/construction";
 import { isShipScanner } from "../combat/shipScanners";
@@ -937,6 +938,7 @@ function minutes() {
           "
         />
         <ShipScannerPanel v-else-if="piloting && g.panel === 'ship-scanner'" />
+        <FacilityPanel v-else-if="g.panel === 'facility'" />
         <InventoryPanel v-else-if="g.panel === 'inventory'" />
         <CraftingPanel v-else-if="g.panel === 'craft'" />
         <section v-else-if="surface && g.panel === 'bases'" class="dialog">

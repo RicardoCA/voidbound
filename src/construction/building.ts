@@ -1,3 +1,4 @@
+import { facilityDefinitions, isFacility, type FacilityKind } from "./facilityTypes";
 import type {
   BuildItem,
   Inventory,
@@ -22,6 +23,7 @@ export { keyAt } from "./pieces";
 import { add, consume, inventoryEntries, slots } from "../inventory/inventory";
 import { addMeatBatches, splitMeat } from "../survival/perishables";
 export const buildItems: BuildItem[] = [
+  ...Object.keys(facilityDefinitions) as FacilityKind[],
   "woodBlock",
   "woodWall",
   "stoneWall",
@@ -128,7 +130,7 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (kind === "workbench" || kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
+    (isFacility(kind) || kind === "workbench" || kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
     (ctx.depth === undefined || Math.abs(depth * 16 - (ctx.player.surfaceZ ?? 0)) < 12) &&
     overlapsActor(kind, x, y, ctx.player)
   )
@@ -182,7 +184,7 @@ export function placementError(
   if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
-    (isCabinet(kind) ||
+    (isFacility(kind) || isCabinet(kind) ||
       [
         "workbench",
         "floodlight",
@@ -267,6 +269,11 @@ export function removePiece(
     : located?.piece.kind;
   if (!kind)
     return "Nenhuma peça nesta camada. Escolha Parede para desmontar o fundo.";
+  if (isFacility(kind)) {
+    const machine = ctx.settlement.machines?.[key];
+    if (machine && (machine.queue.length || slots(machine.input) || slots(machine.output)))
+      return "Esvazie os reservatórios e conclua a fila antes de desmontar a instalação.";
+  }
   if (isCabinet(kind) && slots(ctx.settlement.cabinets[key] ?? {}) > 0)
     return "Esvazie o armário antes de desmontá-lo.";
   if (wallLayer && located?.piece.kind === "picture")
@@ -292,6 +299,7 @@ export function removePiece(
   else {
     delete ctx.settlement.pieces[key];
     delete ctx.settlement.cabinets[key];
+    if (ctx.settlement.machines) delete ctx.settlement.machines[key];
   }
 }
 /** Both inventories change together, or neither changes. */

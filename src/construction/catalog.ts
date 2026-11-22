@@ -1,3 +1,4 @@
+import { isFacility, type FacilityKind } from "./facilityTypes";
 import {
   items,
   type Inventory,
@@ -26,6 +27,7 @@ export interface BaseSummary {
   system: StarSystem;
   pieces: number;
   walls: number;
+  machines?: { key: string; kind: FacilityKind; input: Inventory; output: Inventory; queued: number }[];
   cabinets: CabinetSummary[];
   occupiedCabinets: number;
   inventory: Inventory;
@@ -95,6 +97,13 @@ export function listBases(save: Save): BaseSummary[] {
       for (const [id, n] of inventoryEntries(content))
         inventory[id] = (inventory[id] ?? 0) + n;
     }
+    const machines = Object.entries(settlement.pieces).flatMap(([key, piece]) => {
+      if (!isFacility(piece.kind)) return [];
+      const machine = settlement.machines?.[key];
+      const input = cleanInventory(machine?.input ?? {}), output = cleanInventory(machine?.output ?? {});
+      for (const content of [input, output]) for (const [id, n] of inventoryEntries(content)) inventory[id] = (inventory[id] ?? 0) + n;
+      return [{ key, kind: piece.kind, input, output, queued: machine?.queue.reduce((n,job) => n + job.remaining, 0) ?? 0 }];
+    });
     cabinets.sort((a, b) => b.units - a.units || a.x - b.x || a.y - b.y);
     result.push({
       planet,
@@ -102,6 +111,7 @@ export function listBases(save: Save): BaseSummary[] {
       pieces,
       walls,
       cabinets,
+      ...(machines.length ? { machines } : {}),
       occupiedCabinets: cabinets.filter((c) => c.units > 0).length,
       inventory,
       units: inventoryUnits(inventory),

@@ -55,3 +55,14 @@ export function weatherCeiling(
     if (solidSurfaceVoxel(terrain, settlement, column, row, depth)) return row * 16;
   return Infinity;
 }
+
+/** Exact forecast of the same seeded cycle used by precipitation. */
+export function forecastWeather(planet: Planet, time: number) {
+  const kind = planetPrecipitation(planet);
+  if (!kind) return undefined;
+  const seed = hash(`${planet.seed}:storms`), period = 165 + (seed % 100), duration = 30 + (seed % 30);
+  const start = 28 + ((seed >>> 8) % (period - duration - 28));
+  const phase = time % period;
+  const active = phase >= start && phase < start + duration;
+  return { kind, active, seconds: Math.ceil(active ? start + duration - phase : phase < start ? start - phase : period - phase + start), cycle: Math.floor((time - start) / period) };
+}

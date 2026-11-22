@@ -1,3 +1,4 @@
+import { isFacility } from "./facilityTypes";
 import type { BuildItem, Settlement } from "../game/types";
 export const keyAt = (x: number, y: number, depth = 0) => depth ? `${x},${y},${depth}` : `${x},${y}`;
 export const cabinetWidths = {
@@ -14,9 +15,10 @@ export function isDoor(kind: BuildItem | undefined) {
   return kind === "woodDoor" || kind === "airlockDoor";
 }
 export function pieceWidth(kind: BuildItem) {
-  return kind === "workbench" ? 2 : isCabinet(kind) ? cabinetWidths[kind] : 1;
+  return isFacility(kind) || kind === "workbench" ? 2 : isCabinet(kind) ? cabinetWidths[kind] : 1;
 }
 export function footprint(kind: BuildItem, x: number, y: number) {
+  if (isFacility(kind)) return [0, 1].flatMap(offset => [{ x: x + offset, y }, { x: x + offset, y: y - 1 }]);
   return isDoor(kind)
     ? [
         { x, y: y - 1 },
@@ -40,6 +42,10 @@ export function pieceAt(data: Settlement, x: number, y: number, depth = 0) {
       pieceWidth(cabinet.kind) > offset
     )
       return { key: cabinetKey, piece: cabinet, x: anchor, y };
+  }
+  for (let offset = 0; offset < 2; offset++) {
+    const anchor = keyAt(x - offset, y + 1, depth), piece = data.pieces[anchor];
+    if (piece && isFacility(piece.kind)) return { key: anchor, piece, x: x - offset, y: y + 1 };
   }
   const belowKey = keyAt(x, y + 1, depth),
     below = data.pieces[belowKey];
@@ -68,7 +74,7 @@ export function overlapsActor(
   y: number,
   actor: { x: number; y: number },
 ) {
-  const top = (isDoor(kind) ? y - 1 : y) * 16;
+  const top = (isDoor(kind) || isFacility(kind) ? y - 1 : y) * 16;
   return (
     actor.x + 5 > x * 16 &&
     actor.x - 5 < (x + pieceWidth(kind)) * 16 &&

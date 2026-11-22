@@ -1,3 +1,4 @@
+import { facilityDefinitions, type FacilityKind } from "../construction/facilityTypes";
 import { scannerIds, shipScanners } from "../combat/shipScanners";
 import { weaponModules, type WeaponModule } from "../combat/weapons";
 import {
@@ -65,6 +66,7 @@ export const recipes: Recipe[] = [
     unlock: 0,
     station: "ship",
   })),
+  ...Object.entries(facilityDefinitions).map(([id, definition]): Recipe => ({ id: id as FacilityKind, cost: definition.cost, unlock: 0, station: "hand" })),
   { id: "stick", cost: { wood: 1 }, amount: 8, unlock: 0, station: "ship" },
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
   {

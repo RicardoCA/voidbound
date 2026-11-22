@@ -6,11 +6,13 @@ import { useConstruction } from "../stores/construction";
 import { buildItems } from "../construction/building";
 import HabitatStatus from "./HabitatStatus.vue";
 import { items, type Item } from "../game/types";
+import { facilityDefinitions } from "../construction/facilityTypes";
 import { recipes } from "../crafting/recipes";
 import { treeNames } from "../game/procedural/trees";
 const g = useGame(),
   b = useConstruction();
 const descriptions = {
+  ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, spec.description])),
   stoneWall: "Parede de fundo feita de pedra minerada em planetas rochosos.",
   metalWall: "Parede de fundo feita de placas metálicas.",
   fridge:
