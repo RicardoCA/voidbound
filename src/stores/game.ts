@@ -1,3 +1,4 @@
+import { FacilitySystem } from "../game/systems/facilities";
 import { workbenchInReach } from "../crafting/workbench";
 import { cartridgeCount, loadCartridges, refillAutomatically, OXYGEN_CARTRIDGE_CAPACITY } from "../survival/autoOxygen";
 import {
@@ -231,6 +232,7 @@ function gameplayPreference(name: string, defaultEnabled = true) {
   return option;
 }
 export const useGame = defineStore("game", () => {
+  const facilitySystem = new FacilitySystem();
   const habitatSystem = new HabitatSystem(),
     habitat = ref(emptyHabitat()),
     worldRevision = ref(0);
@@ -467,7 +469,7 @@ export const useGame = defineStore("game", () => {
       const s = state.value;
       return (
         !!site &&
-        !s.progression.discoveries[site.id] &&
+        (!s.progression.discoveries[site.id] || !s.progression.discoveries[site.id]?.sampleCollected) &&
         Math.hypot(s.player.x - site.x, s.player.y - site.y) <= 44
       );
     }),
@@ -1925,6 +1927,11 @@ export const useGame = defineStore("game", () => {
     const s = state.value;
     const second = Math.floor(s.time);
     s.time += dt;
+    const beforeFacilityCredits = s.credits;
+    const facilityNotices = facilitySystem.step(s, dt, worldRevision.value);
+    if (facilityNotices.length) notify(facilityNotices.join(" "));
+    if (s.credits !== beforeFacilityCredits) void save();
+
     if (second !== Math.floor(s.time)) {
       const spoiled = refreshFood();
       if (spoiled) {

@@ -1,3 +1,4 @@
+import { facilityDefinitions, type FacilityKind } from "../construction/facilityTypes";
 import {
   crystalFor,
   saberFor,
@@ -20,6 +21,19 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { body: ({
+      planetRefinery: "M3 8h12v13H3zM4 2h3v6H4zM11 3h3v5h-3zM16 13h6v8h-6z",
+      observatory: "M2 4q9 18 20 0H2zM9 14h6v5h5v3H4v-3h5zM11 1h2v9h-2z",
+      geoProbe: "M4 3h16v4H4zM5 7h3v14H5zM16 7h3v14h-3zM11 6h2v14h-2zM2 21h20v2H2z",
+      climateCollector: "M1 3h22l-8 8v3h6v8H3v-8h6v-3z",
+      weatherStation: "M11 3h2v17h7v3H4v-3h7zM3 2h5v4H3zM16 2h5v4h-5zM7 4h10v2H7zM7 10h10v2H7z",
+      tradingPost: "M2 10h20v12H2zM3 2h18l2 6H1zM5 13h5v9H5zM13 13h6v5h-6z",
+      communicationsPost: "M2 13h20v10H2zM10 2h2v11h-2zM3 2q8 13 17 0H3zM5 16h14v4H5z",
+      sampleLab: "M2 14h20v9h-3v-5H5v5H2zM5 5l4-3 4 7-4 3zM10 10h3v4H7v-2h3zM17 3h3v10h-3z",
+    } as Record<FacilityKind, string>)[id as FacilityKind], shade: "M16 8h4v12h-4z", light: "M5 9h9v5H5z", detail: "M5 17h10v2H5zM17 10h2v2h-2z", accent: spec.color }])) as Record<FacilityKind, ItemArt>,
+  water: { body: "M12 2L4 13q-2 8 8 9 10-1 8-9z", shade: "M12 22V4l8 10q2 7-8 8", light: "M8 11h2v7H7z", accent: "#8cdefa" },
+  acidResidue: { body: "M5 8l9-5 6 8-3 9H6L3 15z", shade: "M12 7l8 4-3 9h-6z", light: "M6 9l7-4-3 7H6z", accent: "#b4ef6a" },
+  ruinFragment: { body: "M4 5l11-2 6 7-4 11-12-3z", shade: "M13 4l8 6-4 11-5-4z", light: "M7 7h5v3H7zM8 13h3v4H8z", accent: "#b38ee8" },
   ...(Object.fromEntries(
     starKinds.flatMap((kind) => [
       [

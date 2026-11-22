@@ -1,3 +1,4 @@
+import { isFacility } from "../../construction/facilityTypes";
 import type { Fruit } from "../../survival/wildlife";
 import type { AlienTree } from "../procedural/trees";
 import { pieceAt, isDoor } from "../../construction/pieces";
@@ -19,6 +20,7 @@ export function solidSurfaceVoxel(
     !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
     piece?.kind === "woodBlock" ||
     piece?.kind === "workbench" ||
+    (!!piece && isFacility(piece.kind)) ||
     (piece?.kind === "window" && piece.rotation === undefined) ||
     (!!piece && !piece.open && (piece.kind === "woodHatch" ||
       (isDoor(piece.kind) && piece.rotation === undefined)));

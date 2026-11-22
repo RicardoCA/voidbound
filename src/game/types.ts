@@ -1,3 +1,5 @@
+import { facilityDefinitions } from "../construction/facilityTypes";
+import type { FacilityKind, FacilityState } from "../construction/facilityTypes";
 import type { PlanetGovernment } from "../diplomacy/governance";
 import type { AsteroidRespawn } from "../universe/asteroids";
 import {
@@ -23,6 +25,10 @@ import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
+  | FacilityKind
+  | "water"
+  | "acidResidue"
+  | "ruinFragment"
   | "warpFuel"
   | ScannerEquipment
   | WeaponModule
@@ -126,6 +132,7 @@ export interface StarSystem {
   station?: Station;
 }
 export type BuildItem =
+  | FacilityKind
   | "woodBlock"
   | "woodWall"
   | "stoneWall"
@@ -170,6 +177,9 @@ export interface Settlement {
   pieces: Record<string, PlacedPiece>;
   walls: Record<string, true | "stoneWall" | "metalWall">;
   cabinets: Record<string, Inventory>;
+  machines?: Record<string, FacilityState>;
+  analyses?: Record<string, number>;
+  fulfilledRequests?: string[];
   cutTrees: string[];
   woodDrops?: Record<string, { x: number; y: number; z: number; quantity: number; availableAt: number }>;
   foraged?: Record<string, number>;
@@ -285,6 +295,10 @@ type ItemDetails = {
   stack: number;
 };
 export const items: Record<Item, ItemDetails> = {
+  ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { name: spec.name, color: spec.color, icon: "⚙", rarity: "Construção científica", stack: 20 }])) as Record<FacilityKind, ItemDetails>,
+  water: { name: "Água coletada", color: "#7acff1", icon: "◇", rarity: "Material climático", stack: 99 },
+  acidResidue: { name: "Resíduo mineral ácido", color: "#b8eb72", icon: "◇", rarity: "Material climático", stack: 99 },
+  ruinFragment: { name: "Fragmento de ruína", color: "#ccabf5", icon: "◇", rarity: "Amostra científica", stack: 99 },
   asteroidRadar: {
     ...shipScanners.asteroidRadar,
     icon: "⌖",

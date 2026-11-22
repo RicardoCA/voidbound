@@ -1,3 +1,5 @@
+import { add } from "../inventory/inventory";
+import { systemAt } from "../universe/generator";
 import { openSurfacePosition } from "../construction/openSurfacePosition";
 import type { Planet, Save, Settlement, StarSystem } from "../game/types";
 import { biomes } from "../game/types";
@@ -16,6 +18,7 @@ export interface Discovery {
   notes: string;
   credits: number;
   soldAt?: number;
+  sampleCollected?: boolean;
 }
 
 export function explorationLevel(state: Save) {
@@ -203,7 +206,7 @@ export function scanSite(state: Save, system: StarSystem, site: ScienceSite) {
     Math.hypot(site.x - actor.x, site.y - actor.y) > scannerRange(state)
   )
     return false;
-  return record(
+  const created = record(
     state,
     system,
     {
@@ -216,6 +219,11 @@ export function scanSite(state: Save, system: StarSystem, site: ScienceSite) {
     },
     site.kind === "ruin" ? 300 : 250,
   );
+  const entry = state.progression.discoveries[site.id];
+  if (site.kind === "ruin" && entry && !entry.sampleCollected && add(state.backpack, "ruinFragment", 1, 24)) {
+    entry.sampleCollected = true; return true;
+  }
+  return created;
 }
 
 export function scienceValue(state: Save, entry: Discovery) {
@@ -226,6 +234,7 @@ export function sellScience(state: Save, id: string) {
   const entry = state.progression.discoveries[id];
   if (
     state.mode !== "docked" ||
+    systemAt(state.seed, state.systemX, state.systemY).station?.kind !== "standard" ||
     !entry ||
     !entry.credits ||
     entry.soldAt !== undefined

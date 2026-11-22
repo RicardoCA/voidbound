@@ -56,7 +56,7 @@ const entries = (inventory: BaseSummary["inventory"]) =>
       >
     </div>
     <p class="registry-help">
-      Consulta dos seus armários. Para guardar ou retirar itens, viaje ao
+      Consulta dos seus armários e instalações. Para guardar ou retirar itens, viaje ao
       planeta e abra o armário na superfície.
     </p>
     <div class="registry-filters">
@@ -159,6 +159,12 @@ const entries = (inventory: BaseSummary["inventory"]) =>
             >
           </div>
           <p v-else>Armário vazio.</p>
+        </section>
+      </details>
+      <details v-if="base.machines?.length" class="cabinet-locations"><summary>Ver instalações e reservatórios</summary>
+        <section v-for="machine in base.machines" :key="machine.key" class="cabinet-location"><h4>{{ items[machine.kind].name }} · bloco ({{ machine.key }})</h4><p>{{ machine.queued }} operações na fila</p>
+          <p>Entrada: <span v-for="[id,n] in entries(machine.input)" :key="id">{{ items[id].name }} × {{ n }} · </span></p>
+          <p>Saída: <span v-for="[id,n] in entries(machine.output)" :key="id">{{ items[id].name }} × {{ n }} · </span></p>
         </section>
       </details>
     </article>

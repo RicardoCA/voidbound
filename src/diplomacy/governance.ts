@@ -62,6 +62,7 @@ type Aid = keyof typeof civicAid;
 type Project = keyof typeof civicProjects;
 export type CivicAction = Aid | Project | "govern" | "heal" | "refuel";
 export interface PlanetGovernment {
+  goodwill?: number;
   aid: Aid[];
   governed: boolean;
   projects: Project[];
@@ -69,9 +70,9 @@ export interface PlanetGovernment {
 
 export function planetaryInfluence(record?: PlanetGovernment) {
   return record
-    ? record.aid.length * 20 +
+    ? Math.min(100, Math.min(20, record.goodwill ?? 0) + record.aid.length * 20 +
         (record.governed ? 20 : 0) +
-        record.projects.length * 10
+        record.projects.length * 10)
     : 0;
 }
 
