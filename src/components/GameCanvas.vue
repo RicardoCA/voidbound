@@ -346,6 +346,11 @@ onBeforeUnmount(() => {
   right: 86px;
   min-height: 32px;
 }
+@media (pointer: fine) and (min-width: 761px) {
+  .surface-mouse-lock {
+    inset: auto 12px 12px auto;
+  }
+}
 @media (pointer: coarse) {
   .surface-mouse-lock { display: none; }
 }

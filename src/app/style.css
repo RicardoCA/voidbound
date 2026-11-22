@@ -1762,9 +1762,26 @@ kbd {
     overflow-wrap: anywhere;
   }
 
-  /* Reserve room for changing hints and let longer habitat reports expand. */
   .desktop-docks .surface-info {
-    min-block-size: 88px;
+    grid-area: 2 / 1;
+    position: absolute;
+    inset: 8px 10px auto;
+    z-index: 3;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .desktop-docks .surface-info > :is(.location, .surface-tip) {
+    padding: 4px 8px;
+    border: 1px solid #38515f;
+    background: #0b1522e8;
+  }
+
+  .desktop-docks .surface-info .location p {
+    color: #afc5d0;
   }
 
   .desktop-docks .target-label {
