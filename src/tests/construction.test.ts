@@ -144,6 +144,8 @@ describe("Construção e armazenamento transacionais", () => {
     expect(b.apply(5, 28, -1)).toBe(true);
     expect(b.settlement.pieces["5,28,-1"]?.kind).toBe("woodBlock");
     expect(g.state.backpack.woodBlock).toBeUndefined();
+    expect(g.state.quickSlots?.[3]).toBeUndefined();
+    expect(b.activeQuickSlot).toBe(1);
 
     b.activateQuickSlot(4);
     expect(g.equippedSaber).toBe("photonSaber-red");
@@ -153,6 +155,18 @@ describe("Construção e armazenamento transacionais", () => {
     expect(b.activeQuickSlot).toBe(1);
     expect(g.mineTerrain(b.terrain, 4, 28, -1)).toBe(true);
     expect(g.state.backpack.dirt).toBe(2);
+  });
+
+  it("libera slots esgotados no inventário e ao restaurar atalhos antigos", () => {
+    const { g } = setup();
+    g.state.backpack = { dirt: 1 };
+    g.state.quickSlots = { 2: "dirt", 3: "stone" };
+    useConstruction();
+    expect(g.state.quickSlots).toEqual({ 2: "dirt" });
+    g.state.backpack.dirt = 0;
+    expect(g.state.quickSlots).toEqual({});
+    g.state.backpack.dirt = 1;
+    expect(g.state.quickSlots).toEqual({});
   });
 
   it("guarda terra e ferro separadamente ao minerar na superfície", () => {

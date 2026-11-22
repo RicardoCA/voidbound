@@ -21,7 +21,7 @@ const slots = computed(() => quickSlotNumbers.map((number) => {
       v-for="{ number, item, name, count } in slots"
       :key="number"
       type="button"
-      :class="{ 'is-empty': number > 1 && !item, depleted: count === 0 }"
+      :class="{ 'is-empty': number > 1 && !item }"
       :aria-pressed="b.activeQuickSlot === number"
       :aria-label="`Slot ${number} · ${name}${count === undefined ? '' : ` · ${count} na mochila`}`"
       :title="`${number} · ${name}`"
@@ -71,10 +71,6 @@ const slots = computed(() => quickSlotNumbers.map((number) => {
 .quick-slots button:focus-visible {
   outline: 2px solid #c8ffee;
   outline-offset: 2px;
-}
-
-.quick-slots button.depleted :deep(.item-art) {
-  opacity: .42;
 }
 
 .quick-slots kbd,

@@ -743,6 +743,24 @@ export const useConstruction = defineStore("construction", () => {
     return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);
   }
   watch(
+    () => quickSlotNumbers.slice(1).filter((slot) => {
+      const item = g.state.quickSlots?.[slot];
+      return item && (g.state.backpack[item] ?? 0) <= 0;
+    }),
+    (emptySlots) => {
+      if (!emptySlots.length) return;
+      const slots = { ...g.state.quickSlots };
+      for (const slot of emptySlots) {
+        const item = slots[slot];
+        if (enabled.value && !removing.value && item === selectedItem.value) disable();
+        if (item && item === g.state.player.photonSaber) g.state.player.photonSaber = undefined;
+        delete slots[slot];
+      }
+      g.state.quickSlots = slots;
+    },
+    { immediate: true, flush: "sync" },
+  );
+  watch(
     () => [g.state, g.state.mode, g.planet.id],
     () => {
       if (g.state.mode !== "surface") {
