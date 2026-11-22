@@ -340,3 +340,10 @@ O jogador pode comprar um cargueiro, mantê-lo no hangar e continuar explorando 
 3. E/Int. abre a instalação. Na refinaria/laboratório, use Entrada para depositar ingredientes, selecione receita/amostra e quantidade, e adicione à fila. Feche o painel para o tempo ativo correr; ao voltar, use Saída para retirar produtos. Análises vão ao diário, não à saída física.
 4. No observatório/sonda, inicie leitura, explore e consulte os resultados ao retornar. As pistas não substituem a visita/catalogação.
 5. Coletor e meteorológica operam automaticamente quando há condições/energia. Confira previsão, coleta e alertas. Água e resíduos podem ser processados na refinaria.
+
+## 2026-11-21 · Catálogo de construção com busca e filtros
+
+- Menu de construção alinhado aos inventários: grade de peças, busca por nome/função/ingrediente sem distinção de acentos, nove categorias, ordenação e filtros combináveis Só fabricáveis/Só na mochila.
+- Seleção mostra detalhes, tamanho, estoque, quantidade produzida e materiais disponíveis/faltantes. Fabricar e Equipar são ações explícitas separadas. Disponibilidade considera materiais, desbloqueio e capacidade real da mochila sem alterar seu conteúdo durante a consulta.
+- Layout responsivo com detalhes laterais no PC e empilhados no celular, controles por toque e ajuda de construção recolhível. Receitas, custos e persistência preservados.
+- Verificação: ESLint, TypeScript, 329 testes e build passaram. Novo scripts/build-menu-smoke.mjs validou busca, categorias, filtros, limpeza, seleção sem ação, fabricação, equipamento e ausência de overflow em 1440×900 e 390×844. Prévias em /tmp/voidbound-build-menu-qa/. Seletores dos scripts antigos de construção/habitat/mobile atualizados; esses fluxos completos antigos não foram executados nesta etapa.

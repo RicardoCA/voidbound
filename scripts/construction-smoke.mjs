@@ -47,9 +47,11 @@ async function clickTile(x, y) {
 async function equip(name) {
   await page.keyboard.press("b", { delay: 80 });
   await page
-    .locator(".build-card")
-    .filter({ has: page.getByRole("heading", { name, exact: true }) })
-    .getByRole("button", { name: "EQUIPAR" })
+    .getByRole("button", { name: `Selecionar ${name}`, exact: true })
+    .click();
+  await page
+    .locator(".build-detail")
+    .getByRole("button", { name: "Equipar", exact: true })
     .click();
 }
 async function exitBuild() {
@@ -98,18 +100,21 @@ try {
     "Parede de madeira",
     "Escada de madeira",
     "Armário planetário",
-  ])
+  ]) {
     await page
-      .locator(".build-card")
-      .filter({ has: page.getByRole("heading", { name, exact: true }) })
-      .getByRole("button", { name: /FABRICAR/ })
+      .getByRole("button", { name: `Selecionar ${name}`, exact: true })
       .click();
+    await page
+      .locator(".build-detail")
+      .getByRole("button", { name: /Fabricar/ })
+      .click();
+  }
   await page
-    .locator(".build-card")
-    .filter({
-      has: page.getByRole("heading", { name: "Bloco de madeira", exact: true }),
-    })
-    .getByRole("button", { name: "EQUIPAR" })
+    .getByRole("button", { name: "Selecionar Bloco de madeira", exact: true })
+    .click();
+  await page
+    .locator(".build-detail")
+    .getByRole("button", { name: "Equipar", exact: true })
     .click();
   await clickTile(4, 29);
   await clickTile(5, 28);

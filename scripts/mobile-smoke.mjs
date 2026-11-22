@@ -197,13 +197,14 @@ try {
     "Touch mining awards actual resources",
   );
   await page.getByRole("button", { name: "Abrir construção" }).tap();
-  const blockRecipe = page.locator(".build-card").filter({
-    has: page.getByRole("heading", { name: "Bloco de madeira", exact: true }),
-  });
-  await blockRecipe
-    .getByRole("button", { name: "FABRICAR 4", exact: true })
+  await page
+    .getByRole("button", { name: "Selecionar Bloco de madeira", exact: true })
     .tap();
-  await blockRecipe.getByRole("button", { name: "EQUIPAR", exact: true }).tap();
+  const blockRecipe = page.locator(".build-detail");
+  await blockRecipe
+    .getByRole("button", { name: "Fabricar 4", exact: true })
+    .tap();
+  await blockRecipe.getByRole("button", { name: "Equipar", exact: true }).tap();
   await page.waitForTimeout(500);
   const buildPoint = await page.evaluate(() => {
     const game = window.__game,

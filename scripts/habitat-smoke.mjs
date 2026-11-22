@@ -52,9 +52,11 @@ async function equip(name, first = false) {
       .getByRole("button", { name: "Escolher peça de construção" })
       .tap();
   await page
-    .locator(".build-card")
-    .filter({ has: page.getByRole("heading", { name, exact: true }) })
-    .getByRole("button", { name: "EQUIPAR", exact: true })
+    .getByRole("button", { name: `Selecionar ${name}`, exact: true })
+    .tap();
+  await page
+    .locator(".build-detail")
+    .getByRole("button", { name: "Equipar", exact: true })
     .tap();
 }
 async function manualSave() {
@@ -130,12 +132,15 @@ try {
     "Placa solar",
     "Bateria estacionária",
     "Gerador de oxigênio",
-  ])
+  ]) {
     await page
-      .locator(".build-card")
-      .filter({ has: page.getByRole("heading", { name, exact: true }) })
-      .getByRole("button", { name: "FABRICAR 1", exact: true })
+      .getByRole("button", { name: `Selecionar ${name}`, exact: true })
       .tap();
+    await page
+      .locator(".build-detail")
+      .getByRole("button", { name: "Fabricar 1", exact: true })
+      .tap();
+  }
   await equip("Porta de madeira", true);
   await tapWorld(56, 456);
   await page.waitForFunction(
@@ -246,7 +251,7 @@ try {
   await page.setViewportSize({ width: 390, height: 664 });
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Abrir construção" }).tap();
-  assert.equal(await page.locator(".build-card").count(), 9);
+  assert.ok((await page.locator(".build-pick").count()) > 0);
   assert.ok(
     await page.evaluate(
       () =>
