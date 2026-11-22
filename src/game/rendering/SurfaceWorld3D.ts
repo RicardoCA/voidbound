@@ -245,24 +245,31 @@ export class SurfaceWorld3D {
     group: T.Group, file: string, width: number, height: number, depth: number,
     centerZ = 0, mirrorX = false,
   ) {
+    this.replaceSurfaceModel(group, file, (model) => {
+      const bounds = new T.Box3().setFromObject(model);
+      const size = bounds.getSize(new T.Vector3());
+      if (!size.x || !size.y || !size.z) return false;
+      const center = bounds.getCenter(new T.Vector3());
+      model.scale.set((mirrorX ? -width : width) / size.x, height / size.y, depth / size.z);
+      model.position.set(
+        -center.x * model.scale.x,
+        -bounds.min.y * model.scale.y,
+        centerZ - center.z * model.scale.z,
+      );
+      return true;
+    });
+  }
+
+  private replaceSurfaceModel(group: T.Group, file: string, prepare: (model: T.Group) => boolean) {
     void this.loadModel?.(file)
       .then((asset) => {
-        if (!group.parent) return;
-        const model = asset.clone();
-        const bounds = new T.Box3().setFromObject(model);
-        const size = bounds.getSize(new T.Vector3());
-        if (!size.x || !size.y || !size.z) return;
-        const center = bounds.getCenter(new T.Vector3());
-        model.scale.set((mirrorX ? -width : width) / size.x, height / size.y, depth / size.z);
-        model.position.set(
-          -center.x * model.scale.x,
-          -bounds.min.y * model.scale.y,
-          centerZ - center.z * model.scale.z,
-        );
-        group.clear();
-        group.add(model);
         let root = group;
         while (root.parent instanceof T.Group) root = root.parent;
+        if (this.disposed || root.parent !== this.scene) return;
+        const model = asset.clone();
+        if (!prepare(model)) return;
+        group.clear();
+        group.add(model);
         this.pieceBounds.delete(root);
       })
       .catch((error: unknown) =>
@@ -1127,6 +1134,26 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number, emergencyActive = false) {
     const piece = this.piece(kind, open, facing, powered, emergencyActive);
+    if (kind === "cropRoof") {
+      this.replaceSurfaceModel(piece, "equipamentos-base/teto-cultivo", (model) => {
+        model.scale.set(TILE / 1.06, TILE, TILE / 1.06);
+        model.position.set(0, 13.45, -8);
+        return true;
+      });
+    }
+    if (isFence(kind)) {
+      const file = kind === "woodFence" ? "cerca-madeira" : "portao-cerca";
+      this.replaceSurfaceModel(piece, "equipamentos-base/" + file, (model) => {
+        if (kind === "fenceGate") {
+          const hinge = model.getObjectByName("GateHinge");
+          if (!hinge) return false;
+          hinge.rotation.y = open ? -Math.PI / 2 : 0;
+        }
+        model.scale.setScalar(TILE);
+        model.position.z = surfaceWallZ;
+        return true;
+      });
+    }
     if (kind === "window" || kind === "airlockDoor" || isFence(kind) || isBaseLight(kind)) {
       const aligned = new T.Group();
       piece.position.z = -8;
