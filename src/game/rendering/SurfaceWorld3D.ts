@@ -39,6 +39,7 @@ export interface SurfaceTarget extends Point {
   wallFace?: number;
   wx: number;
   wy: number;
+  wz?: number;
   depth: number;
   terrain?: boolean;
   treeId?: string;
@@ -68,7 +69,7 @@ export interface SurfaceFrame {
   cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
   chopping?: { id: string; progress: number; saber: boolean };
   mining?: { x: number; y: number; depth: number; progress: number };
-  beam?: { x: number; y: number; tx: number; ty: number; depth?: number };
+  beam?: { x: number; y: number; tx: number; ty: number; depth?: number; tz?: number };
 }
 
 const terrainRadius = 13;
@@ -911,7 +912,7 @@ export class SurfaceWorld3D {
         1,
         frame.beam.tx,
         -frame.beam.ty,
-        (frame.beam.depth ?? 0) * TILE,
+        frame.beam.tz ?? (frame.beam.depth ?? 0) * TILE,
       );
       position.needsUpdate = true;
     }
@@ -1128,6 +1129,7 @@ export class SurfaceWorld3D {
         return {
           wx: picked.point.x,
           wy: -picked.point.y,
+          wz: picked.point.z,
           x: target?.cell?.x ?? Math.floor(picked.point.x / TILE),
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
           depth: target?.cell?.depth ?? target?.dropDepth ?? 0,
@@ -1135,10 +1137,14 @@ export class SurfaceWorld3D {
           ...(target?.flora?.falling ? {} : target?.flora),
         };
       }
-      const target = { wx, wy, x, y, depth };
+      const target = { wx, wy, wz: position.z, x, y, depth };
       if (solidSurfaceVoxel(frame.terrain, frame.settlement, x, y, depth))
         return hitSolid
-          ? { ...target, terrain: frame.terrain.getAt(x, y, depth) !== 0, distance }
+          ? {
+              ...target,
+              terrain: frame.terrain.getAt(x, y, depth) !== 0,
+              distance: this.cameraEye.distanceTo(position),
+            }
           : lastAir;
       lastAir = target;
     }

@@ -1,7 +1,7 @@
 import { fallbackLandedHull, landedHullOverlap, landingSideExit } from "../game/physics/landedShip";
 import { advancePowerNetwork, powerNetwork } from "../construction/habitat";
 import { treeAt } from "../game/procedural/trees";
-import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader } from "three";
+import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader, Vector3 } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildItems, emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
 import { Terrain } from "../game/procedural/terrain";
@@ -326,6 +326,30 @@ it("instancia o kit Blender na superfície e atualiza a célula depois de minera
     world.dispose();
     geometry.dispose();
     material.dispose();
+  }
+});
+
+it("minera a face tocada em terceira pessoa usando o alcance do jogador", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, { "0,9,-2": 2 });
+  const frame: SurfaceFrame = {
+    terrain, settlement: emptySettlement(), thirdPerson: true,
+    camera: { x: 8, y: 153, z: 0, yaw: 0, pitch: 0 },
+    revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+    animals: [], fruit: [], drops: [],
+  };
+  try {
+    world.update(frame, 390, 760);
+    world.camera.updateMatrixWorld();
+    const screen = new Vector3(8, -152, -32).project(world.camera);
+    const hit = world.pointAt(screen.x, screen.y, true);
+    expect(hit).toMatchObject({ x: 0, y: 9, depth: -2, terrain: true });
+    expect(Math.abs(hit!.wz! + 24)).toBeLessThan(0.65);
+    expect(hit!.distance).toBeLessThan(77);
+    expect(world.camera.position.distanceTo(new Vector3(hit!.wx, -hit!.wy, hit!.wz!))).toBeGreaterThan(77);
+  } finally {
+    world.dispose();
   }
 });
 

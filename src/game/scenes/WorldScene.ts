@@ -188,6 +188,7 @@ export class WorldScene extends Phaser.Scene {
         life: number;
         targetAltitude?: number;
         depth?: number;
+        tz?: number;
       }
     | undefined;
   private cabin = new CabinInterior();
@@ -257,6 +258,7 @@ export class WorldScene extends Phaser.Scene {
       }
       if (flight3D.surfaceView && onSurface() && event.pointerType === "touch") {
         if (touchLook) return;
+        event.preventDefault();
         touchLook = { id: event.pointerId, x: event.clientX, y: event.clientY, drag: false };
         this.surfaceHold = { id: event.pointerId, event, acted: false };
         canvas.setPointerCapture(event.pointerId);
@@ -299,7 +301,6 @@ export class WorldScene extends Phaser.Scene {
       if (event.pointerType === "mouse") this.surfaceMouse = event;
     };
     const move = (event: PointerEvent) => {
-      if (this.surfaceHold?.id === event.pointerId) this.surfaceHold.event = event;
       if (flightLook?.id === event.pointerId) {
         if (!onFlight()) { flightLook = undefined; clearFlightLook(); return; }
         event.preventDefault();
@@ -321,6 +322,7 @@ export class WorldScene extends Phaser.Scene {
         if (document.pointerLockElement === canvas || (event.buttons & 2))
           turnSurfaceCamera(event.movementX, event.movementY, .0038);
       }
+      if (this.surfaceHold?.id === event.pointerId) this.surfaceHold.event = event;
       if (event.pointerType !== "mouse") return;
       this.surfaceMouse = event;
       targetSurface(event);
@@ -1693,7 +1695,7 @@ export class WorldScene extends Phaser.Scene {
     const efficiency = 1 - g.extractionEfficiency;
     player.energy = Math.max(0, player.energy - (saber ? 1 : (drill ? .5 : 1) * efficiency));
     this.mineTime = saber ? .45 : (drill ? .10 : .22) * efficiency;
-    this.beam = { x: player.x, y: player.y - 3, tx: target.wx, ty: target.wy, depth, life: .15 };
+    this.beam = { x: player.x, y: player.y - 3, tx: target.wx, ty: target.wy, tz: target.wz, depth, life: .15 };
     audio.play(saber ? 225 : 145, .09);
     if (saber) void g.save();
   }
@@ -1931,7 +1933,7 @@ export class WorldScene extends Phaser.Scene {
       if (held || saber) {
         if (this.surfaceHold) this.surfaceHold.acted = true;
         this.choppingTree = { id: tree.id, progress: result.progress, saber };
-        this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: tree.depth, life: .15 };
+        this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, tz: aim.wz, depth: tree.depth, life: .15 };
         if (this.elapsed >= this.treeSoundAt) {
           audio.play(saber ? 225 : 115 + tree.kind * 12, .07, "triangle");
           this.treeSoundAt = this.elapsed + .35;
@@ -1963,7 +1965,7 @@ export class WorldScene extends Phaser.Scene {
         if (held) {
           if (this.surfaceHold) this.surfaceHold.acted = true;
           this.miningBlock = { x: aim.x, y: aim.y, depth: aim.depth, progress: result.progress };
-          this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, depth: aim.depth, life: .12 };
+          this.beam = { x: p.x, y: p.y - 3, tx: aim.wx, ty: aim.wy, tz: aim.wz, depth: aim.depth, life: .12 };
         }
         if (result.complete) { this.mineSurfaceVoxel(aim, false); this.resetBlockMining(); }
         else if (tap && !held) g.notify("Segure no mesmo bloco por 3 segundos para minerar.");
@@ -2046,6 +2048,7 @@ export class WorldScene extends Phaser.Scene {
           this.treeHits.delete(tree.id);
         return;
       }
+      if (flight3D.surfaceView && aim) return;
       let { x: tx, y: ty } = terrainTargetAt(t, wx, wy);
       if (mobileMine) {
         tx = Math.floor((p.x + this.facing * 24) / 16);
