@@ -12,6 +12,7 @@ export const buildCategories = {
   lighting: "Iluminação",
   production: "Produção",
   science: "Ciência",
+  commerce: "Comércio e comunicações",
   furniture: "Móveis",
 } as const;
 export type BuildCategory = keyof typeof buildCategories;
@@ -44,6 +45,8 @@ const categories: Record<BuildItem, Exclude<BuildCategory, "all">> = {
   geoProbe: "science",
   weatherStation: "science",
   sampleLab: "science",
+  tradingPost: "commerce",
+  communicationsPost: "commerce",
   picture: "furniture",
   table: "furniture",
   bed: "furniture",

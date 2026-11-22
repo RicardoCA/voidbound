@@ -1,5 +1,17 @@
 import type { Inventory } from "../game/types";
 export const facilityDefinitions = {
+  tradingPost: {
+    name: "Entreposto comercial", file: "entreposto-comercial", color: "#e1b665",
+    watts: 2, seconds: 180,
+    description: "Deposite excedentes e autorize os itens à venda. Cargueiros pousam a cada 3 minutos energizados; aproxime-se da nave para conversar e comprá-la.",
+    cost: { stone: 40, plate: 30, circuit: 10, titanium: 15 },
+  },
+  communicationsPost: {
+    name: "Posto de atendimento e comunicações", file: "posto-comunicacoes", color: "#81cfd9",
+    watts: 1, seconds: 300,
+    description: "Recebe avisos, pedidos de ajuda e ofertas comerciais. Entregas ao conselho local geram influência em planetas habitados.",
+    cost: { stone: 25, plate: 16, circuit: 8, silicon: 20, copper: 12 },
+  },
   planetRefinery: {
     name: "Refinaria planetária",
     file: "refinaria-planetaria",
@@ -87,6 +99,8 @@ export interface FacilityState {
   lastCycle?: number;
   clues?: FacilityClue[];
   message?: string;
+  trade?: import("./planetCommerce").TradingState;
+  communications?: import("./planetCommerce").CommunicationsState;
 }
 export function emptyFacility(): FacilityState {
   return { input: {}, output: {}, queue: [] };

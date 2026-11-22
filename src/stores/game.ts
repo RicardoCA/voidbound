@@ -1927,8 +1927,10 @@ export const useGame = defineStore("game", () => {
     const s = state.value;
     const second = Math.floor(s.time);
     s.time += dt;
+    const beforeFacilityCredits = s.credits;
     const facilityNotices = facilitySystem.step(s, dt, worldRevision.value);
     if (facilityNotices.length) notify(facilityNotices.join(" "));
+    if (s.credits !== beforeFacilityCredits) void save();
 
     if (second !== Math.floor(s.time)) {
       const spoiled = refreshFood();

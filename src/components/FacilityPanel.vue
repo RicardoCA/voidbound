@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PlanetCommercePanel from "./PlanetCommercePanel.vue";
 import { computed, ref } from "vue";
 import { useGame, BACKPACK_SLOTS } from "../stores/game";
 import { useConstruction } from "../stores/construction";
@@ -49,7 +50,7 @@ function queue() {
   <section class="dialog facility-panel">
     <div class="dialog-heading">
       <div>
-        <div class="eyebrow">BASE CIENTÍFICA · {{ g.planet.name }}</div>
+        <div class="eyebrow">INSTALAÇÃO PLANETÁRIA · {{ g.planet.name }}</div>
         <h2>{{ definition?.name ?? "Instalação indisponível" }}</h2>
       </div>
       <button
@@ -85,175 +86,185 @@ function queue() {
         O trabalho continua enquanto você explora, inclusive em outros planetas.
         Menus e pausa interrompem o relógio; não produz com o jogo fechado.
       </p>
-      <div
-        v-if="
-          current.kind === 'weatherStation' ||
-          current.kind === 'climateCollector'
-        "
-        class="facility-reading"
-      >
+      <PlanetCommercePanel
+        v-if="['tradingPost', 'communicationsPost'].includes(current.kind)"
+      />
+      <template v-else>
+        <div
+          v-if="
+            current.kind === 'weatherStation' ||
+            current.kind === 'climateCollector'
+          "
+          class="facility-reading"
+        >
+          <template
+            v-if="current.kind === 'weatherStation' && !current.piece.powered"
+            >Ligue a estação à energia e explore por um instante para atualizar
+            a previsão.</template
+          ><template v-else-if="forecast"
+            >{{ weatherLabels[forecast.kind] }} ·
+            {{ forecast.active ? "termina" : "começa" }} em
+            {{ forecast.seconds }} segundos ativos.</template
+          ><template v-else>Este planeta não apresenta precipitação.</template>
+          <p v-if="current.kind === 'weatherStation'">
+            Com energia, avisa no HUD 20 segundos antes de chuva ácida ou
+            nevasca neste planeta.
+          </p>
+          <progress
+            v-else
+            aria-label="Coleta climática"
+            :value="current.machine.collection ?? 0"
+            :max="10"
+          />
+        </div>
         <template
-          v-if="current.kind === 'weatherStation' && !current.piece.powered"
-          >Ligue a estação à energia e explore por um instante para atualizar a
-          previsão.</template
-        ><template v-else-if="forecast"
-          >{{ weatherLabels[forecast.kind] }} ·
-          {{ forecast.active ? "termina" : "começa" }} em
-          {{ forecast.seconds }} segundos ativos.</template
-        ><template v-else>Este planeta não apresenta precipitação.</template>
-        <p v-if="current.kind === 'weatherStation'">
-          Com energia, avisa no HUD 20 segundos antes de chuva ácida ou nevasca
-          neste planeta.
-        </p>
-        <progress
-          v-else
-          aria-label="Coleta climática"
-          :value="current.machine.collection ?? 0"
-          :max="10"
-        />
-      </div>
-      <template
-        v-if="!['climateCollector', 'weatherStation'].includes(current.kind)"
-      >
-        <div class="facility-controls">
-          <label v-if="current.kind === 'planetRefinery'"
-            >Receita<select v-model="recipe">
-              <option
-                v-for="(spec, id) in refineryRecipes"
-                :key="id"
-                :value="id"
-              >
-                {{ spec.name }} · {{ spec.seconds }} s
-              </option>
-            </select></label
-          >
-          <label v-if="current.kind === 'sampleLab'"
-            >Amostra<select v-model="sample">
-              <option v-for="id in sampleItems" :key="id" :value="id">
-                {{ items[id].name }}
-              </option>
-            </select></label
-          >
-          <label
-            >Operações<input
-              v-model="quantity"
-              type="number"
-              min="1"
-              max="100"
-              step="1"
-          /></label>
-          <button class="primary" @click="queue">
-            {{
-              ["observatory", "geoProbe"].includes(current.kind)
-                ? "Iniciar leitura"
-                : "Adicionar à fila"
-            }}
-          </button>
-        </div>
-        <p v-if="current.kind === 'planetRefinery'" class="facility-cost">
-          <span
-            v-for="[id, n] in inventoryEntries(
-              refineryRecipes[recipe]?.cost ?? {},
-            )"
-            :key="id"
-            ><ItemIcon :item="id" /> {{ n }} {{ items[id].name }} </span
-          >por operação, retirados da entrada.
-        </p>
-        <p v-if="current.kind === 'sampleLab'">
-          Uma amostra por análise. Minerais/plantas vêm da mochila; fragmentos
-          são recolhidos ao catalogar ruínas (libere um slot). Os dados ficam no
-          diário para venda na estação normal. Repetições no mesmo planeta valem
-          menos.
-        </p>
-        <p v-if="job">
-          {{
-            current.machine.queue.reduce((n, j) => n + j.remaining, 0)
-          }}
-          operações na fila · {{ Math.ceil(seconds - job.progress) }} segundos
-          energizados restantes.
-        </p>
-        <progress
-          v-if="job"
-          aria-label="Progresso da instalação"
-          :value="job.progress"
-          :max="seconds"
-        />
-        <ol class="facility-queue">
-          <li v-for="(entry, i) in current.machine.queue" :key="i">
-            {{
-              entry.recipe === "scan"
-                ? "Varredura"
-                : (refineryRecipes[entry.recipe]?.name ??
-                  items[entry.recipe as keyof typeof items]?.name)
-            }}
-            × {{ entry.remaining }}
+          v-if="!['climateCollector', 'weatherStation'].includes(current.kind)"
+        >
+          <div class="facility-controls">
+            <label v-if="current.kind === 'planetRefinery'"
+              >Receita<select v-model="recipe">
+                <option
+                  v-for="(spec, id) in refineryRecipes"
+                  :key="id"
+                  :value="id"
+                >
+                  {{ spec.name }} · {{ spec.seconds }} s
+                </option>
+              </select></label
+            >
+            <label v-if="current.kind === 'sampleLab'"
+              >Amostra<select v-model="sample">
+                <option v-for="id in sampleItems" :key="id" :value="id">
+                  {{ items[id].name }}
+                </option>
+              </select></label
+            >
+            <label
+              >Operações<input
+                v-model="quantity"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+            /></label>
+            <button class="primary" @click="queue">
+              {{
+                ["observatory", "geoProbe"].includes(current.kind)
+                  ? "Iniciar leitura"
+                  : "Adicionar à fila"
+              }}
+            </button>
+          </div>
+          <p v-if="current.kind === 'planetRefinery'" class="facility-cost">
+            <span
+              v-for="[id, n] in inventoryEntries(
+                refineryRecipes[recipe]?.cost ?? {},
+              )"
+              :key="id"
+              ><ItemIcon :item="id" /> {{ n }} {{ items[id].name }} </span
+            >por operação, retirados da entrada.
+          </p>
+          <p v-if="current.kind === 'sampleLab'">
+            Uma amostra por análise. Minerais/plantas vêm da mochila; fragmentos
+            são recolhidos ao catalogar ruínas (libere um slot). Os dados ficam
+            no diário para venda na estação normal. Repetições no mesmo planeta
+            valem menos.
+          </p>
+          <p v-if="job">
+            {{ current.machine.queue.reduce((n, j) => n + j.remaining, 0) }}
+            operações na fila · {{ Math.ceil(seconds - job.progress) }} segundos
+            energizados restantes.
+          </p>
+          <progress
+            v-if="job"
+            aria-label="Progresso da instalação"
+            :value="job.progress"
+            :max="seconds"
+          />
+          <ol class="facility-queue">
+            <li v-for="(entry, i) in current.machine.queue" :key="i">
+              {{
+                entry.recipe === "scan"
+                  ? "Varredura"
+                  : (refineryRecipes[entry.recipe]?.name ??
+                    items[entry.recipe as keyof typeof items]?.name)
+              }}
+              × {{ entry.remaining }}
+            </li>
+          </ol>
+        </template>
+        <p role="status">{{ current.machine.message }}</p>
+        <ul v-if="current.machine.clues?.length" class="facility-clues">
+          <li v-for="(clue, i) in current.machine.clues" :key="i">
+            <strong>{{ clue.name }}</strong
+            ><span v-if="current.kind === 'geoProbe'">{{
+              facilityBearing(clue, g.state.player)
+            }}</span
+            ><span v-else
+              >Coordenadas {{ Math.round(clue.x ?? 0) }},
+              {{ Math.round(clue.y ?? 0) }}
+              {{ clue.planetId ? "na superfície indicada" : "no espaço" }}</span
+            >
           </li>
-        </ol>
-      </template>
-      <p role="status">{{ current.machine.message }}</p>
-      <ul v-if="current.machine.clues?.length" class="facility-clues">
-        <li v-for="(clue, i) in current.machine.clues" :key="i">
-          <strong>{{ clue.name }}</strong
-          ><span v-if="current.kind === 'geoProbe'">{{
-            facilityBearing(clue, g.state.player)
-          }}</span
-          ><span v-else
-            >Coordenadas {{ Math.round(clue.x ?? 0) }},
-            {{ Math.round(clue.y ?? 0) }}
-            {{ clue.planetId ? "na superfície indicada" : "no espaço" }}</span
+        </ul>
+        <template
+          v-if="
+            ['planetRefinery', 'sampleLab', 'climateCollector'].includes(
+              current.kind,
+            )
+          "
+        >
+          <div
+            class="station-actions"
+            v-if="current.kind !== 'climateCollector'"
           >
-        </li>
-      </ul>
-      <template
-        v-if="
-          ['planetRefinery', 'sampleLab', 'climateCollector'].includes(
-            current.kind,
-          )
-        "
-      >
-        <div class="station-actions" v-if="current.kind !== 'climateCollector'">
-          <button class="secondary" :aria-pressed="input" @click="input = true">
-            Entrada</button
-          ><button
-            class="secondary"
-            :aria-pressed="!input"
-            @click="input = false"
-          >
-            Saída
-          </button>
-        </div>
-        <InventoryTransfer
-          :key="current.key + input"
-          :left="g.state.backpack"
-          :right="
-            input && current.kind !== 'climateCollector'
-              ? current.machine.input
-              : current.machine.output
-          "
-          :left-capacity="BACKPACK_SLOTS"
-          :right-capacity="FACILITY_SLOTS"
-          left-title="Sua mochila"
-          :right-title="
-            input && current.kind !== 'climateCollector'
-              ? 'Entrada da instalação'
-              : 'Produtos prontos'
-          "
-          :time="g.state.time"
-          :allowed="
-            (fromLeft, id) =>
-              !fromLeft ||
-              (!!current && input && facilityAccepts(current.kind, id))
-          "
-          :move="
-            (fromLeft, id, n) =>
-              b.moveFacility(
-                input && current?.kind !== 'climateCollector',
-                fromLeft,
-                id,
-                n,
-              )
-          "
-        />
+            <button
+              class="secondary"
+              :aria-pressed="input"
+              @click="input = true"
+            >
+              Entrada</button
+            ><button
+              class="secondary"
+              :aria-pressed="!input"
+              @click="input = false"
+            >
+              Saída
+            </button>
+          </div>
+          <InventoryTransfer
+            :key="current.key + input"
+            :left="g.state.backpack"
+            :right="
+              input && current.kind !== 'climateCollector'
+                ? current.machine.input
+                : current.machine.output
+            "
+            :left-capacity="BACKPACK_SLOTS"
+            :right-capacity="FACILITY_SLOTS"
+            left-title="Sua mochila"
+            :right-title="
+              input && current.kind !== 'climateCollector'
+                ? 'Entrada da instalação'
+                : 'Produtos prontos'
+            "
+            :time="g.state.time"
+            :allowed="
+              (fromLeft, id) =>
+                !fromLeft ||
+                (!!current && input && facilityAccepts(current.kind, id))
+            "
+            :move="
+              (fromLeft, id, n) =>
+                b.moveFacility(
+                  input && current?.kind !== 'climateCollector',
+                  fromLeft,
+                  id,
+                  n,
+                )
+            "
+          />
+        </template>
       </template>
     </template>
     <p v-else>Aproxime-se da instalação na superfície para interagir.</p>

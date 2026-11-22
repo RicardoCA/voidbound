@@ -179,6 +179,7 @@ export interface Settlement {
   cabinets: Record<string, Inventory>;
   machines?: Record<string, FacilityState>;
   analyses?: Record<string, number>;
+  fulfilledRequests?: string[];
   cutTrees: string[];
   woodDrops?: Record<string, { x: number; y: number; z: number; quantity: number; availableAt: number }>;
   foraged?: Record<string, number>;

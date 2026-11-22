@@ -271,6 +271,7 @@ export function removePiece(
     return "Nenhuma peça nesta camada. Escolha Parede para desmontar o fundo.";
   if (isFacility(kind)) {
     const machine = ctx.settlement.machines?.[key];
+    if (machine?.trade?.visitor) return "Aguarde o cargueiro partir antes de desmontar o entreposto.";
     if (machine && (machine.queue.length || slots(machine.input) || slots(machine.output)))
       return "Esvazie os reservatórios e conclua a fila antes de desmontar a instalação.";
   }

@@ -1,3 +1,5 @@
+import { advanceTrading, advanceCommunications } from "./planetCommerce";
+import { marketItems, type MarketItem } from "../economy/market";
 import type {
   Inventory,
   Item,
@@ -99,6 +101,7 @@ export const sampleItems: Item[] = [
   "ruinFragment",
 ];
 export function facilityAccepts(kind: FacilityKind, id: Item) {
+  if (kind === "tradingPost") return marketItems.includes(id as MarketItem);
   if (kind === "sampleLab") return sampleItems.includes(id);
   return (
     kind === "planetRefinery" &&
@@ -280,6 +283,8 @@ export function advanceFacility(
   const machine = machineAt(data, key)!;
   const powered = Math.max(0, Math.min(dt, machine.energySeconds ?? 0));
   machine.energySeconds = 0;
+  if (kind === "tradingPost") { advanceTrading(state, planet, terrain, key, dt, powered); return; }
+  if (kind === "communicationsPost") { advanceCommunications(state, planet, key, powered); return; }
   if (kind === "climateCollector") {
     const weather = weatherAt(planet, state.time);
     if (!weather || !powered) return;

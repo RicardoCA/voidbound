@@ -27,6 +27,8 @@ export const itemArt: Record<Item, ItemArt> = {
       geoProbe: "M4 3h16v4H4zM5 7h3v14H5zM16 7h3v14h-3zM11 6h2v14h-2zM2 21h20v2H2z",
       climateCollector: "M1 3h22l-8 8v3h6v8H3v-8h6v-3z",
       weatherStation: "M11 3h2v17h7v3H4v-3h7zM3 2h5v4H3zM16 2h5v4h-5zM7 4h10v2H7zM7 10h10v2H7z",
+      tradingPost: "M2 10h20v12H2zM3 2h18l2 6H1zM5 13h5v9H5zM13 13h6v5h-6z",
+      communicationsPost: "M2 13h20v10H2zM10 2h2v11h-2zM3 2q8 13 17 0H3zM5 16h14v4H5z",
       sampleLab: "M2 14h20v9h-3v-5H5v5H2zM5 5l4-3 4 7-4 3zM10 10h3v4H7v-2h3zM17 3h3v10h-3z",
     } as Record<FacilityKind, string>)[id as FacilityKind], shade: "M16 8h4v12h-4z", light: "M5 9h9v5H5z", detail: "M5 17h10v2H5zM17 10h2v2h-2z", accent: spec.color }])) as Record<FacilityKind, ItemArt>,
   water: { body: "M12 2L4 13q-2 8 8 9 10-1 8-9z", shade: "M12 22V4l8 10q2 7-8 8", light: "M8 11h2v7H7z", accent: "#8cdefa" },

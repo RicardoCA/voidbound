@@ -1,3 +1,4 @@
+import { cargoVisitors, ARRIVAL_SECONDS, DEPARTURE_SECONDS } from "../../construction/planetCommerce";
 import { PlanetScanEffect } from "./PlanetScanEffect";
 import { PLANET_SCAN_SECONDS } from "../../stores/game";
 import { SurfaceWorld3D, type SurfaceFrame } from "./SurfaceWorld3D";
@@ -76,6 +77,7 @@ export class Space3D {
   private jumpPilot?: T.Group;
   private jumpOutfit?: string;
   private cabinPilotSeat?: T.Vector3;
+  private cargoModels = new Map<string, { craft: T.Group; label: T.Sprite }>();
   private exploration?: {
     world: SurfaceWorld3D;
     representative: T.Group;
@@ -2073,6 +2075,36 @@ export class Space3D {
     view.representative.visible = !!frame.representative;
     if (frame.representative)
       view.representative.position.set(frame.representative.x, -frame.representative.y - 12, 8);
+    const visitors = cargoVisitors(g.state.settlements[g.planet.id]);
+    const ids = new Set(visitors.map(v => v.id));
+    for (const [id, model] of this.cargoModels) {
+      if (ids.has(id)) continue;
+      model.craft.removeFromParent(); model.label.removeFromParent();
+      model.label.material.map?.dispose(); model.label.material.dispose(); this.cargoModels.delete(id);
+    }
+    for (const visitor of visitors) {
+      let model = this.cargoModels.get(visitor.id);
+      if (!model) {
+        const craft = this.shipForModel(visitor.model, false, true);
+        craft.scale.multiplyScalar(PLANETARY_SHIP_SCALE); craft.rotation.y = -Math.PI / 2;
+        const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 92;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#102630"; ctx.fillRect(0, 0, 512, 92);
+        ctx.font = "24px sans-serif"; ctx.fillStyle = "#a6ecdb";
+        ctx.fillText(shipModels[visitor.model].name + " · Comerciante", 12, 34);
+        ctx.fillText("Aproxime-se · E / Int. conversar", 12, 72);
+        const map = new T.CanvasTexture(canvas); map.colorSpace = T.SRGBColorSpace;
+        const label = new T.Sprite(new T.SpriteMaterial({ map, depthTest: true })); label.scale.set(66, 12, 1);
+        model = { craft, label }; this.cargoModels.set(visitor.id, model);
+        view.world.scene.add(craft, label);
+      }
+      const progress = visitor.phase === "arriving" ? Math.max(0, 1 - visitor.elapsed / ARRIVAL_SECONDS) : visitor.phase === "departing" ? Math.min(1, visitor.elapsed / DEPARTURE_SECONDS) : 0;
+      const lift = progress * progress * 300;
+      model.craft.position.set(visitor.x + progress * 180, -visitor.y + 10 * PLANETARY_SHIP_SCALE + lift, visitor.z - progress * 160);
+      model.craft.rotation.z = -progress * .22;
+      model.label.position.set(visitor.x, -visitor.y + 75, visitor.z);
+      model.label.visible = visitor.phase === "landed" && !visitor.bought;
+    }
     view.world.update(frame, this.width, this.height);
     const outfit = g.state.wardrobe?.equipped;
     if (frame.thirdPerson) {
@@ -2852,6 +2884,8 @@ export class Space3D {
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
     this.exploration?.saber.material.dispose();
+    for (const model of this.cargoModels.values()) { model.label.material.map?.dispose(); model.label.material.dispose(); }
+    this.cargoModels.clear();
     this.exploration?.world.dispose();
     this.cabinSurface?.world.dispose();
     this.surfaceFlight?.mixer.stopAllAction();

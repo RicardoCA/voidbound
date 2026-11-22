@@ -419,7 +419,7 @@ function advancePowerStep(
     if (!isFacility(piece.kind)) continue;
     const machine = ((data.machines ??= {})[node.key] ??= emptyFacility());
     const collecting = piece.kind === "climateCollector" && !!(network.facilityPlanet && weatherAt(network.facilityPlanet, to));
-    const active = node.exposed && !machine.blocked && (piece.kind === "weatherStation" || collecting || machine.queue.length > 0);
+    const active = node.exposed && !machine.blocked && (piece.kind === "weatherStation" || piece.kind === "communicationsPost" || piece.kind === "tradingPost" || collecting || machine.queue.length > 0);
     piece.powered = false;
     if (!active) continue;
     const rate = facilityDefinitions[piece.kind].watts;

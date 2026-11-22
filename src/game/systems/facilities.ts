@@ -49,8 +49,27 @@ export class FacilitySystem {
       );
       data.utilityTime = state.time;
       for (const key of keys) {
+        const before = data.machines?.[key]?.trade?.visitor;
+        const beforeVisit = before ? `${before.id}:${before.phase}` : "";
         advanceFacility(state, planet, system, cached.terrain, key, dt);
         const machine = data.machines?.[key];
+        const visitor = machine?.trade?.visitor;
+        if (
+          visitor &&
+          `${visitor.id}:${visitor.phase}` !== beforeVisit &&
+          state.mode === "surface" &&
+          state.planetIndex === address.planetIndex &&
+          state.systemX === address.x &&
+          state.systemY === address.y
+        ) {
+          notices.push(
+            visitor.phase === "arriving"
+              ? `Cargueiro a caminho do entreposto: bloco (${Math.round(visitor.x / 16)}, ${Math.round(visitor.z / 16)}).`
+              : visitor.phase === "landed"
+                ? `Cargueiro pousado. ${visitor.receipt ?? "Aproxime-se para conversar."}`
+                : "Cargueiro deixando o entreposto.",
+          );
+        }
         if (
           data.pieces[key]?.kind !== "weatherStation" ||
           !machine ||

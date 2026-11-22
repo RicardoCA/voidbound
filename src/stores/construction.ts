@@ -1,3 +1,5 @@
+import { systemAt } from "../universe/generator";
+import { cargoVisitors, visitorInReach, purchaseVisitor, setSaleItem, respondRequest } from "../construction/planetCommerce";
 import { isFacility } from "../construction/facilityTypes";
 import { facilityInReach, machineAt, enqueueFacility, FACILITY_SLOTS, facilityAccepts } from "../construction/facilities";
 import { isBaseLight, EMERGENCY_CAPACITY } from "../construction/lighting";
@@ -333,24 +335,53 @@ export const useConstruction = defineStore("construction", () => {
   const activeFacility = ref<{ planetId: string; key: string }>();
   const facility = computed(() => {
     const active = activeFacility.value;
-    if (!active || g.paused || g.busy || g.panel !== "facility" || active.planetId !== g.planet.id || !facilityInReach(g.state, active.planetId, active.key)) return;
+    if (!active || g.paused || g.busy || g.panel !== "facility" || active.planetId !== g.planet.id || (!facilityInReach(g.state, active.planetId, active.key) && !visitorInReach(g.state, active.planetId, active.key))) return;
     const piece = settlement.value.pieces[active.key]!;
     if (!isFacility(piece.kind)) return;
-    return { key: active.key, kind: piece.kind, piece, machine: machineAt(settlement.value, active.key)! };
+    return { key: active.key, atTerminal: facilityInReach(g.state, active.planetId, active.key), kind: piece.kind, piece, machine: machineAt(settlement.value, active.key)! };
   });
   function queueFacility(recipe: string, quantity: number) {
     const current = facility.value;
-    if (!current) return false;
+    if (!current?.atTerminal) return false;
     const error = enqueueFacility(settlement.value, current.key, recipe, quantity);
     if (error) { g.notify(error); return false; }
     void g.save(); return true;
   }
   function moveFacility(input: boolean, deposit: boolean, id: Item, quantity: number) {
     const current = facility.value;
-    if (!current || (!input && deposit) || (deposit && !facilityAccepts(current.kind, id))) return false;
+    if (!current?.atTerminal || (!input && deposit) || (deposit && !facilityAccepts(current.kind, id))) return false;
     const inventory = input ? current.machine.input : current.machine.output;
     if (!transfer(deposit ? g.state.backpack : inventory, deposit ? inventory : g.state.backpack, id, quantity, deposit ? FACILITY_SLOTS : BACKPACK_SLOTS)) return false;
     current.machine.blocked = false;
+    void g.save(); return true;
+  }
+  function openCargoVisitor() {
+    const visitor = cargoVisitors(settlement.value).find(v => visitorInReach(g.state, g.planet.id, v.key));
+    if (!visitor || g.paused || g.busy) return false;
+    activeFacility.value = { planetId: g.planet.id, key: visitor.key };
+    releaseControls(); g.panel = "facility"; return true;
+  }
+  function configureSale(id: Item, enabled: boolean) {
+    const current = facility.value;
+    if (!current?.atTerminal) return false;
+    const error = setSaleItem(settlement.value, current.key, id, enabled);
+    if (error) { g.notify(error); return false; }
+    void g.save(); return true;
+  }
+  function buyCargoVisitor() {
+    const current = facility.value;
+    if (!current) return false;
+    const error = purchaseVisitor(g.state, g.planet.id, current.key);
+    if (error) { g.notify(error); return false; }
+    g.notify(`Cargueiro comprado. Entrega no hangar de ${systemAt(g.state.seed, 0, 0).name}, setor 0, 0. Sua nave atual foi preservada.`);
+    g.panel = ""; void g.save(); return true;
+  }
+  function answerBaseRequest(id: string, deliver: boolean) {
+    const current = facility.value;
+    if (!current?.atTerminal || current.kind !== "communicationsPost" || !current.piece.powered) return false;
+    const error = respondRequest(g.state, g.planet, current.key, id, deliver);
+    if (error) { g.notify(error); return false; }
+    g.notify(deliver ? "Suprimentos entregues. Recompensa recebida." : "Pedido aceito. Traga os materiais na mochila.");
     void g.save(); return true;
   }
   function interactAt(x: number, y: number, depth = 0) {
@@ -688,7 +719,7 @@ export const useConstruction = defineStore("construction", () => {
     rotate,
     errorAt,
     apply,
-    facility, queueFacility, moveFacility,
+    facility, queueFacility, moveFacility, openCargoVisitor, configureSale, buyCargoVisitor, answerBaseRequest,
     harvest,
     collectWoodDrops,
     openCabinet,

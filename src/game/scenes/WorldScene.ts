@@ -1,3 +1,4 @@
+import { cargoVisitors } from "../../construction/planetCommerce";
 import { HeldMining } from "../physics/heldMining";
 import { fallbackLandedHull, landedHullOverlap } from "../physics/landedShip";
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
@@ -1040,6 +1041,7 @@ export class WorldScene extends Phaser.Scene {
           } else if (!this.recoverWreck() && !g.dock())
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
+          if (!this.building.enabled && this.building.openCargoVisitor()) return;
           const cabinet = this.building.nearestInteraction();
           if (g.recoverBackpack()) return;
           const hull = landedShipHulls.get(s.activeShip.model) ?? fallbackLandedHull;
@@ -1808,6 +1810,10 @@ export class WorldScene extends Phaser.Scene {
           const hull = landedShipHulls.get(g.state.activeShip.model) ?? fallbackLandedHull;
           const padX = g.state.landingX * 16;
           const padY = t.height(g.state.landingX) * 16;
+          const cargo = cargoVisitors(settlement).filter(v => v.phase === "landed").map(v => {
+            const hull = landedShipHulls.get(v.model) ?? fallbackLandedHull;
+            return { ...v, hull, overlap: landedHullOverlap(hull, p.x - v.x, p.y - v.y, z - v.z) };
+          });
           const shipOverlap = landedHullOverlap(hull, p.x - padX, p.y - padY, z);
           return stepSurfaceDepth(
             { ...actor, z },
@@ -1816,6 +1822,7 @@ export class WorldScene extends Phaser.Scene {
             jump, g.planet.gravity, dt,
             (x, y, depth) => solidSurfaceVoxel(t, settlement, x, y, depth),
             (x, y, depth) => flora(x, y, depth) ||
+              cargo.some(v => landedHullOverlap(v.hull, x - v.x, y - v.y, depth - v.z) > v.overlap) ||
               landedHullOverlap(hull, x - padX, y - padY, depth) > shipOverlap ||
               surfaceWallPenetration(settlement, x, y, depth) > wallDepth,
           );

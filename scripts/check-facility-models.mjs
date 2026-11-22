@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const names = [
+  "entreposto-comercial",
+  "posto-comunicacoes",
   "refinaria-planetaria",
   "observatorio-planetario",
   "sonda-geologica",
