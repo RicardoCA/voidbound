@@ -5,6 +5,7 @@ import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { flight3D } from "../game/rendering/flight3D";
 import { items } from "../game/types";
+import { isSeed } from "../survival/seedCatalog";
 const g = useGame(),
   b = useConstruction();
 const error = computed(
@@ -31,7 +32,7 @@ const error = computed(
         ><small>{{
           b.removing
             ? "Toque na peça para desmontar"
-            : `${b.selectedCount} disponíveis · Toque no terreno`
+            : `${b.selectedCount} disponíveis · ${isSeed(b.selectedItem) ? "Plante sobre terra" : "Toque no terreno"}`
         }}</small>
       </div>
     </button>

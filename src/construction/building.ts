@@ -25,6 +25,9 @@ import { addMeatBatches, splitMeat } from "../survival/perishables";
 export const buildItems: BuildItem[] = [
   ...Object.keys(facilityDefinitions) as FacilityKind[],
   "woodBlock",
+  "cropRoof",
+  "woodFence",
+  "fenceGate",
   "woodWall",
   "stoneWall",
   "metalWall",
@@ -117,6 +120,7 @@ export function placementError(
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
         : "Minere o terreno antes de construir aqui.";
     const key = keyAt(cell.x, cell.y, depth);
+    if (settlement.crops?.[key]) return "Já existe um cultivo nesta célula.";
     if (material && (walls?.[key] || settlement.cornerWalls?.[key]))
       return "Já existe uma parede nesta célula.";
     const occupant = pieceAt(settlement, cell.x, cell.y, depth)?.piece;
@@ -135,7 +139,8 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (isFacility(kind) || kind === "workbench" || kind === "woodBlock" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
+    (isFacility(kind) || kind === "workbench" || kind === "woodBlock" || kind === "cropRoof" ||
+      kind === "woodFence" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
     (ctx.depth === undefined || Math.abs(depth * 16 - (ctx.player.surfaceZ ?? 0)) < 12) &&
     overlapsActor(kind, x, y, ctx.player)
   )
@@ -151,7 +156,7 @@ export function placementError(
     )
       return "Mantenha a área de acesso da nave livre.";
     if (
-      (kind === "woodBlock" || kind === "woodStairs" || isOpening(kind)) &&
+      (kind === "woodBlock" || kind === "woodStairs" || kind === "woodFence" || isOpening(kind)) &&
       depth === 0 && cell.x * 16 < ctx.landingX * 16 + 48 &&
       (cell.x + 1) * 16 > ctx.landingX * 16 + 32 &&
       cell.y * 16 < padY &&
@@ -184,9 +189,11 @@ export function placementError(
     lowerStair.facing === facing;
   const ladderBacking = kind === "stickLadder" && walls?.[keyAt(x, y, depth)];
   const wallBacking = (kind === "picture" || kind === "emergencyLight") && walls?.[keyAt(x, y, depth)];
+  const post = kind === "cropRoof" && pieceAt(settlement, x, y + 2, depth)?.piece.kind;
+  const roofSupport = post === "woodFence" || post === "fenceGate" || post === "woodBlock";
   if (kind === "picture" && !wallBacking)
     return "Instale o quadro sobre uma parede de fundo.";
-  if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking)
+  if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking && !roofSupport)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
     (isFacility(kind) || isCabinet(kind) ||
@@ -198,6 +205,8 @@ export function placementError(
         "bed",
         "airlockDoor",
         "woodDoor",
+        "woodFence",
+        "fenceGate",
         "solarPanel",
         "battery",
         "oxygenGenerator",
@@ -350,7 +359,6 @@ export function addBatch(
   const draft = { ...inventory };
   for (const [id, n] of inventoryEntries(resources))
     if (!add(draft, id as Item, n!, capacity)) return false;
-  for (const id of Object.keys(inventory)) delete inventory[id as Item];
   Object.assign(inventory, draft);
   return true;
 }

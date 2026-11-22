@@ -1,5 +1,6 @@
 import { grovePosition, groveSize } from "../game/procedural/trees";
-import type { Item, Planet, Settlement } from "../game/types";
+import { items, type Planet, type Settlement } from "../game/types";
+import { cropReady, type FruitItem } from "./seedCatalog";
 import type { Terrain } from "../game/procedural/terrain";
 import { hash } from "../game/procedural/random";
 import { solidCell, stepSurface, type Actor } from "../game/physics/surface";
@@ -54,7 +55,7 @@ const biomeLife = [
     crest: 0x81c3d0,
   },
 ] satisfies {
-  fruit: Item;
+  fruit: FruitItem;
   fruitColor: number;
   peaceful: string;
   hostile: string;
@@ -67,7 +68,7 @@ export interface Fruit {
   id: string;
   x: number;
   y: number;
-  item: Item;
+  item: FruitItem;
   color: number;
 }
 
@@ -114,6 +115,7 @@ export function fruitsNear(
     const ground = terrain.height(tx);
     if (
       !terrain.get(tx, ground) ||
+      settlement.crops?.[terrain.keyAt(tx, ground - 1)] ||
       solidCell(terrain, settlement, tx, ground - 1)
     )
       continue;
@@ -135,10 +137,21 @@ export function fruitsNear(
         if (!site || (site.seed >>> 17) % 100 >= 77 || !available(settlement.foraged, id, time)) continue;
         const ground = terrain.heightAt(site.x, site.depth);
         if (!terrain.getAt(site.x, ground, site.depth) ||
+            settlement.crops?.[terrain.keyAt(site.x, ground - 1, site.depth)] ||
             settlement.depthBlocks?.[terrain.keyAt(site.x, ground - 1, site.depth)]) continue;
         fruit.push({ id, x: site.x * 16 + 8, y: ground * 16 - 6, depth: site.depth,
           item: life.fruit, color: life.fruitColor });
       }
+  }
+  for (const [key, crop] of Object.entries(settlement.crops ?? {})) {
+    if (!crop.seed.startsWith("fruitSeed-") || !cropReady(crop)) continue;
+    const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+    if (worldZ === undefined && depth) continue;
+    const wx = x * 16 + 8;
+    if (Math.hypot(wx - worldX, depth * 16 - (worldZ ?? 0)) > 224) continue;
+    const item = crop.seed.slice("fruitSeed-".length) as FruitItem;
+    fruit.push({ id: `crop:${key}`, x: wx, y: y * 16 + 9, depth,
+      item, color: Number.parseInt(items[item].color.slice(1), 16) });
   }
   return fruit;
 }

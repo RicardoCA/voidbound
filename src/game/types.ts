@@ -23,9 +23,11 @@ import {
 } from "../universe/stars";
 import type { Wardrobe } from "../wardrobe/clothing";
 import type { Progression } from "../progression/careers";
+import { seedNames, type SeedItem } from "../survival/seedCatalog";
 export type Mode = "space" | "orbit" | "surface" | "interior" | "docked";
 export type Item =
   | FacilityKind
+  | SeedItem
   | "water"
   | "bucket"
   | "acidResidue"
@@ -72,6 +74,9 @@ export type Item =
   | "jump"
   | "drill"
   | "woodBlock"
+  | "cropRoof"
+  | "woodFence"
+  | "fenceGate"
   | "woodWall"
   | "stoneWall"
   | "metalWall"
@@ -136,6 +141,9 @@ export interface StarSystem {
 export type BuildItem =
   | FacilityKind
   | "woodBlock"
+  | "cropRoof"
+  | "woodFence"
+  | "fenceGate"
   | "woodWall"
   | "stoneWall"
   | "metalWall"
@@ -183,7 +191,8 @@ export interface Settlement {
   analyses?: Record<string, number>;
   fulfilledRequests?: string[];
   cutTrees: string[];
-  woodDrops?: Record<string, { x: number; y: number; z: number; quantity: number; availableAt: number }>;
+  woodDrops?: Record<string, { x: number; y: number; z: number; quantity: number; availableAt: number; seed?: SeedItem }>;
+  crops?: Record<string, { seed: SeedItem; moisture: number; growth: number; established?: boolean }>;
   foraged?: Record<string, number>;
   hunted?: Record<string, number>;
   utilityTime?: number;
@@ -298,6 +307,9 @@ type ItemDetails = {
   stack: number;
 };
 export const items: Record<Item, ItemDetails> = {
+  ...Object.fromEntries(Object.entries(seedNames).map(([id, name]) =>
+    [id, { name, color: "#99c47b", icon: "✦", rarity: "Cultivo", stack: 99 }],
+  )) as Record<SeedItem, ItemDetails>,
   ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { name: spec.name, color: spec.color, icon: "⚙", rarity: "Construção científica", stack: 20 }])) as Record<FacilityKind, ItemDetails>,
   water: { name: "Água coletada", color: "#7acff1", icon: "◇", rarity: "Material climático", stack: 99 },
   bucket: { name: "Balde", color: "#a3b7bf", icon: "▣", rarity: "Ferramenta", stack: 1 },
@@ -621,6 +633,9 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  cropRoof: { name: "Teto para cultivo", color: "#86c1b3", icon: "▔", rarity: "Construção", stack: 99 },
+  woodFence: { name: "Cerca de madeira", color: "#b18657", icon: "╫", rarity: "Construção", stack: 99 },
+  fenceGate: { name: "Portão de cerca", color: "#d0aa72", icon: "⊞", rarity: "Construção", stack: 99 },
   stoneWall: {
     name: "Parede de pedra",
     color: "#9ca8a9",

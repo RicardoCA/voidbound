@@ -86,7 +86,7 @@ export function analyzeRoom(
     if (at.y < 0 || at.y >= 63) return fail("open");
     if (terrain.get(at.x, at.y) !== 0 || blocksAir(data, at.x, at.y)) continue;
     const piece = pieceAt(data, at.x, at.y)?.piece;
-    if (piece?.open && isOpening(piece.kind)) sawOpenDoor = true;
+    if (piece?.open && piece.kind !== "fenceGate" && isOpening(piece.kind)) sawOpenDoor = true;
     if (!data.walls[key])
       return fail(
         sawOpenDoor
@@ -137,7 +137,7 @@ export function analyzeSpatialRoom(terrain: Terrain, data: Settlement, x: number
       const key = keyAt(next.x, next.y, next.depth);
       if (cells.has(key) || terrain.getAt(next.x, next.y, next.depth) || data.depthBlocks?.[key]) continue;
       const piece = pieceAt(data, next.x, next.y, next.depth)?.piece;
-      if (piece?.kind === "woodBlock" || (piece?.kind === "woodHatch" && !piece.open)) continue;
+      if (piece?.kind === "woodBlock" || piece?.kind === "cropRoof" || (piece?.kind === "woodHatch" && !piece.open)) continue;
       if (face < 4 && (closedFace(at.x, at.y, at.depth, face) ||
           closedFace(next.x, next.y, next.depth, (face + 2) % 4))) continue;
       cells.add(key);

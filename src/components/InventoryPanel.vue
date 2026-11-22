@@ -18,6 +18,7 @@ import { useConstruction } from "../stores/construction";
 import { inventoryEntries } from "../inventory/inventory";
 import { isBuildItem } from "../construction/building";
 import { tileForItem } from "../game/procedural/terrain";
+import { isSeed } from "../survival/seedCatalog";
 const g = useGame(),
   b = useConstruction();
 const selected = ref<"ship" | "backpack">("ship");
@@ -32,7 +33,7 @@ function use(id: Item) {
   if (id === "bucket") {
     if (fromBackpack.value && g.state.mode === "surface") b.equip(id);
     else g.notify("Leve o balde na mochila e equipe-o na superfície.");
-  } else if (isBuildItem(id)) {
+  } else if (isBuildItem(id) || isSeed(id)) {
     if (g.state.mode === "surface") b.equip(id);
     else g.notify("Saia da nave para equipar uma peça de construção.");
   } else g.use(id, fromBackpack.value);
@@ -67,6 +68,7 @@ function canUse(id: Item) {
 }
 function actionLabel(id: Item) {
   if (id === "bucket") return "Equipar balde";
+  if (isSeed(id)) return "Equipar para plantar";
   if (isPhotonSaber(id))
     return g.equippedSaber === id ? "Guardar sabre" : "Equipar sabre";
   if (foodValue(id)) return "Comer 1 unidade";
@@ -85,6 +87,7 @@ function shipEquipment(id: Item) {
 }
 function actionHint(id: Item) {
   if (id === "bucket") return "Equipe e toque ou clique na água para coletar.";
+  if (isSeed(id)) return "Plante na terra e regue com o balde ou aguarde chuva.";
   if (shipEquipment(id)) return "Instale este equipamento no interior da nave.";
   if (isBuildItem(id))
     return "Equipe e escolha onde colocar a peça na superfície.";
@@ -114,7 +117,7 @@ function actionDisabled(id: Item) {
   return (
     (shipEquipment(id) && !g.canAccessShipCargo) ||
     (id === "bucket" && (!fromBackpack.value || g.state.mode !== "surface")) ||
-    (isBuildItem(id) && g.state.mode !== "surface") ||
+    ((isBuildItem(id) || isSeed(id)) && g.state.mode !== "surface") ||
     (!!foodValue(id) &&
       (!g.hungerEnabled || (g.state.player.hunger ?? 100) >= 100))
   );
@@ -153,7 +156,7 @@ function actionDisabled(id: Item) {
         (id) =>
           foodValue(id)
             ? 'Comer'
-            : id === 'bucket' || isBuildItem(id) || isPhotonSaber(id) || canUse(id)
+            : id === 'bucket' || isSeed(id) || isBuildItem(id) || isPhotonSaber(id) || canUse(id)
               ? 'Usar / equipar'
               : ''
       "

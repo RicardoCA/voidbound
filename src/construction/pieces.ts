@@ -1,5 +1,5 @@
 import { isFacility } from "./facilityTypes";
-import type { BuildItem, Settlement } from "../game/types";
+import type { BuildItem, PlacedPiece, Settlement } from "../game/types";
 export const keyAt = (x: number, y: number, depth = 0) => depth ? `${x},${y},${depth}` : `${x},${y}`;
 export const cabinetWidths = {
   cabinet: 1,
@@ -58,14 +58,21 @@ export function isWall(
   return kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
 }
 export function isOpening(kind: BuildItem | undefined) {
-  return isDoor(kind) || kind === "woodHatch";
+  return isDoor(kind) || kind === "woodHatch" || kind === "fenceGate";
+}
+export function isFence(kind: BuildItem | undefined) {
+  return kind === "woodFence" || kind === "fenceGate";
+}
+export function blocksFence(piece: PlacedPiece | undefined) {
+  return piece?.kind === "woodFence" || (piece?.kind === "fenceGate" && !piece.open);
 }
 export function blocksAir(data: Settlement, x: number, y: number, depth = 0) {
   const piece = pieceAt(data, x, y, depth)?.piece;
   return (
     piece?.kind === "woodBlock" ||
+    piece?.kind === "cropRoof" ||
     piece?.kind === "window" ||
-    (piece !== undefined && isOpening(piece.kind) && !piece.open)
+    (piece !== undefined && piece.kind !== "fenceGate" && isOpening(piece.kind) && !piece.open)
   );
 }
 export function overlapsActor(

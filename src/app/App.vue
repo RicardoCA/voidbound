@@ -540,7 +540,7 @@ function minutes() {
           </div>
           <div v-if="surface && !b.enabled" class="surface-tip">
             <template v-if="b.bucketEquipped">
-              BALDE <span>◆</span> Toque ou clique na água para coletar
+              BALDE <span>◆</span> Clique na água para coletar ou na muda para regar
             </template>
             <template v-else-if="g.equippedSaber">
               SABRE FOTÔNICO <span>◆</span> Toque ou clique para cortar em área

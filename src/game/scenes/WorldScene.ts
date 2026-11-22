@@ -52,7 +52,6 @@ import {
   clearPath,
   fruitsNear,
   Wildlife,
-  FRUIT_REGROWTH,
   FAUNA_RETURN,
   type Fruit,
 } from "../../survival/wildlife";
@@ -69,7 +68,8 @@ import {
   useGame,
 } from "../../stores/game";
 import { useConstruction } from "../../stores/construction";
-import { spatialTreeAt, spatialTreesNear, treeAt, treesInRange, treeContains } from "../procedural/trees";
+import { plantedTreeAt, plantedTreesNear, spatialTreeAt, spatialTreesNear, treeAt, treesInRange, treeContains } from "../procedural/trees";
+import { cropReady, fruitKind, isSeed } from "../../survival/seedCatalog";
 import {
   drawAlienTree,
   drawSettlement,
@@ -96,7 +96,7 @@ import {
   stepClimb,
   stepSurface,
 } from "../physics/surface";
-import { isDoor, pieceWidth } from "../../construction/pieces";
+import { isDoor, isFence, pieceAt, pieceWidth } from "../../construction/pieces";
 import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
 import { isLiquidTile, isSolidTile, LAVA_TILE, Terrain, tileItems, WATER_TILE } from "../procedural/terrain";
@@ -570,7 +570,14 @@ export class WorldScene extends Phaser.Scene {
     const wy =
       ((event.clientY - rect.top) * this.viewHeight) / rect.height -
       Math.floor(this.centerY - this.camY);
-    return { wx, wy, x: Math.floor(wx / 16), y: Math.floor(wy / 16), depth: 0 };
+    const x = Math.floor(wx / 16);
+    const y = Math.floor(wy / 16);
+    const soil = this.store.state.mode === "surface" && this.building.enabled &&
+      !this.building.removing && isSeed(this.building.selectedItem) && this.terrain?.get(x, y) === 1;
+    const roofAnchor = this.store.state.mode === "surface" && this.building.enabled &&
+      !this.building.removing && this.building.selectedItem === "cropRoof" &&
+      isFence(pieceAt(this.building.settlement, x, y)?.piece.kind);
+    return { wx, wy, x, y: roofAnchor ? y - 2 : soil ? y - 1 : y, depth: 0 };
   }
   private down(key: string) {
     return this.keys[key]?.isDown ?? false;
@@ -1745,12 +1752,8 @@ export class WorldScene extends Phaser.Scene {
       g.notify("Aproxime-se das frutas para colher.");
       return;
     }
-    if (!g.collect(fruit.item, 2)) return;
-    const data = settlementFor(g.state, g.planet.id);
-    (data.foraged ??= {})[fruit.id] = g.state.time + FRUIT_REGROWTH;
+    if (!this.building.collectFruit(fruit)) return;
     this.fruit = this.fruit.filter((target) => target.id !== fruit.id);
-    g.notify("Duas frutas coletadas. Abra a mochila para comer.");
-    void g.save();
   }
   private surfaceStride = 0;
 
@@ -1815,6 +1818,7 @@ export class WorldScene extends Phaser.Scene {
               ...treesInRange(g.planet, t, Math.floor(p.x / 16) - 2,
                 Math.floor(p.x / 16) + 2, settlement.cutTrees),
               ...spatialTreesNear(t, p.x, z, settlement.cutTrees),
+              ...plantedTreesNear(t, settlement, p.x, z, 96, true),
             ],
             this.fruit,
           );
@@ -1892,7 +1896,8 @@ export class WorldScene extends Phaser.Scene {
     }
     if (this.building.bucketEquipped) {
       this.resetBlockMining();
-      if (tap) g.collectSurfaceWater(t, tap.x, tap.y, tap.depth);
+      if (tap && !this.building.waterPlant(tap.x, tap.y, tap.depth))
+        g.collectSurfaceWater(t, tap.x, tap.y, tap.depth);
       return;
     }
     if (
@@ -1934,7 +1939,7 @@ export class WorldScene extends Phaser.Scene {
     if (aim?.treeId && flight3D.surfaceView) {
       if (this.mineTime > 0 || p.energy < 3) return;
       const [kind, x, z] = aim.treeId.split(":");
-      const tree = kind === "grove"
+      const tree = kind === "planted-tree" ? plantedTreeAt(t, this.building.settlement, x!) : kind === "grove"
         ? spatialTreeAt(g.planet, t, Number(x), Number(z))
         : treeAt(g.planet, t, Number(x));
       if (!tree || this.building.settlement.cutTrees.includes(tree.id)) { this.resetBlockMining(); return; }
@@ -1998,6 +2003,7 @@ export class WorldScene extends Phaser.Scene {
         Math.floor(p.x / 16) + 8,
         this.building.settlement.cutTrees,
       );
+      trees.push(...plantedTreesNear(t, this.building.settlement, p.x, 0, 128, false));
       const wx = aim?.wx ?? p.x,
         wy = aim?.wy ?? p.y;
       if (g.equippedSaber) {
@@ -2170,7 +2176,10 @@ export class WorldScene extends Phaser.Scene {
         representative: this.representativePosition(),
         storm,
         building: this.building.enabled,
-        heldMaterial: this.building.enabled && !this.building.removing ? this.building.selectedMaterial : undefined,
+        selectedConstruction: this.building.enabled && !this.building.removing && !this.building.selectedMaterial
+          ? this.building.selected : undefined,
+        heldMaterial: this.building.enabled && !this.building.removing && !isSeed(this.building.selectedItem)
+          ? this.building.selectedMaterial : undefined,
         bucketEquipped: this.building.bucketEquipped,
         wallPlacementFace: this.building.enabled && !this.building.removing &&
           ["woodWall", "metalWall", "stoneWall"].includes(this.building.selected)
@@ -3050,13 +3059,15 @@ export class WorldScene extends Phaser.Scene {
         break;
       }
     };
-    for (const tree of treesInRange(
+    const trees = treesInRange(
       g.planet,
       t,
       startX,
       endX,
       settlement.cutTrees,
-    )) {
+    );
+    trees.push(...plantedTreesNear(t, settlement, p.x, 0, this.viewWidth / 2 + 64, false));
+    for (const tree of trees) {
       const x = tree.x * 16 + 8 + offsetX;
       const y = tree.ground * 16 + offsetY;
       const height = tree.height * 16;
@@ -3075,6 +3086,17 @@ export class WorldScene extends Phaser.Scene {
         )
       )
         drawAlienTree(f, tree, x, y, this.elapsed, damage);
+    }
+    for (const [key, crop] of Object.entries(settlement.crops ?? {})) {
+      if (cropReady(crop)) continue;
+      const [column = 0, row = 0, depth = 0] = key.split(",").map(Number);
+      if (depth || column < startX || column > endX || row < startY || row > endY) continue;
+      const x = column * 16 + 8 + offsetX;
+      const y = (row + 1) * 16 + offsetY;
+      const height = 5 + Math.floor(crop.growth / 20) * 3;
+      f.fillStyle(crop.moisture > 0 ? 0x554137 : 0x85644a).fillRect(x - 6, y - 1, 12, 2);
+      f.fillStyle(0x9ac460).fillRect(x, y - height, 2, height)
+        .fillEllipse(x - 2, y - height, 6, 3).fillEllipse(x + 3, y - height - 1, 6, 3);
     }
     drawSettlement(
       this.surfaceBase,
@@ -3145,7 +3167,7 @@ export class WorldScene extends Phaser.Scene {
       if (
         !this.surfaceArt.sprite(
           this,
-          "fruit-" + g.planet.kind,
+          "fruit-" + fruitKind(fruit.item),
           x,
           y + 8,
           24,

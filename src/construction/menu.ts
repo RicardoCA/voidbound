@@ -18,6 +18,9 @@ export const buildCategories = {
 export type BuildCategory = keyof typeof buildCategories;
 const categories: Record<BuildItem, Exclude<BuildCategory, "all">> = {
   woodBlock: "structure",
+  cropRoof: "structure",
+  woodFence: "structure",
+  fenceGate: "openings",
   woodWall: "structure",
   stoneWall: "structure",
   metalWall: "structure",
@@ -69,6 +72,9 @@ export const buildDescriptions: Record<BuildItem, string> = {
   table: "Mesa decorativa. Instale sobre chão firme.",
   bed: "Use E ou toque para dormir e avançar 8 horas locais.",
   woodBlock: "Piso, fundação, pilares e telhado. Bloco sólido.",
+  cropRoof: "Cobertura translúcida que bloqueia chuva comum e ácida. Instale acima do cultivo, apoiada em cerca, pilar ou outra peça de telhado.",
+  woodFence: "Delimita a plantação sem bloquear a chuva. Instale sobre chão firme e gire para alinhar.",
+  fenceGate: "Entrada do cercado. Instale sobre chão firme e use E, Int. ou toque para abrir e fechar.",
   woodWall: "Fundo da casa. Você pode andar à frente da parede.",
   woodStairs: "Degraus que você sobe caminhando. Inverta a direção com R.",
   stickLadder:

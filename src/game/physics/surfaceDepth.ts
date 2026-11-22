@@ -1,7 +1,7 @@
 import { isFacility } from "../../construction/facilityTypes";
 import type { Fruit } from "../../survival/wildlife";
 import type { AlienTree } from "../procedural/trees";
-import { pieceAt, isDoor } from "../../construction/pieces";
+import { blocksFence, pieceAt, isDoor } from "../../construction/pieces";
 import { isSolidTile, TILE, type Terrain } from "../procedural/terrain";
 import type { Settlement } from "../types";
 import type { Actor } from "./surface";
@@ -33,6 +33,7 @@ export function solidSurfaceVoxel(
   return isSolidTile(terrain.getAt(x, y, depth)) ||
     !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
     piece?.kind === "woodBlock" ||
+    piece?.kind === "cropRoof" ||
     piece?.kind === "workbench" ||
     (!!piece && isFacility(piece.kind)) ||
     (piece?.kind === "window" && piece.rotation === undefined) ||
@@ -60,6 +61,8 @@ export function surfaceWallPenetration(settlement: Settlement, x: number, y: num
         }
         if (door?.kind === "window" || (door && isDoor(door.kind) && !door.open && door.rotation !== undefined))
           rotations.push(door.rotation ?? 0);
+        if (blocksFence(door) && y + 11.9 > (row + 1) * TILE - 13)
+          rotations.push(door?.rotation ?? 0);
         for (const rotation of rotations) {
           const offset = rotation < 2 ? surfaceWallZ : -surfaceWallZ;
           const normal = rotation % 2 === 0

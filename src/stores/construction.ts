@@ -16,11 +16,15 @@ import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
 import { Terrain, tileForItem } from "../game/procedural/terrain";
 import { consume } from "../inventory/inventory";
-import { assignableQuickSlots, canAssignQuickSlot } from "../inventory/quickSlots";
+import { assignableQuickSlots, canAssignQuickSlot, fillQuickSlot } from "../inventory/quickSlots";
+import { CROP_GROWTH, cropReady, fruitSeedFor, isSeed, treeSeedFor } from "../survival/seedCatalog";
+import { FRUIT_REGROWTH, type Fruit } from "../survival/wildlife";
 import { isPhotonSaber } from "../universe/stars";
 import {
   treeAt,
   spatialTreeAt,
+  spatialTreesNear,
+  plantedTreeAt,
   treesInRange,
   treeContains,
   treeNames,
@@ -172,7 +176,7 @@ export const useConstruction = defineStore("construction", () => {
       g.notify("Balde equipado. Mire na água e toque ou clique para coletar.");
       return;
     }
-    if (!construction && tileForItem(kind) === undefined) return;
+    if (!construction && !isSeed(kind) && tileForItem(kind) === undefined) return;
     holdingBucket.value = false;
     lastError.value = "";
     selected.value = construction ? kind : "woodBlock";
@@ -184,7 +188,8 @@ export const useConstruction = defineStore("construction", () => {
     g.panel = "";
     releaseControls();
     g.notify(
-      `${items[kind].name}: toque ou clique em uma célula vazia. B sai da construção.`,
+      isSeed(kind) ? "Toque ou clique sobre terra livre para plantar." :
+        `${items[kind].name}: toque ou clique em uma célula vazia. B sai da construção.`,
     );
   }
   function disable() {
@@ -204,6 +209,13 @@ export const useConstruction = defineStore("construction", () => {
     const ctx = context(depth),
       error = placementError(ctx, selected.value, x, y, facing.value, selectedMaterial.value);
     if (error) return error;
+    if (selectedMaterial.value && isSeed(selectedMaterial.value)) {
+      if (ctx.terrain.getAt(x, y + 1, depth) !== 1)
+        return "Plante em uma célula livre sobre terra.";
+      if (depth && spatialTreesNear(ctx.terrain, x * 16 + 8, depth * 16, ctx.settlement.cutTrees)
+        .some(tree => tree.x === x && tree.depth === depth && tree.ground === y + 1))
+        return "Já existe uma árvore nesta célula.";
+    }
     const cells = footprint(selected.value, x, y);
     if (
       !depth && !isWall(selected.value) &&
@@ -247,7 +259,15 @@ export const useConstruction = defineStore("construction", () => {
       if (!error) {
         const material = selectedMaterial.value;
         const tile = material && tileForItem(material);
-        if (material && tile) {
+        if (material && isSeed(material)) {
+          if (!consume(g.state.backpack, { [material]: 1 })) return false;
+          const data = settlementFor(g.state, g.planet.id);
+          const key = terrain.value.keyAt(x, y, depth);
+          (data.crops ??= {})[key] = { seed: material, growth: 0, moisture: 0 };
+          const previous = data.cutTrees.indexOf(`planted-tree:${key}`);
+          if (previous >= 0) data.cutTrees.splice(previous, 1);
+          g.notify("Muda plantada. Regue com água ou aguarde a chuva.");
+        } else if (material && tile) {
           if (!consume(g.state.backpack, { [material]: 1 })) return false;
           g.state.changes[g.planet.id] ??= {};
           const target = terrain.value;
@@ -280,7 +300,8 @@ export const useConstruction = defineStore("construction", () => {
   function harvest(tree: AlienTree) {
     if (g.state.mode !== "surface" || g.state.player.energy < 3) return false;
     const [, cell, layer] = tree.id.split(":");
-    const current = tree.depth
+    const planted = tree.id.startsWith("planted-tree:") ? cell : undefined;
+    const current = planted ? plantedTreeAt(terrain.value, settlement.value, planted) : tree.depth
       ? spatialTreeAt(g.planet, terrain.value, Number(cell), Number(layer))
       : treeAt(g.planet, terrain.value, Number(cell));
     if (
@@ -296,14 +317,18 @@ export const useConstruction = defineStore("construction", () => {
     const data = settlementFor(g.state, g.planet.id);
     if (data.cutTrees.includes(current.id)) return false;
     data.cutTrees.push(current.id);
-    (data.woodDrops ??= {})[current.id] = {
+    if (planted && data.crops) delete data.crops[planted];
+    const drops = (data.woodDrops ??= {});
+    const dropId = drops[current.id] ? `${current.id}:${g.state.time}` : current.id;
+    drops[dropId] = {
       x: current.x * 16 + 8, y: current.ground * 16 - 8,
       z: current.depth ? current.depth * 16 : 5,
       quantity: current.wood, availableAt: g.state.time + 1.2,
+      seed: treeSeedFor(current.kind),
     };
     g.state.player.energy -= 3;
     audio.play(170, 0.15);
-    g.notify(`${treeNames[current.kind]} cortada. Aproxime-se da madeira para recolher.`);
+    g.notify(`${treeNames[current.kind]} cortada. Aproxime-se para recolher madeira e semente.`);
     void g.save();
     return true;
   }
@@ -313,19 +338,69 @@ export const useConstruction = defineStore("construction", () => {
     if (!drops) return 0;
     const player = g.state.player;
     let collected = 0;
+    let seeds = 0;
     for (const [id, drop] of Object.entries(drops)) {
       if (g.state.time < drop.availableAt ||
         Math.hypot(drop.x - player.x, drop.y - player.y, drop.z - (player.surfaceZ ?? 0)) > 23) continue;
-      if (!addBatch(g.state.backpack, { wood: drop.quantity }, BACKPACK_SLOTS)) continue;
+      if (!addBatch(g.state.backpack, {
+        wood: drop.quantity, ...(drop.seed ? { [drop.seed]: 1 } : {}),
+      }, BACKPACK_SLOTS)) continue;
+      if (drop.seed) {
+        fillQuickSlot(g.state, drop.seed);
+        seeds++;
+      }
       collected += drop.quantity;
       delete drops[id];
     }
     if (collected) {
       audio.play(340, .08);
-      g.notify(`+${collected} de madeira alienígena recolhida.`);
+      g.notify(seeds ? `Madeira recolhida: ${collected}. Sementes: ${seeds}.` :
+        `+${collected} de madeira alienígena recolhida.`);
       void g.save();
     }
     return collected;
+  }
+
+  function collectFruit(fruit: Fruit) {
+    if (g.state.mode !== "surface") return false;
+    const data = settlementFor(g.state, g.planet.id);
+    const seed = fruitSeedFor(fruit.item);
+    const cultivated = fruit.id.startsWith("crop:");
+    const crop = cultivated ? data.crops?.[fruit.id.slice(5)] : undefined;
+    if (cultivated ? crop?.seed !== seed || !cropReady(crop) :
+      (data.foraged?.[fruit.id] ?? 0) > g.state.time) return false;
+    if (!addBatch(g.state.backpack, { [fruit.item]: 2, [seed]: 1 }, BACKPACK_SLOTS)) {
+      g.notify("Mochila sem espaço para as frutas e a muda.");
+      return false;
+    }
+    fillQuickSlot(g.state, seed);
+    if (crop) {
+      crop.established = true;
+      crop.growth = 0;
+    }
+    else (data.foraged ??= {})[fruit.id] = g.state.time + FRUIT_REGROWTH;
+    audio.play(380);
+    g.notify("Duas frutas e uma muda coletadas.");
+    void g.save();
+    return true;
+  }
+
+  function waterPlant(x: number, y: number, depth: number) {
+    const crop = settlement.value.crops?.[terrain.value.keyAt(x, y, depth)];
+    if (!bucketEquipped.value || !crop || g.state.mode !== "surface" || g.panel || g.paused) return false;
+    const p = g.state.player;
+    if (Math.hypot(x * 16 + 8 - p.x, y * 16 + 8 - p.y, depth * 16 - (p.surfaceZ ?? 0)) > 77) {
+      g.notify("Aproxime-se da muda para regar.");
+    } else if (cropReady(crop) || crop.moisture >= CROP_GROWTH - crop.growth) {
+      g.notify("A muda já tem água suficiente.");
+    } else if (consume(g.state.backpack, { water: 1 })) {
+      crop.moisture = CROP_GROWTH - crop.growth;
+      g.notify("Muda regada.");
+      void g.save();
+    } else {
+      g.notify("Colete água com o balde antes de regar.");
+    }
+    return true;
   }
 
   function openCabinet(key: string) {
@@ -373,6 +448,7 @@ export const useConstruction = defineStore("construction", () => {
     }
     const hatch = piece.kind === "woodHatch";
     g.notify(
+      piece.kind === "fenceGate" ? (piece.open ? "Portão aberto." : "Portão fechado.") :
       hatch
         ? piece.open
           ? "Alçapão aberto."
@@ -671,6 +747,7 @@ export const useConstruction = defineStore("construction", () => {
           "airlockDoor",
           "woodDoor",
           "woodHatch",
+          "fenceGate",
           "stickLadder",
           "campfire",
           "bed",
@@ -818,6 +895,8 @@ export const useConstruction = defineStore("construction", () => {
     facility, queueFacility, moveFacility, openCargoVisitor, configureSale, buyCargoVisitor, answerBaseRequest,
     harvest,
     collectWoodDrops,
+    collectFruit,
+    waterPlant,
     openCabinet,
     nearestInteraction,
     toggleDoor,

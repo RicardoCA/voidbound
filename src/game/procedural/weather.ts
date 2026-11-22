@@ -9,22 +9,31 @@ export const weatherLabels: Record<Precipitation, string> = {
   acid: "Chuva ácida",
   snow: "Neve",
 };
+const acidRainRolls: Partial<Record<number, readonly [number, number]>> = {
+  0: [40, 60],
+  4: [55, 100],
+  5: [0, 10],
+};
+
+export function biomeSupportsAcidRain(kind: number) {
+  return acidRainRolls[kind] !== undefined;
+}
 
 export function planetPrecipitation(planet: Planet): Precipitation | undefined {
   const roll = hash(`${planet.seed}:climate`) % 100;
+  const acid = acidRainRolls[planet.kind];
+  if (acid && roll >= acid[0] && roll < acid[1]) return "acid";
   switch (planet.kind) {
     case 0:
-      return roll < 40 ? undefined : roll < 60 ? "acid" : "rain";
+      return roll < 40 ? undefined : "rain";
     case 1:
       return roll < 85 ? undefined : "rain";
     case 2:
       return roll < 25 ? undefined : "snow";
     case 3:
       return roll < 5 ? undefined : "rain";
-    case 4:
-      return roll < 55 ? undefined : "acid";
     case 5:
-      return roll < 10 ? "acid" : "rain";
+      return "rain";
   }
 }
 

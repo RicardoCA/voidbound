@@ -70,6 +70,9 @@ export const recipes: Recipe[] = [
   { id: "bucket", cost: { iron: 3 }, unlock: 0, station: "hand" },
   { id: "stick", cost: { wood: 1 }, amount: 8, unlock: 0, station: "ship" },
   { id: "woodBlock", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
+  { id: "cropRoof", cost: { wood: 2, silicon: 1 }, unlock: 0, amount: 4, station: "hand" },
+  { id: "woodFence", cost: { wood: 2 }, unlock: 0, amount: 4, station: "hand" },
+  { id: "fenceGate", cost: { wood: 2, iron: 1 }, unlock: 0, station: "hand" },
   {
     id: "stoneWall",
     cost: { stone: 3 },

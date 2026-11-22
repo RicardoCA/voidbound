@@ -31,6 +31,12 @@ import {
   type Settlement,
 } from "../game/types";
 import { audio } from "../game/systems/audio";
+import { advanceCrops } from "../survival/crops";
+import { CROP_GROWTH, treeSeedFor } from "../survival/seedCatalog";
+import { plantedTreeAt } from "../game/procedural/trees";
+import { fruitsNear } from "../survival/wildlife";
+import { surfaceWallBlocks } from "../game/physics/surfaceDepth";
+import { weatherCeiling } from "../game/procedural/weather";
 audio.enabled = false;
 beforeEach(() => setActivePinia(createPinia()));
 function setup() {
@@ -97,6 +103,7 @@ describe("Florestas alienígenas", () => {
     g.state.player.surfaceZ = drop.z;
     expect(b.collectWoodDrops()).toBe(tree.wood);
     expect(g.state.backpack.wood).toBe(tree.wood);
+    expect(g.state.backpack[treeSeedFor(tree.kind)]).toBe(1);
     expect(b.collectWoodDrops()).toBe(0);
     expect(data.woodDrops?.[tree.id]).toBeUndefined();
     expect(treesInRange(g.planet, terrain, -8, 10, data.cutTrees).some(t => t.id === tree.id)).toBe(false);
@@ -118,6 +125,108 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("fabrica teto, cerca e portão, protegendo o cultivo e permitindo abrir a entrada", () => {
+    const { g, data } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    for (let x = 4; x <= 6; x++) {
+      terrain.setAt(x, 26, -1, 0);
+      terrain.setAt(x, 28, -1, 0);
+      terrain.setAt(x, 29, -1, 1);
+    }
+    g.state.backpack = { wood: 6, iron: 1, silicon: 1 };
+    g.make("woodFence");
+    g.make("fenceGate");
+    g.make("cropRoof");
+    expect(g.state.backpack).toEqual({ woodFence: 4, fenceGate: 1, cropRoof: 4 });
+    b.equip("woodFence");
+    expect(b.apply(4, 28, -1)).toBe(true);
+    b.equip("fenceGate");
+    expect(b.apply(5, 28, -1)).toBe(true);
+    expect(surfaceWallBlocks(data, 88, 454, -22)).toBe(true);
+    expect(b.toggleDoor("5,28,-1")).toBe(true);
+    expect(surfaceWallBlocks(data, 88, 454, -22)).toBe(false);
+    b.equip("cropRoof");
+    expect(b.apply(4, 26, -1)).toBe(true);
+    expect(b.apply(5, 26, -1)).toBe(true);
+    expect(b.apply(6, 26, -1)).toBe(true);
+    expect(weatherCeiling(terrain, data, 6, 28, -1)).toBe(26 * 16);
+    data.crops = { "6,28,-1": { seed: "treeSeed-3", growth: 0, moisture: 0 } };
+    expect(advanceCrops(terrain, data, { kind: "acid", intensity: 1 }).rotted).toBe(0);
+    advanceCrops(terrain, data, { kind: "rain", intensity: 1 });
+    expect(data.crops["6,28,-1"]?.moisture).toBe(0);
+  });
+
+  it("chuva ácida apodrece mudas expostas conforme o bioma da espécie", () => {
+    const { g, data } = setup();
+    const terrain = new Terrain(g.planet, {});
+    for (let x = 4; x <= 9; x++) {
+      terrain.setAt(x, 28, 0, 0);
+      terrain.setAt(x, 29, 0, 1);
+    }
+    terrain.setAt(8, 26, 0, 1);
+    data.crops = {
+      "4,28": { seed: "treeSeed-3", growth: 0, moisture: 5 },
+      "5,28": { seed: "fruitSeed-amberFig", growth: 50, moisture: 0 },
+      "6,28": { seed: "treeSeed-4", growth: 0, moisture: 0 },
+      "7,28": { seed: "fruitSeed-tideMelon", growth: 0, moisture: 0 },
+      "8,28": { seed: "treeSeed-2", growth: 0, moisture: 0 },
+      "9,28": { seed: "fruitSeed-jadePear", growth: 0, moisture: 0, established: true },
+    };
+    expect(advanceCrops(terrain, data, { kind: "acid", intensity: 0 }).rotted).toBe(0);
+    expect(advanceCrops(terrain, data, { kind: "acid", intensity: 1 }).rotted).toBe(2);
+    expect(Object.keys(data.crops)).toEqual(["6,28", "7,28", "8,28", "9,28"]);
+  });
+
+  it("replanta a espécie da árvore e cresce apenas depois da rega com balde", () => {
+    const { g, data } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    terrain.setAt(4, 28, 0, 0);
+    terrain.setAt(4, 29, 0, 1);
+    g.state.backpack = { "treeSeed-3": 1, bucket: 1, water: 1 };
+    b.equip("treeSeed-3");
+    expect(b.apply(4, 28)).toBe(true);
+    expect(g.state.backpack["treeSeed-3"]).toBeUndefined();
+    for (let i = 0; i < CROP_GROWTH; i++) advanceCrops(terrain, data, undefined);
+    expect(data.crops?.["4,28"]?.growth).toBe(0);
+    b.equip("bucket");
+    expect(b.waterPlant(4, 28, 0)).toBe(true);
+    expect(g.state.backpack.water).toBeUndefined();
+    for (let i = 0; i < CROP_GROWTH; i++) advanceCrops(terrain, data, undefined);
+    const tree = plantedTreeAt(terrain, data, "4,28")!;
+    expect(tree.kind).toBe(3);
+    expect(b.harvest(tree)).toBe(true);
+    expect(data.woodDrops?.[tree.id]?.seed).toBe("treeSeed-3");
+  });
+
+  it("colhe fruta com muda e só a chuva exposta irriga a plantação", () => {
+    const { g, data } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    const fruit = fruitsNear(g.planet, terrain, data, 95, g.state.time)
+      .find(fruit => fruit.id === "fruit:0")!;
+    expect(b.collectFruit(fruit)).toBe(true);
+    expect(b.collectFruit(fruit)).toBe(false);
+    const seed = `fruitSeed-${fruit.item}` as const;
+    expect(g.state.backpack[seed]).toBe(1);
+    terrain.setAt(4, 28, 0, 0);
+    terrain.setAt(4, 29, 0, 1);
+    b.equip(seed);
+    expect(b.apply(4, 28)).toBe(true);
+    terrain.setAt(4, 26, 0, 1);
+    advanceCrops(terrain, data, { kind: "rain", intensity: 1 });
+    expect(data.crops?.["4,28"]?.moisture).toBe(0);
+    terrain.remove(4, 26);
+    for (let i = 0; i < CROP_GROWTH; i++)
+      advanceCrops(terrain, data, { kind: "rain", intensity: 1 });
+    const ripe = fruitsNear(g.planet, terrain, migrateSave(g.state).settlements[g.planet.id]!, 72, g.state.time)
+      .find(fruit => fruit.id === "crop:4,28")!;
+    expect(ripe.item).toBe(fruit.item);
+    expect(b.collectFruit(ripe)).toBe(true);
+    expect(data.crops?.["4,28"]?.growth).toBe(0);
+  });
+
   it("fabrica e equipa o balde para coletar água sem remover a fonte", () => {
     const { g } = setup();
     const b = useConstruction();

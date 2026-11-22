@@ -1,6 +1,8 @@
-import type { Planet } from "../types";
+import type { Planet, Settlement } from "../types";
 import type { Terrain } from "./terrain";
 import { hash, random } from "./random";
+import { cropReady } from "../../survival/seedCatalog";
+export { treeNames } from "../../survival/seedCatalog";
 export interface AlienTree {
   id: string;
   x: number;
@@ -22,14 +24,6 @@ const foliage = [
   [0x83bd8f, 0x9b82c1, 0xc5b375],
   [0xdf816a, 0xcf9f57, 0xb686b2],
   [0x70c1b4, 0x82a9d1, 0x91c57d],
-];
-export const treeNames = [
-  "Cedro de basalto",
-  "Acácia âmbar",
-  "Conífera glacial",
-  "Copa de jade",
-  "Árvore brasa",
-  "Mangue-lâmina",
 ];
 /** One deterministic candidate per 14-tile cell, independent of loaded chunks. */
 export function treeAt(
@@ -97,6 +91,25 @@ export function treeContains(tree: AlienTree, worldX: number, worldY: number) {
     worldY < tree.ground * 16 &&
     worldY >= (tree.ground - tree.height) * 16
   );
+}
+
+export function plantedTreeAt(terrain: Terrain, settlement: Settlement, key: string) {
+  const crop = settlement.crops?.[key];
+  if (!crop?.seed.startsWith("treeSeed-") || !cropReady(crop)) return;
+  const [x = 0, y = 0, depth = 0] = key.split(",").map(Number);
+  const kind = Number(crop.seed.slice("treeSeed-".length));
+  const species = treeAt({ ...terrain.planet, kind }, terrain, 0)!;
+  return { ...species, id: `planted-tree:${key}`, x, depth, ground: y + 1 };
+}
+
+export function plantedTreesNear(terrain: Terrain, settlement: Settlement, x: number, z: number, range: number, spatial: boolean) {
+  const trees: AlienTree[] = [];
+  for (const key of Object.keys(settlement.crops ?? {})) {
+    const tree = plantedTreeAt(terrain, settlement, key);
+    if (tree && (spatial || !tree.depth) && Math.hypot(tree.x * 16 + 8 - x, (tree.depth ?? 0) * 16 - z) <= range)
+      trees.push(tree);
+  }
+  return trees;
 }
 
 export const groveSize = 4;

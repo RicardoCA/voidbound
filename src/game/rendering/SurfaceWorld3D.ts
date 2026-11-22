@@ -2,11 +2,12 @@ import { facilityDefinitions, isFacility, type FacilityKind } from "../../constr
 import { isBaseLight } from "../../construction/lighting";
 import { surfaceLayer, solidSurfaceVoxel, surfaceWallZ, surfaceWallThickness, surfaceWallPenetration } from "../physics/surfaceDepth";
 import * as T from "three";
-import { cabinetWidths, isCabinet, isDoor, pieceWidth, keyAt } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isDoor, isFence, pieceWidth, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
 import { isLiquidTile, isSolidTile, LAVA_TILE, TILE, tileItems, WATER_TILE, type Terrain } from "../procedural/terrain";
-import { spatialTreesNear, treesInRange } from "../procedural/trees";
+import { plantedTreesNear, spatialTreesNear, treesInRange } from "../procedural/trees";
+import { cropReady, fruitKind } from "../../survival/seedCatalog";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Item, type Settlement } from "../types";
 import { behindSurfaceOccluder, type SurfaceOccluder } from "./surfaceOcclusion";
@@ -71,6 +72,7 @@ export interface SurfaceFrame {
   chopping?: { id: string; progress: number; saber: boolean };
   mining?: { x: number; y: number; depth: number; progress: number };
   building?: boolean;
+  selectedConstruction?: BuildItem;
   heldMaterial?: Item;
   bucketEquipped?: boolean;
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number; tz?: number };
@@ -465,6 +467,28 @@ export class SurfaceWorld3D {
             : metal;
       block(color, 0, 8, surfaceWallZ - 8, 16, 16, surfaceWallThickness);
       for (const y of [4, 9, 14]) block(0x343741, 0, y, -12.4, 16, 0.42, 0.2);
+    } else if (kind === "cropRoof") {
+      block(wood, 0, 14, -15.2, 16, 3, 1.6);
+      block(wood, 0, 14, -.8, 16, 3, 1.6);
+      for (const x of [-7.2, 0, 7.2])
+        block(trim, x, 14, -8, x ? 1.6 : .8, 2.6, 13);
+      block(0x8dc9b5, 0, 14.1, -8, 14, 1.4, 14).material = this.windowGlass;
+    } else if (isFence(kind)) {
+      const postZ = surfaceWallZ;
+      for (const x of [-7, 7]) {
+        block(wood, x, 6, postZ, 2, 12, 3);
+        block(trim, x, 12, postZ, 2.4, 1, 3.4);
+      }
+      const rails = new T.Group();
+      rails.position.set(-6, 0, postZ);
+      rails.rotation.y = open ? -Math.PI / 2 : 0;
+      group.add(rails);
+      for (const y of [4, 9])
+        this.part(rails, this.box, trim, 6, y, 0, 12, 1.7, 1.8);
+      if (kind === "fenceGate") {
+        this.part(rails, this.box, wood, 6, 6.5, 0, 13, 1.4, 1.4).rotation.z = .34;
+        this.part(rails, this.box, metal, 11, 8.7, 1.1, 2.3, 1.2, .8);
+      }
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
       for (const y of [2, 7, 12]) block(trim, 0, y, 0, 15, 0.5, 0.32);
@@ -714,12 +738,13 @@ export class SurfaceWorld3D {
         (x + size / 2) * TILE, (y + 1) * TILE, depth * TILE,
         () => this.orientedPiece(piece.kind, !!piece.open, piece.facing, !!piece.powered, piece.rotation, !!piece.emergencyActive),
       );
-      group.userData.cell = { x, y, depth };
+      group.userData.cell = { x, y, depth, kind: piece.kind };
       if (piece.kind === "woodBlock") this.markOpaqueBlock(group, x, y, depth);
     }
     const trees = [
       ...(Math.abs(z) < 230 ? treesInRange(planet, terrain, left, right, settlement.cutTrees) : []),
       ...spatialTreesNear(terrain, x, z, settlement.cutTrees),
+      ...plantedTreesNear(terrain, settlement, x, z, 215, true),
     ];
     for (const tree of trees) {
       const depth = tree.depth ?? 0;
@@ -782,10 +807,27 @@ export class SurfaceWorld3D {
             6.6, 2 + i * 2, (i % 2) * 3 - 1.5, 4.4, .6, 4.4);
           end.rotation.z = Math.PI / 2;
         }
+        if (drop.seed) this.part(group, this.gem, 0xa6dd7d, 5, 5, 5, 4, 5, 4);
         group.userData.woodDrop = id;
         return group;
       });
       logs.position.y += Math.sin(frame.elapsed * 3) * .7;
+    }
+    for (const [key, crop] of Object.entries(settlement.crops ?? {})) {
+      if (cropReady(crop)) continue;
+      const [column = 0, row = 0, depth = 0] = key.split(",").map(Number);
+      if (column < left || column > right || row < top || row > bottom || Math.abs(depth * TILE - z) > 215) continue;
+      const stage = Math.floor(crop.growth / 20);
+      const wet = crop.moisture > 0;
+      put(`crop:${key}:${stage}:${wet}`, (column + .5) * TILE, (row + 1) * TILE, depth * TILE - 8, () => {
+        const group = new T.Group();
+        const height = 5 + stage * 3;
+        this.part(group, this.box, wet ? 0x554137 : 0x85644a, 0, .5, 0, 12, 1, 12);
+        this.part(group, this.cylinder, 0x6c8b42, 0, height / 2, 0, 1.3, height, 1.3);
+        for (const side of [-1, 1])
+          this.part(group, this.gem, 0x9ac460, side * 2, height - 1, 0, 4, 2.3, 3).rotation.z = side * .4;
+        return group;
+      }).userData.cell = { x: column, y: row, depth };
     }
     const near = (point: Point) =>
       Math.abs(z) < 220 && point.x >= left * TILE && point.x <= right * TILE;
@@ -807,7 +849,7 @@ export class SurfaceWorld3D {
             5,
           );
         group.userData.flora = { fruitId: fruit.id, depth };
-        this.attachLifeModel(group, "fruta-" + planet.kind, 17, 10, 10);
+        this.attachLifeModel(group, "fruta-" + fruitKind(fruit.item), 17, 10, 10);
         return group;
       });
     }
@@ -951,16 +993,18 @@ export class SurfaceWorld3D {
         (frame.cursor.depth ?? 0) * TILE,
       );
       const { kind, rotation = 0 } = frame.cursor;
-      const panel = isDoor(kind) || kind === "window" || kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
+      const panel = isDoor(kind) || isFence(kind) || kind === "window" || kind === "woodWall" || kind === "stoneWall" || kind === "metalWall";
       const angle = rotation * Math.PI / 2;
       this.cursor.rotation.y = angle;
       this.cursor.scale.set(
         kind ? pieceWidth(kind) * TILE : TILE + 0.3,
-        isDoor(kind) || (kind && isFacility(kind)) ? TILE * 2 : TILE + 0.3,
+        isDoor(kind) || (kind && isFacility(kind)) ? TILE * 2 : kind === "cropRoof" ? 3 : isFence(kind) ? 13 : TILE + 0.3,
         panel ? 4 : TILE + 0.3,
       );
       if (kind) this.cursor.position.x += (pieceWidth(kind) - 1) * TILE / 2;
       if (isDoor(kind) || (kind && isFacility(kind))) this.cursor.position.y += TILE / 2;
+      if (kind === "cropRoof") this.cursor.position.y += 6;
+      if (isFence(kind)) this.cursor.position.y -= 1.5;
       if (panel) {
         this.cursor.position.x += Math.sin(angle) * surfaceWallZ;
         this.cursor.position.z += Math.cos(angle) * surfaceWallZ;
@@ -1083,7 +1127,7 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number, emergencyActive = false) {
     const piece = this.piece(kind, open, facing, powered, emergencyActive);
-    if (kind === "window" || kind === "airlockDoor" || isBaseLight(kind)) {
+    if (kind === "window" || kind === "airlockDoor" || isFence(kind) || isBaseLight(kind)) {
       const aligned = new T.Group();
       piece.position.z = -8;
       piece.rotation.y = (rotation ?? 0) * Math.PI / 2;
@@ -1187,7 +1231,8 @@ export class SurfaceWorld3D {
     const objects = this.ray.intersectObjects(
           [...this.meshes]
             .filter(([id, group]) => !id.startsWith("woodDrop:") && !group.userData.flora?.falling)
-            .filter(([id]) => hitSolid ? !id.startsWith("depthBlock:") : id.startsWith("wall:"))
+            .filter(([id, group]) => hitSolid ? !id.startsWith("depthBlock:") :
+              id.startsWith("wall:") || (frame.selectedConstruction === "cropRoof" && isFence(group.userData.cell?.kind)))
             .map(([, group]) => group),
           true,
         );
@@ -1226,6 +1271,10 @@ export class SurfaceWorld3D {
         let node: T.Object3D | null = picked.object;
         while (node?.parent && node.parent !== this.scene) node = node.parent;
         const target = node?.userData;
+        if (!hitSolid && frame.selectedConstruction === "cropRoof" && isFence(target?.cell?.kind)) {
+          const { x, y, depth } = target!.cell;
+          return { x, y: y - 2, depth, wx: picked.point.x, wy: -picked.point.y };
+        }
         if (!hitSolid && target?.cell?.wall) {
           const { x, y, depth, rotation = 0 } = target.cell;
           const face = frame.wallPlacementFace;

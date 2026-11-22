@@ -1,4 +1,5 @@
 import { FacilitySystem } from "../game/systems/facilities";
+import { advanceCrops } from "../survival/crops";
 import { workbenchInReach } from "../crafting/workbench";
 import { cartridgeCount, loadCartridges, refillAutomatically, OXYGEN_CARTRIDGE_CAPACITY } from "../survival/autoOxygen";
 import {
@@ -789,6 +790,8 @@ export const useGame = defineStore("game", () => {
     if (!resource || !collect(resource)) return false;
     fillQuickSlot(s, resource);
     terrain.remove(x, y, depth);
+    const crops = s.settlements[planet.value.id]?.crops;
+    if (crops) delete crops[terrain.keyAt(x, y - 1, depth)];
     const deadlines = (s.terrainRegrowth ??= {});
     (deadlines[terrain.planet.id] ??= {})[terrain.keyAt(x, y, depth)] =
       (s.activePlayTime ?? 0) + TERRAIN_REGROWTH_SECONDS;
@@ -1921,6 +1924,14 @@ export const useGame = defineStore("game", () => {
       return;
     const previous = state.value.activePlayTime ?? 0;
     state.value.activePlayTime = previous + dt;
+    if (Math.floor(previous) !== Math.floor(previous + dt) && onSurface.value) {
+      const settlement = state.value.settlements[planet.value.id];
+      if (settlement) {
+        const { matured, rotted } = advanceCrops(planetTerrain.value, settlement, weather.value);
+        if (rotted) notify(`A chuva ácida apodreceu ${rotted} ${rotted === 1 ? "muda exposta" : "mudas expostas"}.`);
+        if (matured || rotted) void save();
+      }
+    }
     if (
       Math.floor(previous) !== Math.floor(previous + dt) &&
       regrowTerrain(

@@ -11,6 +11,7 @@ import {
 } from "../universe/stars";
 import { weaponModules, type WeaponModule } from "../combat/weapons";
 import type { Item } from "../game/types";
+import { seedNames, type SeedItem } from "../survival/seedCatalog";
 
 interface ItemArt {
   body: string;
@@ -21,6 +22,11 @@ interface ItemArt {
 }
 
 export const itemArt: Record<Item, ItemArt> = {
+  ...Object.fromEntries(Object.keys(seedNames).map((id) => [id, {
+    body: "M11 20v-7C5 14 3 11 3 6c5 0 8 1 9 5 1-5 4-7 9-8 0 6-3 9-8 9v8z",
+    shade: "M11 20v-8l2-1v9z",
+    light: "M5 7l6 4-4-1zM15 8l4-3-1 3z",
+  }])) as Record<SeedItem, ItemArt>,
   ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { body: ({
       planetRefinery: "M3 8h12v13H3zM4 2h3v6H4zM11 3h3v5h-3zM16 13h6v8h-6z",
       observatory: "M2 4q9 18 20 0H2zM9 14h6v5h5v3H4v-3h5zM11 1h2v9h-2z",
@@ -349,6 +355,23 @@ export const itemArt: Record<Item, ItemArt> = {
     light: "M5 8l7-3 7 3-7 3z",
     detail: "M6 11h1v6H6zM9 12h1v6H9z",
     accent: "#8d5d41",
+  },
+  cropRoof: {
+    body: "M2 9l10-5 10 5v4l-10 5-10-5z",
+    shade: "M2 10l10 5 10-5v3l-10 5-10-5z",
+    light: "M5 9l7-4 7 4-7 4z",
+    detail: "M6 9l3-1 7 4-2 1z",
+  },
+  woodFence: {
+    body: "M3 4h4v17H3zM17 4h4v17h-4zM7 8h10v3H7zM7 14h10v3H7z",
+    shade: "M5 5h2v16H5zM19 5h2v16h-2z",
+    light: "M3 4h4v2H3zM17 4h4v2h-4zM7 8h10v1H7z",
+  },
+  fenceGate: {
+    body: "M3 4h4v17H3zM17 4h4v17h-4zM7 7h10v10H7z",
+    shade: "M7 15h10v2H7zM17 7h2v12h-2z",
+    light: "M7 7h10v2H7zM8 14l6-4h2l-6 4z",
+    detail: "M14 11h3v2h-3z",
   },
   stoneWall: {
     body: "M3 4h18v16H3z",

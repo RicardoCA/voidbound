@@ -21,6 +21,24 @@ afterEach(() => vi.restoreAllMocks());
 
 const planet = systemAt("VOIDBOUND", 0, 0).planets[0]!;
 
+it("mira na cerca para instalar um teto com espaço livre abaixo", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const settlement = emptySettlement();
+  settlement.pieces["0,9,-1"] = { kind: "woodFence", facing: 1, rotation: 0 };
+  try {
+    world.update({
+      terrain: new Terrain(planet, {}), settlement, selectedConstruction: "cropRoof",
+      camera: { x: 8, y: 158.5, z: 0, yaw: 0, pitch: 0 },
+      revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+      animals: [], fruit: [], drops: [],
+    }, 960, 540);
+    expect(world.pointAt(0, 0, false)).toMatchObject({ x: 0, y: 7, depth: -1 });
+  } finally {
+    world.dispose();
+  }
+});
+
 it("desenha água e lava, mantém passagem livre e permite mirar no minério ao fundo", () => {
   vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
   const world = new SurfaceWorld3D();

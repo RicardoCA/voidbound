@@ -1,4 +1,4 @@
-import { cabinetWidths, isCabinet, isWall, isDoor } from "../../construction/pieces";
+import { cabinetWidths, isCabinet, isWall, isDoor, isFence } from "../../construction/pieces";
 import { BATTERY_CAP } from "../../construction/habitat";
 import type Phaser from "phaser";
 import type { Settlement, BuildItem, PlacedPiece } from "../types";
@@ -151,6 +151,23 @@ export function drawPiece(
     g.fillRect(x, y + 7, 16, 1);
     g.fillRect(x + 12, y + 8, 1, 6);
     g.fillRect(x, y + 14, 16, 2);
+    return;
+  }
+  if (kind === "cropRoof") {
+    g.fillStyle(0x82bdb2, alpha * .65).fillRect(x, y, 16, 4);
+    g.fillStyle(material.timber, alpha).fillRect(x, y, 2, 4).fillRect(x + 14, y, 2, 4);
+    g.fillStyle(material.trim, alpha).fillRect(x, y, 16, 1);
+    return;
+  }
+  if (isFence(kind)) {
+    g.fillRect(x, y + 3, 2, 13).fillRect(x + 14, y + 3, 2, 13);
+    g.fillStyle(material.trim, alpha);
+    if (kind === "fenceGate" && state?.open)
+      g.fillRect(x + 2, y + 5, 3, 8);
+    else {
+      g.fillRect(x + 2, y + 6, 12, 2).fillRect(x + 2, y + 11, 12, 2);
+      if (kind === "fenceGate") g.fillRect(x + 11, y + 8, 2, 3);
+    }
     return;
   }
   if (kind === "woodBlock") {
