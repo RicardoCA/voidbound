@@ -16,6 +16,7 @@ import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
 import { Terrain, tileForItem } from "../game/procedural/terrain";
 import { consume } from "../inventory/inventory";
+import { assignableQuickSlots, canAssignQuickSlot } from "../inventory/quickSlots";
 import { isPhotonSaber } from "../universe/stars";
 import {
   treeAt,
@@ -49,12 +50,6 @@ import {
   isWall,
   cabinetWidths,
 } from "../construction/pieces";
-export const quickSlotNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-
-export function canAssignQuickSlot(item: Item) {
-  return isBuildItem(item) || tileForItem(item) !== undefined || isPhotonSaber(item);
-}
-
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
     enabled = ref(false),
@@ -110,14 +105,14 @@ export const useConstruction = defineStore("construction", () => {
   const activeQuickSlot = computed(() => {
     if (removing.value && enabled.value) return;
     const item = enabled.value ? selectedItem.value : g.equippedSaber;
-    return item ? quickSlotNumbers.find((slot) => slot > 1 && g.state.quickSlots?.[slot] === item) : 1;
+    return item ? assignableQuickSlots.find((slot) => g.state.quickSlots?.[slot] === item) : 1;
   });
   function assignQuickSlot(slot: number, item: Item) {
     if (!canAssignQuickSlot(item) || !g.state.backpack[item] ||
         (slot !== 0 && (!Number.isInteger(slot) || slot < 2 || slot > 9))) return;
     const slots = (g.state.quickSlots ??= {});
-    for (const number of quickSlotNumbers)
-      if (number > 1 && slots[number] === item) delete slots[number];
+    for (const number of assignableQuickSlots)
+      if (slots[number] === item) delete slots[number];
     if (slot) slots[slot] = item;
     void g.save();
   }
@@ -743,7 +738,7 @@ export const useConstruction = defineStore("construction", () => {
     return isCabinet(pieceAt(settlement.value, x, y)?.piece.kind);
   }
   watch(
-    () => quickSlotNumbers.slice(1).filter((slot) => {
+    () => assignableQuickSlots.filter((slot) => {
       const item = g.state.quickSlots?.[slot];
       return item && (g.state.backpack[item] ?? 0) <= 0;
     }),

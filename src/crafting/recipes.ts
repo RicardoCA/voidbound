@@ -160,7 +160,8 @@ export function craft(
     !add(draft, recipe.id, recipe.amount ?? 1, capacity)
   )
     return false;
-  for (const key of Object.keys(inv)) delete inv[key as Item];
+  for (const key of Object.keys(inv))
+    if (!Object.hasOwn(draft, key)) delete inv[key as Item];
   Object.assign(inv, draft);
   return true;
 }

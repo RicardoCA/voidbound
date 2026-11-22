@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { items, type Item } from "../game/types";
-import { canAssignQuickSlot, quickSlotNumbers, useConstruction } from "../stores/construction";
+import { assignableQuickSlots as assignableSlots, canAssignQuickSlot } from "../inventory/quickSlots";
+import { useConstruction } from "../stores/construction";
 import { useGame } from "../stores/game";
 
 const props = defineProps<{ item: Item }>();
 const g = useGame();
 const b = useConstruction();
-const assignableSlots = quickSlotNumbers.slice(1);
 const assigned = computed(() => assignableSlots.find((slot) => g.state.quickSlots?.[slot] === props.item) ?? 0);
 
 function assign(event: Event) {

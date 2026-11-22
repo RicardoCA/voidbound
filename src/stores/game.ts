@@ -98,6 +98,7 @@ import {
   miningEfficiency,
 } from "../progression/careers";
 import { Terrain, tileItems } from "../game/procedural/terrain";
+import { fillQuickSlot } from "../inventory/quickSlots";
 import { weatherAt, weatherCeiling } from "../game/procedural/weather";
 import {
   advancePowerNetwork,
@@ -764,6 +765,7 @@ export const useGame = defineStore("game", () => {
       return false;
     const resource = tileItems[terrain.getAt(x, y, depth)];
     if (!resource || !collect(resource)) return false;
+    fillQuickSlot(s, resource);
     terrain.remove(x, y, depth);
     const deadlines = (s.terrainRegrowth ??= {});
     (deadlines[terrain.planet.id] ??= {})[terrain.keyAt(x, y, depth)] =
@@ -837,6 +839,7 @@ export const useGame = defineStore("game", () => {
       notify("Materiais insuficientes, receita bloqueada ou carga cheia.");
       return;
     }
+    if (onSurface.value) fillQuickSlot(state.value, id);
     if (id === "fuel") {
       state.value.progression.refined++;
       awardCareerXP(

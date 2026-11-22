@@ -118,6 +118,32 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("preenche slots livres ao minerar e fabricar, sem duplicar ou substituir atalhos", () => {
+    const { g } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    Object.assign(terrain.changes, { "2,29": 1, "3,29": 1, "4,29": 2, "5,29": 3 });
+    g.state.backpack = { wood: 4 };
+    b.assignQuickSlot(3, "wood");
+
+    expect(g.mineTerrain(terrain, 2, 29)).toBe(true);
+    expect(g.mineTerrain(terrain, 3, 29)).toBe(true);
+    expect(g.mineTerrain(terrain, 4, 29)).toBe(true);
+    g.make("woodBlock");
+    expect(g.state.quickSlots).toEqual({ 2: "dirt", 3: "wood", 4: "iron", 5: "woodBlock" });
+    expect(b.activeQuickSlot).toBe(1);
+
+    Object.assign(g.state.backpack, { stone: 1, ice: 1, carbon: 1, silicon: 1 });
+    b.assignQuickSlot(6, "stone");
+    b.assignQuickSlot(7, "ice");
+    b.assignQuickSlot(8, "carbon");
+    b.assignQuickSlot(9, "silicon");
+    const full = { ...g.state.quickSlots };
+    expect(g.mineTerrain(terrain, 5, 29)).toBe(true);
+    expect(g.state.backpack.copper).toBe(1);
+    expect(g.state.quickSlots).toEqual(full);
+  });
+
   it("seleciona materiais e construções da mochila e mantém a pistola fixa no slot 1", () => {
     const { g } = setup();
     const b = useConstruction();

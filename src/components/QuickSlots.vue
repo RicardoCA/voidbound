@@ -2,7 +2,8 @@
 import { computed } from "vue";
 import ItemIcon from "./ItemIcon.vue";
 import { items } from "../game/types";
-import { canAssignQuickSlot, quickSlotNumbers, useConstruction } from "../stores/construction";
+import { canAssignQuickSlot, quickSlotNumbers } from "../inventory/quickSlots";
+import { useConstruction } from "../stores/construction";
 import { useGame } from "../stores/game";
 
 defineProps<{ touch?: boolean }>();
