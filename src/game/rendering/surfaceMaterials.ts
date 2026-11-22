@@ -1,4 +1,5 @@
 import type Phaser from "phaser";
+import { isLiquidTile, WATER_TILE } from "../procedural/terrain";
 
 type Graphics = Phaser.GameObjects.Graphics;
 
@@ -85,6 +86,13 @@ export function drawTerrainTile(
   textured: boolean,
   depositDrawn: boolean,
 ) {
+  if (isLiquidTile(tile)) {
+    const water = tile === WATER_TILE;
+    g.fillStyle(water ? 0x23779d : 0xde4f18, water ? .80 : 1).fillRect(x, y, 16, 16);
+    if (exposed)
+      g.fillStyle(water ? 0x71d1eb : 0xffb439).fillRect(x, y, 16, 2);
+    return;
+  }
   const seed = (Math.imul(column, 374761393) ^ Math.imul(row, 668265263)) >>> 0;
   const a = 2 + (seed & 3);
   const b = 8 + ((seed >>> 7) & 3);

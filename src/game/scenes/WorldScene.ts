@@ -2,7 +2,7 @@ import { cargoVisitors } from "../../construction/planetCommerce";
 import { HeldMining } from "../physics/heldMining";
 import { fallbackLandedHull, landedHullOverlap } from "../physics/landedShip";
 import type { SurfaceTarget } from "../rendering/SurfaceWorld3D";
-import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration } from "../physics/surfaceDepth";
+import { surfaceLayer, solidSurfaceVoxel, stepSurfaceDepth, surfaceFloraCollision, surfaceWallPenetration, touchesSurfaceLiquid } from "../physics/surfaceDepth";
 import { nearbyShowroomPlaque, walkShowroom } from "../station/showroom";
 import { resolveStellarCollision } from "../physics/stellarCollision";
 import { resolveSpaceHull } from "../physics/spaceHull";
@@ -99,7 +99,7 @@ import {
 import { isDoor, pieceWidth } from "../../construction/pieces";
 import { daylight, solarPhase, hasPlanetaryOxygenGenerator } from "../../construction/habitat";
 import { biomes, type Mode, type Planet } from "../types";
-import { Terrain } from "../procedural/terrain";
+import { isLiquidTile, isSolidTile, LAVA_TILE, Terrain, tileItems, WATER_TILE } from "../procedural/terrain";
 import { random, hash } from "../procedural/random";
 import { planetPosition, spatialPlanet } from "../../universe/generator";
 import {
@@ -1680,7 +1680,7 @@ export class WorldScene extends Phaser.Scene {
     const drill = g.state.upgrades.includes("drill");
     const radius = saber ? 1 : 0;
     const mine = (tx: number, ty: number, tz: number) => {
-      if (!terrain.getAt(tx, ty, tz)) return false;
+      if (!tileItems[terrain.getAt(tx, ty, tz)]) return false;
       if (tz === 0) {
         const rooted = treesInRange(g.planet, terrain, tx, tx, this.building.settlement.cutTrees)
           .find((tree) => tree.x === tx && tree.ground === ty);
@@ -1797,10 +1797,12 @@ export class WorldScene extends Phaser.Scene {
         : undefined;
     this.building.climbingColumn = climb ? Math.floor(climb.x / 16) : undefined;
     const actor = { x: p.x, y: p.y, vy: this.vy, grounded: this.grounded };
+    const spatial = flight3D.surfaceView;
+    const swimming = touchesSurfaceLiquid(t, p, WATER_TILE, spatial);
+    if (swimming) actor.vy = jumping || pulse ? -110 : Math.min(actor.vy, 50);
     const yaw = flight3D.surfaceLook.yaw;
     const walkingPace = 2 / 3;
     const step = 90 * walkingPace * dt * vertical;
-    const spatial = flight3D.surfaceView;
     const z = p.surfaceZ ?? 0;
     const settlement = this.building.settlement;
     this.fruit = fruitsNear(g.planet, t, settlement, p.x, g.state.time, spatial ? z : undefined);
@@ -1851,6 +1853,8 @@ export class WorldScene extends Phaser.Scene {
     p.x = movement.x;
     p.y = movement.y;
     p.health -= movement.fallDamage;
+    if (touchesSurfaceLiquid(t, p, LAVA_TILE, spatial))
+      p.health = Math.max(0, p.health - 24 * dt);
     this.vy = movement.vy;
     this.grounded = movement.grounded;
     if (p.y > 1005) {
@@ -2066,7 +2070,7 @@ export class WorldScene extends Phaser.Scene {
       const distance = Math.hypot(tx * 16 + 8 - p.x, ty * 16 + 8 - p.y, p.surfaceZ ?? 0);
       if (tap && tile && distance >= 77)
         g.notify("Aproxime-se do bloco para minerar.");
-      if (tile && ty < 63 && distance < 77) {
+      if (tileItems[tile] && ty < 63 && distance < 77) {
         const result = this.heldMining.advance(`${g.planet.id}:${tx},${ty},0`, !!this.surfaceHold || !!(mouse && (mouse.buttons & 1)) || controls.mine, miningDt);
         if (!result.complete) return;
         this.resetBlockMining();
@@ -3008,7 +3012,7 @@ export class WorldScene extends Phaser.Scene {
     // Render the projected faces behind the playable grid so blocks keep their hit areas.
     for (let x = endX - 1; x >= startX; x--)
       for (let y = startY; y < endY; y++) {
-        if (t.get(x, y))
+        if (isSolidTile(t.get(x, y)))
           drawTerrainDepth(
             this.surfaceBase,
             t,
@@ -3082,7 +3086,9 @@ export class WorldScene extends Phaser.Scene {
         if (!tile) continue;
         const sx = Math.floor(x * 16 + offsetX);
         const sy = Math.floor(y * 16 + offsetY);
-        const textured = this.surfaceArt.tile(this, sx, sy, x, y);
+        const liquid = isLiquidTile(tile);
+        const above = t.get(x, y - 1);
+        const textured = !liquid && this.surfaceArt.tile(this, sx, sy, x, y);
         drawTerrainTile(
           f,
           material,
@@ -3092,9 +3098,9 @@ export class WorldScene extends Phaser.Scene {
           sx,
           sy,
           tile,
-          !t.get(x, y - 1),
+          !above || (liquid && above !== tile && !isSolidTile(above)),
           textured,
-          this.surfaceArt.deposit(this, tile, sx, sy, x, y),
+          !liquid && this.surfaceArt.deposit(this, tile, sx, sy, x, y),
         );
       }
     drawSettlement(

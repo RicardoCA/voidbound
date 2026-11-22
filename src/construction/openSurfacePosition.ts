@@ -1,5 +1,5 @@
 import { footprint } from "./pieces";
-import type { Terrain } from "../game/procedural/terrain";
+import { isLiquidTile, type Terrain } from "../game/procedural/terrain";
 import type { Settlement } from "../game/types";
 
 // Reserve entire columns so the actor cannot appear under a roof or against a wall.
@@ -35,7 +35,7 @@ export function openSurfacePosition(
       if (!clear) continue;
       let ground = 0;
       while (ground < 64 && terrain.get(column, ground) === 0) ground++;
-      if (ground < 2 || ground >= 63) continue;
+      if (ground < 2 || ground >= 63 || isLiquidTile(terrain.get(column, ground))) continue;
       return { x: column * 16 + 8, y: ground * 16 - 13 };
     }
   }

@@ -4,11 +4,12 @@ import { treeAt } from "../game/procedural/trees";
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader, Vector3 } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildItems, emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
-import { Terrain } from "../game/procedural/terrain";
+import { LAVA_TILE, Terrain, WATER_TILE } from "../game/procedural/terrain";
 import {
   solidSurfaceVoxel,
   surfaceWallBlocks,
   stepSurfaceDepth,
+  touchesSurfaceLiquid,
 } from "../game/physics/surfaceDepth";
 import {
   SurfaceWorld3D,
@@ -19,6 +20,49 @@ import { systemAt } from "../universe/generator";
 afterEach(() => vi.restoreAllMocks());
 
 const planet = systemAt("VOIDBOUND", 0, 0).planets[0]!;
+
+it("desenha água e lava, mantém passagem livre e permite mirar no minério ao fundo", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const terrain = new Terrain(planet, {
+    "0,9,-1": WATER_TILE, "0,9,-2": LAVA_TILE, "0,9,-3": 2,
+  });
+  const settlement = emptySettlement();
+  try {
+    world.update({
+      terrain, settlement, camera: { x: 8, y: 159.5, z: 16, yaw: 0, pitch: 0 },
+      revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+      animals: [], fruit: [], drops: [],
+    }, 960, 540);
+    expect(world.scene.getObjectByName("water")).toBeInstanceOf(InstancedMesh);
+    expect(world.scene.getObjectByName("lava")).toBeInstanceOf(InstancedMesh);
+    expect(solidSurfaceVoxel(terrain, settlement, 0, 9, -1)).toBe(false);
+    expect(solidSurfaceVoxel(terrain, settlement, 0, 9, -2)).toBe(false);
+    expect(touchesSurfaceLiquid(terrain, { x: 8, y: 148, surfaceZ: -32 }, LAVA_TILE, true)).toBe(true);
+    expect(touchesSurfaceLiquid(terrain, { x: 8, y: 130, surfaceZ: -32 }, LAVA_TILE, true)).toBe(false);
+    expect(world.pointAt(0, 0, true)).toMatchObject({ x: 0, y: 9, depth: -3, terrain: true });
+  } finally {
+    world.dispose();
+  }
+});
+
+it("gera rios e mares nos biomas úmidos e concentra lava em profundidade", () => {
+  const rocky = new Terrain({ ...planet, kind: 0 }, {});
+  const ocean = new Terrain({ ...planet, kind: 5 }, {});
+  const desert = new Terrain({ ...planet, kind: 1 }, {});
+  const volcano = new Terrain({ ...planet, kind: 4 }, {});
+  const columns = Array.from({ length: 144 }, (_, i) => i - 48);
+  const isWet = (terrain: Terrain, x: number, depth: number) =>
+    terrain.getAt(x, terrain.heightAt(x, depth) - 1, depth) === WATER_TILE;
+  expect(columns.some(x => isWet(rocky, x, -12))).toBe(true);
+  expect(columns.filter(x => ocean.getAt(x, 28, -12) === WATER_TILE).length).toBeGreaterThan(12);
+  expect(columns.some(x => isWet(desert, x, -12))).toBe(false);
+  for (const pad of [0, 24, 48]) expect(isWet(ocean, pad, 0)).toBe(false);
+  const rows = Array.from({ length: 63 }, (_, y) => y);
+  const lavaDepths = columns.flatMap(x => rows.filter(y => volcano.getAt(x, y, -3) === LAVA_TILE));
+  expect(lavaDepths.length).toBeGreaterThan(0);
+  expect(Math.min(...lavaDepths)).toBeGreaterThanOrEqual(45);
+});
 
 it("oculta uma peça atrás de parede opaca e volta a desenhá-la pela abertura", () => {
   vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());

@@ -1,6 +1,6 @@
 import { pieceAt } from "../../construction/pieces";
 import type { Settlement } from "../types";
-import { TILE, type Terrain } from "../procedural/terrain";
+import { isLiquidTile, TILE, type Terrain } from "../procedural/terrain";
 import { solidSurfaceVoxel, surfaceWallBlocks } from "./surfaceDepth";
 
 export interface LandedHull {
@@ -41,6 +41,8 @@ export function landingSideExit(terrain: Terrain, settlement: Settlement, pad: n
               pieceAt(settlement, column, row - 2, depth) ||
               solidSurfaceVoxel(terrain, settlement, column, row - 1, depth) ||
               solidSurfaceVoxel(terrain, settlement, column, row - 2, depth) ||
+              isLiquidTile(terrain.getAt(column, row - 1, depth)) ||
+              isLiquidTile(terrain.getAt(column, row - 2, depth)) ||
               surfaceWallBlocks(settlement, x, y, z)) continue;
           if (landedHullOverlap(hull, x - pad * TILE, y - ground, z)) continue;
           candidates.push({ x, y, z, score: Math.hypot(x - pad * TILE, (y - ground) * 2, Math.abs(z) - edge) });

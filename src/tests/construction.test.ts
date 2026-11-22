@@ -4,7 +4,7 @@ import Dexie from "dexie";
 import { createPinia, setActivePinia } from "pinia";
 import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
-import { STONE_TILE, Terrain } from "../game/procedural/terrain";
+import { LAVA_TILE, STONE_TILE, Terrain, WATER_TILE } from "../game/procedural/terrain";
 import { treeAt, treesInRange } from "../game/procedural/trees";
 import { systemAt } from "../universe/generator";
 import {
@@ -118,6 +118,22 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("não minera nem permite colocar um bloco dentro de água ou lava", () => {
+    const { g } = setup();
+    const b = useConstruction();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    terrain.setAt(4, 28, -1, WATER_TILE);
+    terrain.setAt(5, 28, -1, LAVA_TILE);
+    g.state.backpack = { woodBlock: 1 };
+    b.equip("woodBlock");
+    for (const [x, tile] of [[4, WATER_TILE], [5, LAVA_TILE]] as const) {
+      expect(g.mineTerrain(terrain, x, 28, -1)).toBe(false);
+      expect(b.apply(x, 28, -1)).toBe(false);
+      expect(terrain.getAt(x, 28, -1)).toBe(tile);
+    }
+    expect(g.state.backpack).toEqual({ woodBlock: 1 });
+  });
+
   it("preenche slots livres ao minerar e fabricar, sem duplicar ou substituir atalhos", () => {
     const { g } = setup();
     const b = useConstruction();

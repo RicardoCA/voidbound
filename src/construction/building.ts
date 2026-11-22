@@ -6,7 +6,7 @@ import type {
   Save,
   Settlement,
 } from "../game/types";
-import type { Terrain } from "../game/procedural/terrain";
+import { isLiquidTile, isSolidTile, type Terrain } from "../game/procedural/terrain";
 import {
   cabinetWidths,
   isCabinet,
@@ -106,10 +106,12 @@ export function placementError(
   const depth = ctx.depth ?? 0;
   const walls = depth ? settlement.depthWalls : settlement.walls;
   const hasGround = (x: number, y: number) =>
-    terrain.getAt(x, y, depth) || settlement.depthBlocks?.[keyAt(x, y, depth)];
+    isSolidTile(terrain.getAt(x, y, depth)) || settlement.depthBlocks?.[keyAt(x, y, depth)];
   const cells = footprint(kind, x, y);
   for (const cell of cells) {
     if (cell.y < 1) return "A porta precisa de dois blocos livres de altura.";
+    if (isLiquidTile(terrain.getAt(cell.x, cell.y, depth)))
+      return "Não é possível construir dentro de água ou lava.";
     if (hasGround(cell.x, cell.y))
       return isDoor(kind)
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
@@ -171,7 +173,7 @@ export function placementError(
   const depthSupport = ctx.depth !== undefined && [-1, 1].some((offset) => {
     const neighbor = depth + offset;
     const key = keyAt(x, y, neighbor);
-    return terrain.getAt(x, y, neighbor) || settlement.depthBlocks?.[key] ||
+    return isSolidTile(terrain.getAt(x, y, neighbor)) || settlement.depthBlocks?.[key] ||
       pieceAt(settlement, x, y, neighbor) ||
       (neighbor ? settlement.depthWalls : settlement.walls)?.[key];
   });

@@ -2,11 +2,25 @@ import { isFacility } from "../../construction/facilityTypes";
 import type { Fruit } from "../../survival/wildlife";
 import type { AlienTree } from "../procedural/trees";
 import { pieceAt, isDoor } from "../../construction/pieces";
-import { TILE, type Terrain } from "../procedural/terrain";
+import { isSolidTile, TILE, type Terrain } from "../procedural/terrain";
 import type { Settlement } from "../types";
 import type { Actor } from "./surface";
 
 export const surfaceLayer = (z: number) => Math.floor((z + TILE / 2) / TILE);
+
+export function touchesSurfaceLiquid(
+  terrain: Terrain, actor: { x: number; y: number; surfaceZ?: number },
+  tile: number, spatial: boolean,
+) {
+  const depth = actor.surfaceZ ?? 0;
+  const firstLayer = spatial ? surfaceLayer(depth - 3.8) : 0;
+  const lastLayer = spatial ? surfaceLayer(depth + 3.8) : 0;
+  for (let x = Math.floor((actor.x - 3.8) / TILE); x <= Math.floor((actor.x + 3.8) / TILE); x++)
+    for (let y = Math.floor((actor.y - 11.9) / TILE); y <= Math.floor((actor.y + 12) / TILE); y++)
+      for (let z = firstLayer; z <= lastLayer; z++)
+        if (terrain.getAt(x, y, z) === tile) return true;
+  return false;
+}
 
 export function solidSurfaceVoxel(
   terrain: Terrain,
@@ -16,7 +30,7 @@ export function solidSurfaceVoxel(
   depth: number,
 ) {
   const piece = pieceAt(settlement, x, y, depth)?.piece;
-  return terrain.getAt(x, y, depth) !== 0 ||
+  return isSolidTile(terrain.getAt(x, y, depth)) ||
     !!settlement.depthBlocks?.[terrain.keyAt(x, y, depth)] ||
     piece?.kind === "woodBlock" ||
     piece?.kind === "workbench" ||

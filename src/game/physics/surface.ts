@@ -1,5 +1,5 @@
 import type { Settlement } from "../types";
-import type { Terrain } from "../procedural/terrain";
+import { isSolidTile, type Terrain } from "../procedural/terrain";
 import { keyAt, blocksAir } from "../../construction/pieces";
 export interface Actor {
   x: number;
@@ -13,7 +13,7 @@ export function solidCell(
   x: number,
   y: number,
 ) {
-  return terrain.get(x, y) !== 0 || blocksAir(settlement, x, y);
+  return isSolidTile(terrain.get(x, y)) || blocksAir(settlement, x, y);
 }
 export function stairFloor(settlement: Settlement, x: number, tileY: number) {
   const tx = Math.floor(x / 16),
@@ -78,7 +78,7 @@ export function stepClimb(
   };
   const solid = (x: number, y: number) => {
     const tx = Math.floor(x / 16), ty = Math.floor(y / 16);
-    return terrain.getAt(tx, ty, depth) !== 0 ||
+    return isSolidTile(terrain.getAt(tx, ty, depth)) ||
       blocksAir(settlement, tx, ty, depth) ||
       !!settlement.depthBlocks?.[keyAt(tx, ty, depth)];
   };

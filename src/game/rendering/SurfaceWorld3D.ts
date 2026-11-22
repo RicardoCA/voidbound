@@ -5,7 +5,7 @@ import * as T from "three";
 import { cabinetWidths, isCabinet, isDoor, pieceWidth, keyAt } from "../../construction/pieces";
 import type { Animal, Fruit } from "../../survival/wildlife";
 import { hash } from "../procedural/random";
-import { TILE, type Terrain } from "../procedural/terrain";
+import { isLiquidTile, isSolidTile, LAVA_TILE, TILE, tileItems, WATER_TILE, type Terrain } from "../procedural/terrain";
 import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Item, type Settlement } from "../types";
@@ -76,6 +76,16 @@ export interface SurfaceFrame {
 }
 
 const terrainRadius = 13;
+const liquidFaces = [
+  { x: 1, y: 0, z: 0, rx: 0, ry: Math.PI / 2 },
+  { x: -1, y: 0, z: 0, rx: 0, ry: -Math.PI / 2 },
+  { x: 0, y: -1, z: 0, rx: -Math.PI / 2, ry: 0 },
+  { x: 0, y: 1, z: 0, rx: Math.PI / 2, ry: 0 },
+  { x: 0, y: 0, z: 1, rx: 0, ry: 0 },
+  { x: 0, y: 0, z: -1, rx: 0, ry: Math.PI },
+].map(face => ({
+  ...face, rotation: new T.Matrix4().makeRotationFromEuler(new T.Euler(face.rx, face.ry, 0)),
+}));
 export class SurfaceWorld3D {
   readonly scene = new T.Scene();
   readonly camera = new T.PerspectiveCamera(68, 1, 0.22, 380);
@@ -89,6 +99,15 @@ export class SurfaceWorld3D {
   private readonly opaqueSurfaces = new WeakMap<T.Group, SurfaceOccluder[]>();
   private readonly pieceBounds = new WeakMap<T.Group, T.Box3>();
   private readonly pieceFrustum = new T.Frustum();
+  private readonly liquidGeometry = new T.PlaneGeometry(TILE, TILE);
+  private readonly waterMaterial = new T.MeshStandardMaterial({
+    color: 0x2388b0, roughness: .3, transparent: true, opacity: .78,
+    depthWrite: false, side: T.DoubleSide, forceSinglePass: true,
+  });
+  private readonly lavaMaterial = new T.MeshStandardMaterial({
+    color: 0xff6218, emissive: 0xe64708, emissiveIntensity: 1.15,
+    roughness: .67, side: T.DoubleSide,
+  });
   private readonly viewProjection = new T.Matrix4();
   private readonly fallingTrees = new Map<string, { start: number; dx: number; dz: number }>();
   private readonly ground = new T.Group();
@@ -291,6 +310,7 @@ export class SurfaceWorld3D {
     this.clearMiningFade();
     this.terrainInstances.clear();
     const solidTiles = new Map<number, { x: number; y: number; z: number }[]>();
+    const liquids = new Map<number, { x: number; y: number; z: number; rotation: T.Matrix4 }[]>();
     for (let x = centerX - radius; x <= centerX + radius + 2; x++)
       for (
         let z = centerZ - radius;
@@ -301,16 +321,31 @@ export class SurfaceWorld3D {
           continue;
         const top = terrain.heightAt(x, z);
         const bottom = Math.max(top + 1, playerRow + 6);
-        for (let y = Math.min(top, playerRow - 4); y <= bottom; y++) {
+        const water = terrain.waterLevelAt(x, z);
+        for (let y = Math.min(top, playerRow - 4, water ?? top); y <= bottom; y++) {
           const tile = terrain.getAt(x, y, z);
+          if (isLiquidTile(tile)) {
+            const faces = liquids.get(tile) ?? [];
+            for (const face of liquidFaces) {
+              if (terrain.getAt(x + face.x, y + face.y, z + face.z) !== 0) continue;
+              faces.push({
+                x: (x + .5 + face.x / 2) * TILE,
+                y: -(y + .5 + face.y / 2) * TILE,
+                z: (z + face.z / 2) * TILE,
+                rotation: face.rotation,
+              });
+            }
+            liquids.set(tile, faces);
+            continue;
+          }
           if (
             !tile ||
-            (terrain.getAt(x, y - 1, z) &&
-              terrain.getAt(x, y + 1, z) &&
-              terrain.getAt(x - 1, y, z) &&
-              terrain.getAt(x + 1, y, z) &&
-              terrain.getAt(x, y, z - 1) &&
-              terrain.getAt(x, y, z + 1))
+            (isSolidTile(terrain.getAt(x, y - 1, z)) &&
+              isSolidTile(terrain.getAt(x, y + 1, z)) &&
+              isSolidTile(terrain.getAt(x - 1, y, z)) &&
+              isSolidTile(terrain.getAt(x + 1, y, z)) &&
+              isSolidTile(terrain.getAt(x, y, z - 1)) &&
+              isSolidTile(terrain.getAt(x, y, z + 1)))
           )
             continue;
           const type = tile >= 1 && tile <= 12 ? tile : 1;
@@ -341,6 +376,19 @@ export class SurfaceWorld3D {
       });
       surface.instanceMatrix.needsUpdate = true;
       this.ground.add(surface);
+    }
+    for (const [tile, faces] of liquids) {
+      if (!faces.length) continue;
+      const liquid = new T.InstancedMesh(
+        this.liquidGeometry,
+        tile === WATER_TILE ? this.waterMaterial : this.lavaMaterial,
+        faces.length,
+      );
+      liquid.name = tile === LAVA_TILE ? "lava" : "water";
+      faces.forEach(({ x, y, z, rotation }, index) => {
+        liquid.setMatrixAt(index, matrix.copy(rotation).setPosition(x, y, z));
+      });
+      this.ground.add(liquid);
     }
   }
 
@@ -1213,11 +1261,12 @@ export class SurfaceWorld3D {
         return hitSolid
           ? {
               ...target,
-              terrain: frame.terrain.getAt(x, y, depth) !== 0,
+              terrain: tileItems[frame.terrain.getAt(x, y, depth)] !== undefined,
               distance: this.cameraEye.distanceTo(position),
             }
           : lastAir;
-      lastAir = target;
+      if (!isLiquidTile(frame.terrain.getAt(x, y, depth))) lastAir = target;
+      else lastAir = undefined;
     }
   }
 
@@ -1227,6 +1276,9 @@ export class SurfaceWorld3D {
     this.clearMiningFade();
     this.terrainInstances.clear();
     this.windowGlass.dispose();
+    this.liquidGeometry.dispose();
+    this.waterMaterial.dispose();
+    this.lavaMaterial.dispose();
     this.floodGlow.dispose(); this.emergencyGlow.dispose();
     for (const light of [...this.baseSpots, ...this.exitLights]) light.dispose();
     this.terrainModels.clear();
