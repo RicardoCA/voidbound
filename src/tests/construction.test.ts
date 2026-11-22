@@ -118,6 +118,19 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("guarda terra e ferro separadamente ao minerar na superfície", () => {
+    const { g } = setup();
+    const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);
+    terrain.changes["2,29"] = 1;
+    terrain.changes["2,29,-1"] = 1;
+    terrain.changes["3,29,-1"] = 2;
+    expect(g.mineTerrain(terrain, 2, 29)).toBe(true);
+    expect(g.mineTerrain(terrain, 2, 29, -1)).toBe(true);
+    expect(g.mineTerrain(terrain, 3, 29, -1)).toBe(true);
+    expect(g.mineTerrain(terrain, 3, 29, -1)).toBe(false);
+    expect(g.state.backpack).toEqual({ dirt: 2, iron: 1 });
+  });
+
   it("minera pedra em terreno rochoso e usa pedra na parede", () => {
     const { g } = setup();
     const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);

@@ -103,6 +103,13 @@ export const itemArt: Record<Item, ItemArt> = {
       },
     ]),
   ) as Record<HeatDeflector, ItemArt>),
+  dirt: {
+    body: "M3 8l9-4 9 4v9l-9 4-9-4z",
+    shade: "M12 12l9-4v9l-9 4z",
+    light: "M3 8l9-4 9 4-9 4z",
+    detail: "M5 11l3 1v2l-3-1zM8 16l2 1v2l-2-1zM16 13l3-1v2l-3 1z",
+    accent: "#d1a27f",
+  },
   stone: {
     body: "M2 15l4-6 4 1 4-5 5 2 3 9-4 4H6z",
     shade: "M2 15l5-2 3 5 7-2 5 0-4 4H6zM10 10l4-5 2 4-2 4z",

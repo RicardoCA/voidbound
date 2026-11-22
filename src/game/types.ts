@@ -35,6 +35,7 @@ export type Item =
   | HeatDeflector
   | CyberCrystal
   | PhotonSaber
+  | "dirt"
   | "stone"
   | "stick"
   | "iron"
@@ -433,6 +434,13 @@ export const items: Record<Item, ItemDetails> = {
     color: "#ffaf6c",
     icon: "▲",
     rarity: "Construção",
+    stack: 99,
+  },
+  dirt: {
+    name: "Terra",
+    color: "#a47654",
+    icon: "■",
+    rarity: "Comum",
     stack: 99,
   },
   stone: {

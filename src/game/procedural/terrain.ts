@@ -5,7 +5,8 @@ export const TILE = 16,
   CHUNK_W = 32,
   CHUNK_H = 64;
 export const STONE_TILE = 12;
-export const tileItems: Record<number, Item> = {
+export const tileItems: Partial<Record<number, Item>> = {
+  1: "dirt",
   2: "iron",
   3: "copper",
   4: "silicon",

@@ -762,10 +762,8 @@ export const useGame = defineStore("game", () => {
       y >= 63
     )
       return false;
-    const tile = terrain.getAt(x, y, depth);
-    if (!tile) return false;
-    const resource = tileItems[tile] ?? "iron";
-    if (!collect(resource)) return false;
+    const resource = tileItems[terrain.getAt(x, y, depth)];
+    if (!resource || !collect(resource)) return false;
     terrain.remove(x, y, depth);
     const deadlines = (s.terrainRegrowth ??= {});
     (deadlines[terrain.planet.id] ??= {})[terrain.keyAt(x, y, depth)] =

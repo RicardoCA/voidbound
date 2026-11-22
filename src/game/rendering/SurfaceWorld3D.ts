@@ -1058,6 +1058,12 @@ export class SurfaceWorld3D {
       draw(material, Number(face));
   }
 
+  setBeamOrigin(origin: T.Vector3) {
+    const position = this.beam.geometry.getAttribute("position");
+    position.setXYZ(0, origin.x, origin.y, origin.z);
+    position.needsUpdate = true;
+  }
+
   pointAt(nx: number, ny: number, hitSolid: boolean, pickPreview = false): SurfaceTarget | undefined {
     const frame = this.targetFrame;
     if (!frame) return;
