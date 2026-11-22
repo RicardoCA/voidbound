@@ -19,6 +19,12 @@ export const tileItems: Partial<Record<number, Item>> = {
   11: "rawFuel",
   [STONE_TILE]: "stone",
 };
+const itemTiles = new Map(
+  Object.entries(tileItems).flatMap(([tile, item]) => item ? [[item, Number(tile)] as const] : []),
+);
+export function tileForItem(item: Item) {
+  return itemTiles.get(item);
+}
 export class Terrain {
   private noise;
   private depthNoise;
@@ -125,9 +131,13 @@ export class Terrain {
     return veins[(seed >>> 8) % veins.length]!;
   }
 
-  remove(x: number, y: number, depth = 0) {
-    this.changes[this.keyAt(x, y, depth)] = 0;
+  setAt(x: number, y: number, depth: number, tile: number) {
+    this.changes[this.keyAt(x, y, depth)] = tile;
     this.edits++;
+  }
+
+  remove(x: number, y: number, depth = 0) {
+    this.setAt(x, y, depth, 0);
   }
   get cachedChunks() {
     return this.cache.size;

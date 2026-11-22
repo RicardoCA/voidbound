@@ -118,6 +118,43 @@ describe("Florestas alienígenas", () => {
   });
 });
 describe("Construção e armazenamento transacionais", () => {
+  it("seleciona materiais e construções da mochila e mantém a pistola fixa no slot 1", () => {
+    const { g } = setup();
+    const b = useConstruction();
+    const changes = g.state.changes[g.planet.id]!;
+    Object.assign(changes, { "4,28,-1": 0, "4,29,-1": 2, "5,28,-1": 0, "5,29,-1": 2 });
+    g.state.backpack = { dirt: 2, woodBlock: 1, "photonSaber-red": 1 };
+    b.assignQuickSlot(1, "dirt");
+    b.assignQuickSlot(2, "dirt");
+    b.assignQuickSlot(3, "woodBlock");
+    b.assignQuickSlot(4, "photonSaber-red");
+    expect(migrateSave(g.state).quickSlots).toEqual({
+      2: "dirt", 3: "woodBlock", 4: "photonSaber-red",
+    });
+
+    b.activateQuickSlot(2);
+    expect(b.activeQuickSlot).toBe(2);
+    expect(b.apply(4, 28, -1)).toBe(true);
+    expect(b.apply(4, 28, -1)).toBe(false);
+    expect(changes["4,28,-1"]).toBe(1);
+    expect(g.state.backpack.dirt).toBe(1);
+
+    b.activateQuickSlot(3);
+    expect(b.activeQuickSlot).toBe(3);
+    expect(b.apply(5, 28, -1)).toBe(true);
+    expect(b.settlement.pieces["5,28,-1"]?.kind).toBe("woodBlock");
+    expect(g.state.backpack.woodBlock).toBeUndefined();
+
+    b.activateQuickSlot(4);
+    expect(g.equippedSaber).toBe("photonSaber-red");
+    b.activateQuickSlot(1);
+    expect(b.enabled).toBe(false);
+    expect(g.equippedSaber).toBeUndefined();
+    expect(b.activeQuickSlot).toBe(1);
+    expect(g.mineTerrain(b.terrain, 4, 28, -1)).toBe(true);
+    expect(g.state.backpack.dirt).toBe(2);
+  });
+
   it("guarda terra e ferro separadamente ao minerar na superfície", () => {
     const { g } = setup();
     const terrain = new Terrain(g.planet, g.state.changes[g.planet.id]!);

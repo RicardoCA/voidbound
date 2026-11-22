@@ -2212,11 +2212,12 @@ export class Space3D {
     }
     if (view.pilot) view.pilot.visible = view.world.showPilot;
 
-    const saber = g.equippedSaber;
+    const saber = frame.building ? undefined : g.equippedSaber;
     const firstPerson = !view.world.showPilot;
-    if (firstPerson) {
+    const showHeldTool = firstPerson && (!frame.building || !!frame.heldMaterial);
+    if (showHeldTool) {
       view.heldTool.update(view.world.camera, frame, outfit, !!saber);
-      if (frame.beam && !saber) {
+      if (frame.beam && !saber && !frame.building) {
         view.heldTool.muzzle.getWorldPosition(this.toolPosition);
         view.world.setBeamOrigin(view.world.camera.localToWorld(this.toolPosition));
       }
@@ -2228,7 +2229,7 @@ export class Space3D {
         g.governmentAnchor = anchor;
     }
     this.renderer.render(view.world.scene, view.world.camera);
-    if (firstPerson) view.heldTool.render(this.renderer);
+    if (showHeldTool) view.heldTool.render(this.renderer);
   }
 
   drawSurfaceCinematic(g: Game) {

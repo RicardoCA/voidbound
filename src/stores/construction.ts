@@ -14,7 +14,9 @@ import { COOKING_TIME_MS, cookedMeatRecipe } from "../survival/food";
 import { BACKPACK_SLOTS, useGame } from "./game";
 import type { BuildItem, Inventory, Item } from "../game/types";
 import { items } from "../game/types";
-import { Terrain } from "../game/procedural/terrain";
+import { Terrain, tileForItem } from "../game/procedural/terrain";
+import { consume } from "../inventory/inventory";
+import { isPhotonSaber } from "../universe/stars";
 import {
   treeAt,
   spatialTreeAt,
@@ -33,6 +35,7 @@ import {
   transfer,
   addBatch,
   cabinetCapacity,
+  isBuildItem,
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
@@ -46,12 +49,19 @@ import {
   isWall,
   cabinetWidths,
 } from "../construction/pieces";
+export const quickSlotNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+
+export function canAssignQuickSlot(item: Item) {
+  return isBuildItem(item) || tileForItem(item) !== undefined || isPhotonSaber(item);
+}
+
 export const useConstruction = defineStore("construction", () => {
   const g = useGame(),
     enabled = ref(false),
     removing = ref(false),
     lastError = ref(""),
     selected = ref<BuildItem>("woodBlock"),
+    selectedMaterial = ref<Item>(),
     rotation = ref(0),
     facing = ref<1 | -1>(1),
     climbingColumn = ref<number>(),
@@ -94,8 +104,45 @@ export const useConstruction = defineStore("construction", () => {
       ? settlement.value.cabinets[activeCabinet.value.key]
       : undefined,
   );
-  const selectedCount = computed(() => g.state.backpack[selected.value] ?? 0);
-  const canRotate = computed(() => flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs");
+  const selectedItem = computed(() => selectedMaterial.value ?? selected.value);
+  const selectedCount = computed(() => g.state.backpack[selectedItem.value] ?? 0);
+  const canRotate = computed(() => !selectedMaterial.value && (flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs"));
+  const activeQuickSlot = computed(() => {
+    if (removing.value && enabled.value) return;
+    const item = enabled.value ? selectedItem.value : g.equippedSaber;
+    return item ? quickSlotNumbers.find((slot) => slot > 1 && g.state.quickSlots?.[slot] === item) : 1;
+  });
+  function assignQuickSlot(slot: number, item: Item) {
+    if (!canAssignQuickSlot(item) || !g.state.backpack[item] ||
+        (slot !== 0 && (!Number.isInteger(slot) || slot < 2 || slot > 9))) return;
+    const slots = (g.state.quickSlots ??= {});
+    for (const number of quickSlotNumbers)
+      if (number > 1 && slots[number] === item) delete slots[number];
+    if (slot) slots[slot] = item;
+    void g.save();
+  }
+  function activateQuickSlot(slot: number) {
+    if (g.state.mode !== "surface" || g.panel || g.paused || g.busy || g.inSequence) return;
+    if (slot === 1) {
+      disable();
+      if (g.equippedSaber) g.use(g.equippedSaber, true);
+      return;
+    }
+    if (!Number.isInteger(slot) || slot < 2 || slot > 9) return;
+    const item = g.state.quickSlots?.[slot];
+    if (!item || !canAssignQuickSlot(item)) return;
+    if (!g.state.backpack[item]) {
+      g.notify(`${items[item].name} indisponível na mochila.`);
+      return;
+    }
+    if (isPhotonSaber(item)) {
+      disable();
+      if (g.equippedSaber !== item) g.use(item, true);
+    } else {
+      if (g.equippedSaber) g.use(g.equippedSaber, true);
+      equip(item);
+    }
+  }
   function context(depth?: number) {
     return {
       terrain: terrain.value,
@@ -116,10 +163,13 @@ export const useConstruction = defineStore("construction", () => {
     releaseControls();
     g.panel = "build";
   }
-  function equip(kind: BuildItem) {
+  function equip(kind: Item) {
     if (g.state.mode !== "surface") return;
+    const construction = isBuildItem(kind);
+    if (!construction && tileForItem(kind) === undefined) return;
     lastError.value = "";
-    selected.value = kind;
+    selected.value = construction ? kind : "woodBlock";
+    selectedMaterial.value = construction ? undefined : kind;
     if (kind === "workbench" || isFacility(kind)) rotation.value = 0;
     cursor.value = null;
     enabled.value = true;
@@ -144,7 +194,7 @@ export const useConstruction = defineStore("construction", () => {
   }
   function errorAt(x: number, y: number, depth?: number) {
     const ctx = context(depth),
-      error = placementError(ctx, selected.value, x, y, facing.value);
+      error = placementError(ctx, selected.value, x, y, facing.value, selectedMaterial.value);
     if (error) return error;
     const cells = footprint(selected.value, x, y);
     if (
@@ -186,8 +236,20 @@ export const useConstruction = defineStore("construction", () => {
       }
     } else {
       error = errorAt(x, y, buildDepth);
-      if (!error)
-        error = placePiece(context(buildDepth), selected.value, x, y, facing.value);
+      if (!error) {
+        const material = selectedMaterial.value;
+        const tile = material && tileForItem(material);
+        if (material && tile) {
+          if (!consume(g.state.backpack, { [material]: 1 })) return false;
+          g.state.changes[g.planet.id] ??= {};
+          const target = terrain.value;
+          target.setAt(x, y, depth, tile);
+          const deadlines = g.state.terrainRegrowth?.[g.planet.id];
+          if (deadlines) delete deadlines[target.keyAt(x, y, depth)];
+        } else {
+          error = placePiece(context(buildDepth), selected.value, x, y, facing.value);
+        }
+      }
     }
     if (error) {
       lastError.value = error;
@@ -700,6 +762,11 @@ export const useConstruction = defineStore("construction", () => {
     lastError,
     removing,
     selected,
+    selectedItem,
+    selectedMaterial,
+    activeQuickSlot,
+    assignQuickSlot,
+    activateQuickSlot,
     facing,
     rotation,
     canRotate,

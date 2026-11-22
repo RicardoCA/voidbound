@@ -455,6 +455,13 @@ export class WorldScene extends Phaser.Scene {
         if (e.code === "Escape") this.store.paused = !this.store.paused;
         return;
       }
+      const slot = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+      if (slot && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+          this.store.state.mode === "surface" && !this.store.panel && !this.store.paused) {
+        e.preventDefault();
+        this.building.activateQuickSlot(Number(slot[1]));
+        return;
+      }
       if (
         e.code === "KeyE" &&
         (this.store.state.mode === "docked" ||
@@ -2152,10 +2159,12 @@ export class WorldScene extends Phaser.Scene {
         ruin: g.surfaceRuin,
         representative: this.representativePosition(),
         storm,
+        building: this.building.enabled,
+        heldMaterial: this.building.enabled && !this.building.removing ? this.building.selectedMaterial : undefined,
         wallPlacementFace: this.building.enabled && !this.building.removing &&
           ["woodWall", "metalWall", "stoneWall"].includes(this.building.selected)
           ? this.building.rotation : undefined,
-        cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
+        cursor: cursor ? { ...cursor, valid: this.building.removing || !this.building.errorAt(cursor.x, cursor.y, cursor.depth), kind: this.building.removing || this.building.selectedMaterial ? undefined : this.building.selected, rotation: this.building.rotation, facing: this.building.facing } : undefined,
         beam: this.beam,
         gameTime: g.state.time,
         mining: this.miningBlock,
@@ -3314,7 +3323,10 @@ export class WorldScene extends Phaser.Scene {
     if (this.building.enabled && cursor && !g.panel && !sequence) {
       const sx = Math.round(cursor.x * 16 - this.camX + this.centerX),
         sy = Math.round(cursor.y * 16 - this.camY + this.centerY);
-      if (
+      if (!this.building.removing && this.building.selectedMaterial) {
+        const color = Number.parseInt(items[this.building.selectedMaterial].color.slice(1), 16);
+        f.fillStyle(color, .45).fillRect(sx, sy, 16, 16);
+      } else if (
         !this.building.removing &&
         !this.surfaceArt.prop(this, this.building.selected, sx, sy, 0.45)
       )

@@ -9,6 +9,7 @@ import InventoryTransfer from "./InventoryTransfer.vue";
 import MeatShelfLife from "./MeatShelfLife.vue";
 import ItemIcon from "./ItemIcon.vue";
 import TransferAmount from "./TransferAmount.vue";
+import QuickSlotPicker from "./QuickSlotPicker.vue";
 import { computed, ref } from "vue";
 import { items, type Item } from "../game/types";
 import { foodValue } from "../survival/food";
@@ -16,6 +17,7 @@ import { BACKPACK_SLOTS, useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import { inventoryEntries } from "../inventory/inventory";
 import { isBuildItem } from "../construction/building";
+import { tileForItem } from "../game/procedural/terrain";
 const g = useGame(),
   b = useConstruction();
 const selected = ref<"ship" | "backpack">("ship");
@@ -83,6 +85,8 @@ function actionHint(id: Item) {
     return "Equipe e escolha onde colocar a peça na superfície.";
   if (isPhotonSaber(id))
     return "Use na exploração para cortar árvores, blocos e atacar animais.";
+  if (tileForItem(id) !== undefined && fromBackpack.value)
+    return "Vincule a um slot rápido para colocar este material como bloco na superfície.";
   if (id === "emptyOxygenCartridge")
     return "Abasteça em um gerador de oxigênio ativo.";
   if (id === "oxygenCartridge")
@@ -154,7 +158,11 @@ function actionDisabled(id: Item) {
           use(id);
         }
       "
-    />
+    >
+      <template #actions="{ item, fromLeft }">
+        <QuickSlotPicker v-if="fromLeft" :item="item" />
+      </template>
+    </InventoryTransfer>
     <InventoryBrowser
       v-if="!g.canAccessShipCargo"
       :inventory="source"
@@ -167,6 +175,7 @@ function actionDisabled(id: Item) {
       @use="use"
     >
       <template #actions="{ item }">
+        <QuickSlotPicker v-if="fromBackpack" :item="item" />
         <button
           v-if="g.state.player.autoFeeder && foodValue(item)"
           class="secondary"

@@ -1,6 +1,7 @@
 import * as T from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { clothing, type Outfit } from "../../wardrobe/clothing";
+import { items } from "../types";
 import type { SurfaceFrame } from "./SurfaceWorld3D";
 
 export class SurfaceHeldTool {
@@ -19,6 +20,8 @@ export class SurfaceHeldTool {
   private readonly lens = new T.MeshStandardMaterial({
     color: 0x227e8e, emissive: 0x44e5ff, emissiveIntensity: .65, roughness: .34,
   });
+  private readonly blockMaterial = new T.MeshStandardMaterial({ roughness: .94 });
+  private readonly block = new T.Mesh(this.box, this.blockMaterial);
   private readonly fill = new T.HemisphereLight(0xdaf0ff, 0x556075, 1.5);
 
   constructor() {
@@ -28,7 +31,10 @@ export class SurfaceHeldTool {
     this.scene.add(key);
 
     const hand = new T.Group();
-    this.grip.add(hand, this.pistol);
+    this.grip.add(hand, this.pistol, this.block);
+    this.block.position.set(-.38, .57, -.45);
+    this.block.scale.setScalar(1.93);
+    this.block.rotation.set(.12, .22, -.08);
     this.part(hand, this.box, this.rubber, [.60, -.04, .32], [.85, 1.72, 1.07]).rotation.z = -.13;
     this.part(hand, this.box, this.armor, [.78, .05, .77], [.56, 1.09, .26]).rotation.z = -.12;
     for (let finger = 0; finger < 4; finger++) {
@@ -88,14 +94,18 @@ export class SurfaceHeldTool {
     this.sleeve.color.set(shirt?.color ?? 0x9daeb3);
     this.armor.color.set(shirt?.trim ?? 0x516878);
     this.fill.intensity = .80 + frame.light * .85;
-    this.pistol.visible = !saber;
+    const material = frame.heldMaterial;
+    this.pistol.visible = !saber && !frame.building;
+    this.block.visible = !!material;
+    if (material) this.blockMaterial.color.set(items[material].color);
     this.lens.emissiveIntensity = frame.beam ? 2.2 : .65;
     const step = Math.sin(frame.stride);
     const right = Math.min(7, 8.5 * camera.aspect);
     this.grip.position.set(right + step * .28, -6.55 + (1 - Math.cos(frame.stride * 2)) * .12, -18);
-    this.grip.rotation.set(saber ? -.07 : .25, saber ? -.10 : .28,
-      saber ? (frame.beam ? .70 : .21) : -.12);
-    if (!saber && frame.beam) this.grip.position.z += .35;
+    const raised = saber || !!material;
+    this.grip.rotation.set(raised ? -.07 : .25, raised ? -.10 : .28,
+      raised ? (frame.beam && saber ? .70 : .21) : -.12);
+    if (this.pistol.visible && frame.beam) this.grip.position.z += .35;
   }
 
   render(renderer: T.WebGLRenderer) {
@@ -112,7 +122,7 @@ export class SurfaceHeldTool {
   dispose() {
     this.box.dispose();
     this.cylinder.dispose();
-    for (const material of [this.sleeve, this.armor, this.rubber, this.shell, this.safety, this.lens])
+    for (const material of [this.sleeve, this.armor, this.rubber, this.shell, this.safety, this.lens, this.blockMaterial])
       material.dispose();
   }
 }

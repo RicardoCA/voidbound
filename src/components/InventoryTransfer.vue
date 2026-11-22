@@ -250,6 +250,7 @@ function drop(fromLeft: boolean) {
           >
             {{ useLabel(selection.item) }}
           </button>
+          <slot name="actions" :item="selection.item" :from-left="column.fromLeft" />
         </div>
       </section>
     </div>

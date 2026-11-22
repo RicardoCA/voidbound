@@ -90,6 +90,7 @@ export function placementError(
   x: number,
   y: number,
   facing: 1 | -1 = 1,
+  material?: Item,
 ): string | undefined {
   if (
     !Number.isSafeInteger(x) ||
@@ -114,6 +115,8 @@ export function placementError(
         ? "Abra um vão de 1 × 2 blocos para instalar a porta."
         : "Minere o terreno antes de construir aqui.";
     const key = keyAt(cell.x, cell.y, depth);
+    if (material && (walls?.[key] || settlement.cornerWalls?.[key]))
+      return "Já existe uma parede nesta célula.";
     const occupant = pieceAt(settlement, cell.x, cell.y, depth)?.piece;
     if ((kind === "window" && (walls?.[key] || settlement.cornerWalls?.[key])) ||
         (isWall(kind) && occupant?.kind === "window"))
@@ -207,8 +210,8 @@ export function placementError(
       )
   )
     return "Esta peça precisa de chão firme logo abaixo.";
-  if ((ctx.inventory[kind] ?? 0) < 1)
-    return "Fabrique mais peças de construção.";
+  if ((ctx.inventory[material ?? kind] ?? 0) < 1)
+    return material ? "Material indisponível na mochila." : "Fabrique mais peças de construção.";
   return undefined;
 }
 export function placePiece(

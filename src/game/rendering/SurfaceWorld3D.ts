@@ -8,7 +8,7 @@ import { hash } from "../procedural/random";
 import { TILE, type Terrain } from "../procedural/terrain";
 import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
-import { biomes, type BuildItem, type Settlement } from "../types";
+import { biomes, type BuildItem, type Item, type Settlement } from "../types";
 
 const terrainKits = [
   "rochoso", "desertico", "gelado", "florestal", "vulcanico", "oceanico",
@@ -69,6 +69,8 @@ export interface SurfaceFrame {
   cursor?: Point & { valid: boolean; depth?: number; kind?: BuildItem; rotation?: number; facing?: 1 | -1 };
   chopping?: { id: string; progress: number; saber: boolean };
   mining?: { x: number; y: number; depth: number; progress: number };
+  building?: boolean;
+  heldMaterial?: Item;
   beam?: { x: number; y: number; tx: number; ty: number; depth?: number; tz?: number };
 }
 

@@ -266,6 +266,7 @@ export interface Save {
   };
   inventory: Inventory;
   backpack: Inventory;
+  quickSlots?: Partial<Record<number, Item>>;
   droppedBackpacks?: {
     z?: number;
     planetId: string;
