@@ -33,13 +33,25 @@ function slotLabel(slot: number) {
 
 <style scoped>
 .quick-slot-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  color: #a8bdc7;
+  font-size: 12px;
 }
 
 .quick-slot-picker select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid #38515f;
+  background: #111e2b;
+  color: #deefeb;
+  font: inherit;
+  text-overflow: ellipsis;
 }
 
 @media (pointer: coarse), (max-width: 760px) {

@@ -286,6 +286,7 @@ select {
 }
 .backpack-detail {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 18px;
   min-width: 0;
