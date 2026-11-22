@@ -55,8 +55,9 @@ function slotLabel(slot: number) {
 }
 
 @media (pointer: coarse), (max-width: 760px) {
-  .quick-slot-picker {
-    display: none;
+  .quick-slot-picker select {
+    min-height: 44px;
+    font-size: 16px;
   }
 }
 </style>
