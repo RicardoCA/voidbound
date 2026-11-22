@@ -2,6 +2,7 @@ import { cargoVisitors, ARRIVAL_SECONDS, DEPARTURE_SECONDS } from "../../constru
 import { PlanetScanEffect } from "./PlanetScanEffect";
 import { PLANET_SCAN_SECONDS } from "../../stores/game";
 import { SurfaceWorld3D, type SurfaceFrame } from "./SurfaceWorld3D";
+import { SurfaceHeldTool } from "./SurfaceHeldTool";
 import { showroomBack, showroomBays, showroomPlaque } from "../station/showroom";
 import { emptySettlement } from "../../construction/building";
 import { fruitsNear, Wildlife, type Fruit } from "../../survival/wildlife";
@@ -29,7 +30,7 @@ import { spaceTexture, type SurfaceFinish } from "./spaceMaterials";
 import * as T from "three";
 import type { useGame } from "../../stores/game";
 import { spatialPlanet } from "../../universe/generator";
-import { spatialStar, starClasses, type StarKind } from "../../universe/stars";
+import { spatialStar, starClasses, type PhotonSaber, type StarKind } from "../../universe/stars";
 import { hash, random } from "../procedural/random";
 
 const planetModels = [
@@ -85,8 +86,10 @@ export class Space3D {
     pilotOutfit?: string;
     shipModel?: ShipModelId;
     ship?: T.Group;
-    saber: T.Mesh<T.BoxGeometry, T.MeshBasicMaterial>;
+    saber: T.Group;
+    saberItem?: PhotonSaber;
     saberLight: T.PointLight;
+    heldTool: SurfaceHeldTool;
   };
   private surfaceFlight?: {
     mixer: T.AnimationMixer;
@@ -126,6 +129,36 @@ export class Space3D {
     T.Group,
     { bone: T.Bone; rest: T.Quaternion; phase: number; amplitude: number }[]
   >();
+  private readonly pilotGloves = new WeakMap<T.Group, T.Object3D>();
+  private readonly toolPosition = new T.Vector3();
+  private readonly saberHalo = new T.ShaderMaterial({
+    uniforms: { glowColor: { value: new T.Color() } },
+    vertexShader: `
+      varying vec3 surfaceNormal;
+      varying vec3 toCamera;
+
+      void main() {
+        surfaceNormal = normalMatrix * normal;
+        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+        toCamera = -viewPosition.xyz;
+        gl_Position = projectionMatrix * viewPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 glowColor;
+      varying vec3 surfaceNormal;
+      varying vec3 toCamera;
+
+      void main() {
+        float facing = max(dot(normalize(surfaceNormal), normalize(toCamera)), 0.0);
+        gl_FragColor = vec4(glowColor, 0.33 * facing * facing);
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    blending: T.AdditiveBlending,
+    depthWrite: false,
+  });
   private readonly walkAxis = new T.Vector3(1, 0, 0);
   private readonly walkRotation = new T.Quaternion();
   private cabinScene?: T.Scene;
@@ -1295,6 +1328,13 @@ export class Space3D {
         actor.clear();
         actor.add(model);
         this.playerRigs.set(actor, bones);
+        const forearm = model.getObjectByName("forearmL");
+        if (forearm) {
+          const glove = new T.Object3D();
+          glove.position.set(0, .219, -.014);
+          forearm.add(glove);
+          this.pilotGloves.set(actor, glove);
+        }
       })
       .catch((error: unknown) =>
         console.warn("Modelo do jogador indisponível.", error),
@@ -2049,16 +2089,67 @@ export class Space3D {
     );
   }
 
+  private updateSurfaceSaber(
+    view: NonNullable<Space3D["exploration"]>,
+    item: PhotonSaber | undefined,
+    frame: SurfaceFrame,
+  ) {
+    const { saber, saberLight, heldTool, world } = view;
+    if (item !== view.saberItem) {
+      view.saberItem = item;
+      saber.clear();
+      if (item) {
+        saberLight.color.set(items[item].color);
+        this.saberHalo.uniforms.glowColor!.value.copy(saberLight.color);
+        const variant = item.slice("photonSaber-".length);
+        void this.loadEnvironmentAsset("sabres/" + variant)
+          .then((template) => {
+            if (this.disposed || view.saberItem !== item || saber.children.length) return;
+            const model = template.clone();
+            const blade = model.getObjectByName("Lamina");
+            if (blade instanceof T.Mesh) {
+              const halo = new T.Mesh(blade.geometry, this.saberHalo);
+              halo.scale.set(1.85, 1, 1.85);
+              blade.add(halo);
+            }
+            saber.add(model);
+          })
+          .catch((error: unknown) => console.warn("Modelo do sabre indisponível.", error));
+      }
+    }
+    saber.visible = saberLight.visible = saber.children.length > 0;
+    if (!saber.visible) return;
+
+    const pilot = world.showPilot ? view.pilot : undefined;
+    if (pilot) {
+      if (saber.parent !== world.scene) world.scene.add(saber);
+      const glove = this.pilotGloves.get(pilot);
+      if (glove) glove.getWorldPosition(saber.position);
+      else pilot.localToWorld(saber.position.set(6, 9, -3));
+      saber.quaternion.copy(pilot.quaternion);
+      saber.scale.setScalar(2.9);
+      saber.rotateZ(frame.beam ? .85 : -.34);
+      saberLight.position.set(0, 6, 0).applyQuaternion(saber.quaternion).add(saber.position);
+    } else {
+      if (saber.parent !== heldTool.grip) heldTool.grip.add(saber);
+      saber.position.set(0, 0, 0);
+      saber.quaternion.identity();
+      saber.scale.setScalar(3.25);
+      heldTool.grip.localToWorld(saberLight.position.set(0, 6, 0));
+      world.camera.localToWorld(saberLight.position);
+    }
+  }
+
   drawSurfaceExploration(g: Game) {
     const frame = flight3D.surface;
     if (!frame || frame.terrain.planet.id !== g.planet.id || !this.resize()) return;
     if (!this.exploration) {
       const world = new SurfaceWorld3D((asset) => this.loadEnvironmentAsset(asset));
       const representative = this.dressedPilot();
-      const saber = new T.Mesh(this.box, new T.MeshBasicMaterial());
+      const saber = new T.Group();
       const saberLight = new T.PointLight(0xffffff, 145, 45);
       world.scene.add(representative, saber, saberLight);
-      this.exploration = { world, representative, saber, saberLight };
+      this.exploration = { world, representative, saber, saberLight, heldTool: new SurfaceHeldTool() };
     }
     const view = this.exploration;
     const model = g.state.activeShip.model;
@@ -2121,29 +2212,24 @@ export class Space3D {
     }
     if (view.pilot) view.pilot.visible = view.world.showPilot;
 
-    const saberItem = g.equippedSaber;
-    view.saber.visible = view.saberLight.visible = !!saberItem;
-    if (saberItem) {
-      const camera = view.world.camera;
-      view.saber.material.color.set(items[saberItem].color);
-      view.saberLight.color.copy(view.saber.material.color);
-      view.saber.position.set(7 + Math.sin(frame.stride) * .6, -5, -17)
-        .applyQuaternion(camera.quaternion).add(camera.position);
-      view.saber.scale.set(1.2, 13, 1.2);
-      view.saber.quaternion.copy(camera.quaternion);
-      if (view.world.showPilot && view.pilot) {
-        view.saber.position.set(6, 12, -3).applyEuler(view.pilot.rotation).add(view.pilot.position);
-        view.saber.quaternion.copy(view.pilot.quaternion);
+    const saber = frame.building ? undefined : g.equippedSaber;
+    const firstPerson = !view.world.showPilot;
+    const showHeldTool = firstPerson && (!frame.building || !!frame.heldMaterial);
+    if (showHeldTool) {
+      view.heldTool.update(view.world.camera, frame, outfit, !!saber);
+      if (frame.beam && !saber && !frame.building) {
+        view.heldTool.muzzle.getWorldPosition(this.toolPosition);
+        view.world.setBeamOrigin(view.world.camera.localToWorld(this.toolPosition));
       }
-      view.saber.rotateZ(frame.beam ? .94 : .34);
-      view.saberLight.position.copy(view.saber.position);
     }
+    this.updateSurfaceSaber(view, saber, frame);
     if (frame.representative && g.panel === "government") {
       const anchor = view.world.project(frame.representative.x, frame.representative.y - 14, 2, this.width, this.height);
       if (anchor.x !== g.governmentAnchor.x || anchor.y !== g.governmentAnchor.y)
         g.governmentAnchor = anchor;
     }
     this.renderer.render(view.world.scene, view.world.camera);
+    if (showHeldTool) view.heldTool.render(this.renderer);
   }
 
   drawSurfaceCinematic(g: Game) {
@@ -2883,7 +2969,8 @@ export class Space3D {
       }
     for (const texture of this.textures.values()) texture.dispose();
     this.stationFloor.dispose();
-    this.exploration?.saber.material.dispose();
+    this.saberHalo.dispose();
+    this.exploration?.heldTool.dispose();
     for (const model of this.cargoModels.values()) { model.label.material.map?.dispose(); model.label.material.dispose(); }
     this.cargoModels.clear();
     this.exploration?.world.dispose();

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { flight3D } from "../game/rendering/flight3D";
 import { useGame } from "../stores/game";
+import QuickSlots from "./QuickSlots.vue";
 import {
   controls,
   setTouchSteering,
@@ -104,7 +105,8 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="touch-controls" aria-label="Controles de toque">
+  <div class="touch-controls" :class="{ 'touch-controls--surface': surface }" aria-label="Controles de toque">
+    <QuickSlots v-if="surface" touch />
     <div class="touch-movement">
       <button
         v-if="surface || piloting"
@@ -155,7 +157,7 @@ onBeforeUnmount(() => {
     </div>
     <div
       class="touch-actions"
-      :class="{ 'space-actions': piloting, 'station-actions-only': indoors && !piloting }"
+      :class="{ 'space-actions': piloting, 'surface-actions': surface, 'station-actions-only': indoors && !piloting }"
     >
       <button
         v-if="piloting"

@@ -1762,11 +1762,9 @@ kbd {
     overflow-wrap: anywhere;
   }
 
-  /* Habitat and interaction hints change as the player crosses the surface. */
+  /* Reserve room for changing hints and let longer habitat reports expand. */
   .desktop-docks .surface-info {
-    block-size: 88px;
-    overflow: auto;
-    scrollbar-gutter: stable;
+    min-block-size: 88px;
   }
 
   .desktop-docks .target-label {

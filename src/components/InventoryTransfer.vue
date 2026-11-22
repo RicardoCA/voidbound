@@ -250,6 +250,7 @@ function drop(fromLeft: boolean) {
           >
             {{ useLabel(selection.item) }}
           </button>
+          <slot name="actions" :item="selection.item" :from-left="column.fromLeft" />
         </div>
       </section>
     </div>
@@ -386,6 +387,7 @@ function drop(fromLeft: boolean) {
 }
 .transfer-selected {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
   border-top: 1px solid #38515f;
   margin-top: 10px;

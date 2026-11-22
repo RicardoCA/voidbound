@@ -25,9 +25,9 @@ const error = computed(
       aria-label="Escolher peça de construção"
       @click="b.openPalette"
     >
-      <ItemIcon :item="b.selected" />
+      <ItemIcon :item="b.selectedItem" />
       <div>
-        <b>{{ items[b.selected].name }}</b
+        <b>{{ items[b.selectedItem].name }}</b
         ><small>{{
           b.removing
             ? "Toque na peça para desmontar"

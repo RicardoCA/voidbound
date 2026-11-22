@@ -16,6 +16,7 @@ import TouchControls from "../components/TouchControls.vue";
 import BuildPanel from "../components/BuildPanel.vue";
 import HabitatStatus from "../components/HabitatStatus.vue";
 import BuildToolbar from "../components/BuildToolbar.vue";
+import QuickSlots from "../components/QuickSlots.vue";
 import FacilityPanel from "../components/FacilityPanel.vue";
 import StoragePanel from "../components/StoragePanel.vue";
 import { useConstruction } from "../stores/construction";
@@ -677,6 +678,7 @@ function minutes() {
             >
             <div class="speed-ticks">▏▏▏▏▏▏▏▏▏▏▏▏▏▏▏</div>
           </div>
+          <QuickSlots v-if="surface && !g.inSequence" />
           <nav v-if="piloting" aria-label="Controles da cabine">
             <button @click="g.standInFlight">Levantar</button>
             <button @click="open('route')">Traçar rota</button>
