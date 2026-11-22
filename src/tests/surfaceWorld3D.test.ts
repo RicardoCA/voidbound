@@ -20,6 +20,41 @@ afterEach(() => vi.restoreAllMocks());
 
 const planet = systemAt("VOIDBOUND", 0, 0).planets[0]!;
 
+it("oculta uma peça atrás de parede opaca e volta a desenhá-la pela abertura", () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const world = new SurfaceWorld3D();
+  const settlement = emptySettlement();
+  const wall = "0,9,-1";
+  settlement.depthWalls = { [wall]: true };
+  settlement.pieces["0,9,-3"] = { kind: "campfire", facing: 1 };
+  const frame: SurfaceFrame = {
+    terrain: new Terrain(planet, {}), settlement,
+    camera: { x: 8, y: 159.5, z: 0, yaw: 0, pitch: 0 },
+    revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+    animals: [], fruit: [], drops: [],
+  };
+  try {
+    world.update(frame, 960, 540);
+    const campfire = world.scene.children.find((node) => node.userData.cell?.depth === -3);
+    expect(campfire?.visible).toBe(false);
+    expect(world.pointAt(0, 0, true)?.wallFace).toBe(0);
+
+    frame.camera.x = 36;
+    frame.camera.yaw = Math.atan2(28, 44);
+    world.update(frame, 960, 540);
+    expect(campfire?.visible).toBe(true);
+
+    frame.camera.x = 8;
+    frame.camera.yaw = 0;
+    delete settlement.depthWalls[wall];
+    settlement.pieces[wall] = { kind: "window", facing: 1, rotation: 0 };
+    world.update(frame, 960, 540);
+    expect(campfire?.visible).toBe(true);
+  } finally {
+    world.dispose();
+  }
+});
+
 it.each([
   [960, 540],
   [390, 760],

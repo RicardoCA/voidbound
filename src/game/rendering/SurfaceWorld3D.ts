@@ -9,6 +9,7 @@ import { TILE, type Terrain } from "../procedural/terrain";
 import { spatialTreesNear, treesInRange } from "../procedural/trees";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Item, type Settlement } from "../types";
+import { behindSurfaceOccluder, type SurfaceOccluder } from "./surfaceOcclusion";
 
 const terrainKits = [
   "rochoso", "desertico", "gelado", "florestal", "vulcanico", "oceanico",
@@ -85,6 +86,10 @@ export class SurfaceWorld3D {
   showPilot = false;
   private readonly colors = new Map<number, T.MeshStandardMaterial>();
   private readonly meshes = new Map<string, T.Group>();
+  private readonly opaqueSurfaces = new WeakMap<T.Group, SurfaceOccluder[]>();
+  private readonly pieceBounds = new WeakMap<T.Group, T.Box3>();
+  private readonly pieceFrustum = new T.Frustum();
+  private readonly viewProjection = new T.Matrix4();
   private readonly fallingTrees = new Map<string, { start: number; dx: number; dz: number }>();
   private readonly ground = new T.Group();
   private readonly box = new T.BoxGeometry();
@@ -234,6 +239,9 @@ export class SurfaceWorld3D {
         );
         group.clear();
         group.add(model);
+        let root = group;
+        while (root.parent instanceof T.Group) root = root.parent;
+        this.pieceBounds.delete(root);
       })
       .catch((error: unknown) =>
         console.warn("Modelo da superfície indisponível.", file, error),
@@ -652,11 +660,13 @@ export class SurfaceWorld3D {
       if (x < left - 3 || x > right || y < top || y > bottom ||
           Math.abs(depth * TILE - z) > 224) continue;
       const size = pieceWidth(piece.kind);
-      put(
+      const group = put(
         `piece:${key}:${piece.kind}:${piece.open}:${piece.facing}:${piece.powered}:${piece.rotation}:${piece.emergencyActive}`,
         (x + size / 2) * TILE, (y + 1) * TILE, depth * TILE,
         () => this.orientedPiece(piece.kind, !!piece.open, piece.facing, !!piece.powered, piece.rotation, !!piece.emergencyActive),
-      ).userData.cell = { x, y, depth };
+      );
+      group.userData.cell = { x, y, depth };
+      if (piece.kind === "woodBlock") this.markOpaqueBlock(group, x, y, depth);
     }
     const trees = [
       ...(Math.abs(z) < 230 ? treesInRange(planet, terrain, left, right, settlement.cutTrees) : []),
@@ -853,8 +863,11 @@ export class SurfaceWorld3D {
           Math.abs(depth * TILE - z) > 224) continue;
       const wall = settlement.depthWalls?.[key];
       if (wall) this.putWall(put, settlement, key, wall, tx, ty, depth);
-      else put("depthBlock:" + key + ":" + kind, (tx + 0.5) * TILE,
-        (ty + 1) * TILE, depth * TILE, () => this.orientedPiece("woodBlock", false, 1, false));
+      else {
+        const group = put("depthBlock:" + key + ":" + kind, (tx + 0.5) * TILE,
+          (ty + 1) * TILE, depth * TILE, () => this.orientedPiece("woodBlock", false, 1, false));
+        this.markOpaqueBlock(group, tx, ty, depth);
+      }
     }
     for (const [key, group] of this.meshes)
       if (!seen.has(key)) {
@@ -880,6 +893,7 @@ export class SurfaceWorld3D {
         this.meshes.delete(key);
         this.fallingTrees.delete(key);
       }
+    this.cullConstructionPieces();
     this.cursor.visible = !!frame.cursor;
     if (frame.cursor) {
       this.cursor.position.set(
@@ -1051,13 +1065,62 @@ export class SurfaceWorld3D {
     settlement: Settlement, key: string, wall: Settlement["walls"][string],
     x: number, y: number, depth: number,
   ) {
-    const draw = (material: typeof wall, rotation?: number) => put(
-      `wall:${key}:${material}:${rotation}`, (x + 0.5) * TILE, (y + 1) * TILE, depth * TILE,
-      () => this.orientedPiece(material === true ? "woodWall" : material, false, 1, false, rotation),
-    ).userData.cell = { x, y, depth, wall: true, rotation };
+    const draw = (material: typeof wall, rotation?: number) => {
+      const group = put(
+        `wall:${key}:${material}:${rotation}`, (x + 0.5) * TILE, (y + 1) * TILE, depth * TILE,
+        () => this.orientedPiece(material === true ? "woodWall" : material, false, 1, false, rotation),
+      );
+      group.userData.cell = { x, y, depth, wall: true, rotation };
+      if (this.opaqueSurfaces.has(group)) return;
+      const face = rotation ?? 0;
+      const axis = face % 2 === 0 ? "z" : "x";
+      const center = new T.Vector3((x + .5) * TILE, -(y + .5) * TILE, depth * TILE);
+      center[axis] += face < 2 ? surfaceWallZ : -surfaceWallZ;
+      this.opaqueSurfaces.set(group, [{
+        axis, center, halfThickness: 2, halfWidth: 7.85, halfHeight: 7.85,
+      }]);
+    };
     draw(wall, settlement.wallRotations?.[key]);
     for (const [face, material] of Object.entries(settlement.cornerWalls?.[key] ?? {}))
       draw(material, Number(face));
+  }
+
+  private markOpaqueBlock(group: T.Group, x: number, y: number, depth: number) {
+    if (this.opaqueSurfaces.has(group)) return;
+    const center = new T.Vector3((x + .5) * TILE, -(y + .5) * TILE, depth * TILE);
+    const axes = ["x", "y", "z"] as const;
+    this.opaqueSurfaces.set(group, axes.map(axis => ({
+      axis, center, halfThickness: 8.2, halfWidth: 7.85, halfHeight: 7.85,
+    })));
+  }
+
+  private cullConstructionPieces() {
+    const eye = this.camera.position;
+    const occluders: SurfaceOccluder[] = [];
+    for (const group of this.meshes.values()) {
+      const surfaces = this.opaqueSurfaces.get(group);
+      if (surfaces && surfaces[0]!.center.distanceToSquared(eye) < 128 ** 2)
+        occluders.push(...surfaces);
+    }
+    // One nearby opaque face must cover the complete bounds. Limit the
+    // search in large bases to avoid trading draw calls for excess CPU work.
+    if (occluders.length > 32) {
+      occluders.sort((a, b) => a.center.distanceToSquared(eye) - b.center.distanceToSquared(eye));
+      occluders.length = 32;
+    }
+    this.pieceFrustum.setFromProjectionMatrix(
+      this.viewProjection.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse),
+    );
+    for (const [key, group] of this.meshes) {
+      if (!key.startsWith("piece:") || this.opaqueSurfaces.has(group)) continue;
+      let bounds = this.pieceBounds.get(group);
+      if (!bounds) {
+        bounds = new T.Box3().setFromObject(group);
+        this.pieceBounds.set(group, bounds);
+      }
+      group.visible = this.pieceFrustum.intersectsBox(bounds) &&
+        !occluders.some(wall => behindSurfaceOccluder(eye, bounds, wall));
+    }
   }
 
   setBeamOrigin(origin: T.Vector3) {
