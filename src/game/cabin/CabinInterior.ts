@@ -27,7 +27,7 @@ export const cabinEquipment = {
     x: -145,
     y: 34,
     label: "Recuperação solar",
-    action: "Recuperação solar (+60 s)",
+    action: "Recuperar oxigênio da nave",
     color: 0xd8ba70,
   },
   inventory: {

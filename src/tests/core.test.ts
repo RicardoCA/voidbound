@@ -154,14 +154,21 @@ describe("Progressão e salvamento", () => {
     expect(g.state.inventory.engine).toBe(1);
     expect(g.jumpRange).toBe(4);
   });
-  it("recuperação solar evita bloqueio de combustível", () => {
+  it("recupera apenas o oxigênio da nave sem avançar o relógio", () => {
     const g = useGame();
     g.newGame("s");
     g.state.mode = "interior";
     g.state.ship.fuel = 0;
+    g.state.ship.oxygen = 92;
+    g.state.time = 120;
+    const playerOxygen = g.state.player.oxygen;
     g.recover();
-    expect(g.state.ship.fuel).toBe(5);
-    expect(g.state.time).toBe(60);
+    expect(g.state.ship.oxygen).toBe(97);
+    g.recover();
+    expect(g.state.ship.oxygen).toBe(100);
+    expect(g.state.ship.fuel).toBe(0);
+    expect(g.state.player.oxygen).toBe(playerOxygen);
+    expect(g.state.time).toBe(120);
   });
   it("mantém progresso e modificações após fechar e reabrir IndexedDB", async () => {
     const name = `test-${Date.now()}`,

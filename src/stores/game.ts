@@ -1140,7 +1140,7 @@ export const useGame = defineStore("game", () => {
     }
     if (state.value.ship.fuel < 5) {
       notify(
-        "Combustível insuficiente. Use a refinaria ou a recuperação solar.",
+        "Combustível insuficiente. Use a refinaria.",
       );
       return false;
     }
@@ -1663,12 +1663,14 @@ export const useGame = defineStore("game", () => {
       notify("A recuperação solar funciona com a nave pousada.");
       return;
     }
-    state.value.ship.fuel = Math.min(maxFuel.value, state.value.ship.fuel + 5);
-    state.value.ship.oxygen = Math.min(100, state.value.ship.oxygen + 5);
-    state.value.time += 60;
-    advancePilotTrips(state.value);
-    refreshFood();
-    notify("60 s de recuperação solar: +5 combustível e oxigênio.");
+    const ship = state.value.ship;
+    const oxygen = Math.min(5, 100 - ship.oxygen);
+    if (oxygen <= 0) {
+      notify("O oxigênio da nave já está cheio.");
+      return;
+    }
+    ship.oxygen += oxygen;
+    notify("Recuperação solar concluída. Oxigênio da nave reabastecido.");
     void save();
   }
   function refreshHabitat() {

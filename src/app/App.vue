@@ -989,7 +989,7 @@ function minutes() {
             Repare o casco até pelo menos 70% antes de decolar.
           </p>
           <p v-else-if="g.state.ship.fuel < 5" class="warning">
-            Combustível insuficiente. Use a refinaria ou a recuperação solar.
+            Combustível insuficiente. Use a refinaria.
           </p>
           <div class="station-actions">
             <button
