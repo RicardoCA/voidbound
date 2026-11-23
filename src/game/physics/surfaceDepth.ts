@@ -35,6 +35,7 @@ export function solidSurfaceVoxel(
     piece?.kind === "woodBlock" ||
     piece?.kind === "cropRoof" ||
     piece?.kind === "workbench" ||
+    piece?.kind === "infirmary" ||
     (!!piece && isFacility(piece.kind)) ||
     (piece?.kind === "window" && piece.rotation === undefined) ||
     (!!piece && !piece.open && (piece.kind === "woodHatch" ||

@@ -153,7 +153,7 @@ export function hasPlanetaryOxygenGenerator(data?: Settlement) {
 }
 
 export interface PowerNetwork {
-  elevatorPanels: { x: number; y: number; depth: number }[];
+  exposedPanelPositions: { x: number; y: number; depth: number }[];
   facilities: { key: string; exposed: boolean; batteries: string[]; panels: string[] }[];
   facilityPlanet?: import("../game/types").Planet;
   planetary: { key: string; battery?: string; panels: number }[];
@@ -288,7 +288,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       };
     });
   return {
-    elevatorPanels: exposed, facilities, facilityPlanet: terrain.planet,
+    exposedPanelPositions: exposed, facilities, facilityPlanet: terrain.planet,
     planetary,
     generators,
     batteries,
@@ -298,6 +298,38 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
     exposedPanels,
   };
 }
+type PowerPosition = { x: number; y: number; depth: number };
+export function connectedPowerSources(terrain: Terrain, data: Settlement, stops: readonly PowerPosition[]) {
+  const network = powerNetwork(terrain, data);
+  const near = ({ x, y, depth }: PowerPosition) =>
+    stops.some(stop => Math.hypot(stop.x - x, stop.y - y, stop.depth - depth) <= POWER_RANGE);
+  const panels = network.exposedPanelPositions.filter(near).length;
+  const batteries = network.batteries.filter(near).map(({ key }) => ({
+    key, charge: Math.max(0, data.pieces[key]?.energy ?? 0),
+  }));
+  return {
+    panels,
+    batteries,
+    capacity: batteries.length * BATTERY_CAP,
+    charge: batteries.reduce((total, battery) => total + battery.charge, 0),
+  };
+}
+
+export function spendBatteryCharge(
+  data: Settlement,
+  sources: Pick<ReturnType<typeof connectedPowerSources>, "batteries" | "charge">,
+  demand: number,
+) {
+  if (sources.charge < demand) return false;
+  for (const battery of sources.batteries) {
+    if (!demand) break;
+    const used = Math.min(demand, battery.charge);
+    data.pieces[battery.key]!.energy = battery.charge - used;
+    demand -= used;
+  }
+  return true;
+}
+
 /** Each battery and panel has a single consumer, so power is never duplicated. */
 export function advancePowerNetwork(
   data: Settlement,

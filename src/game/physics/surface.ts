@@ -13,8 +13,9 @@ export function solidCell(
   x: number,
   y: number,
 ) {
+  const piece = pieceAt(settlement, x, y)?.piece;
   return isSolidTile(terrain.get(x, y)) || blocksAir(settlement, x, y) ||
-    blocksFence(pieceAt(settlement, x, y)?.piece);
+    piece?.kind === "infirmary" || blocksFence(piece);
 }
 export function stairFloor(settlement: Settlement, x: number, tileY: number) {
   const tx = Math.floor(x / 16),

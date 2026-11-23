@@ -708,7 +708,7 @@ kbd {
 .narrow {
   width: 460px;
 }
-.elevator-power {
+.construction-status {
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -717,11 +717,11 @@ kbd {
   background: #0c1925;
   font-size: 12px;
 }
-.elevator-power dt {
+.construction-status dt {
   color: var(--mint);
   font-weight: 600;
 }
-.elevator-power dd {
+.construction-status dd {
   margin: 4px 0 0;
   color: #a8bdc7;
 }

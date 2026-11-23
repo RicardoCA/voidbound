@@ -15,7 +15,7 @@ export function isDoor(kind: BuildItem | undefined) {
   return kind === "woodDoor" || kind === "airlockDoor";
 }
 export function pieceWidth(kind: BuildItem) {
-  return isFacility(kind) || kind === "workbench" ? 2 : isCabinet(kind) ? cabinetWidths[kind] : 1;
+  return isFacility(kind) || kind === "workbench" || kind === "infirmary" ? 2 : isCabinet(kind) ? cabinetWidths[kind] : 1;
 }
 export function footprint(kind: BuildItem, x: number, y: number) {
   if (isFacility(kind)) return [0, 1].flatMap(offset => [{ x: x + offset, y }, { x: x + offset, y: y - 1 }]);

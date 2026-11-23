@@ -235,6 +235,13 @@ export function drawPiece(
     }
     return;
   }
+  if (kind === "infirmary") {
+    g.fillStyle(0x456577, alpha).fillRect(x + 1, y + 9, 30, 7);
+    g.fillStyle(0xb9dcdb, alpha).fillRoundedRect(x + 2, y + 3, 28, 10, 3);
+    g.fillStyle(0x6fc5c1, alpha).fillRect(x + 16, y + 3, 10, 4);
+    g.fillStyle(0xc95e6b, alpha).fillRect(x + 7, y + 7, 7, 2).fillRect(x + 9, y + 5, 3, 6);
+    return;
+  }
   if (kind === "workbench") {
     g.fillStyle(0x946846, alpha).fillRect(x, y + 3, 32, 3);
     g.fillStyle(0x445e6d, alpha).fillRect(x + 2, y + 6, 3, 10).fillRect(x + 27, y + 6, 3, 10).fillRect(x + 2, y + 12, 28, 2);

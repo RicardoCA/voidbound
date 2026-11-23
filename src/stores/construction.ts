@@ -1,3 +1,4 @@
+import { infirmaryInReach, infirmaryPower, treatAtInfirmary } from "../construction/infirmary";
 import { elevatorDeck, elevatorPowerSources, elevatorStop, elevatorStops, powerElevator } from "../construction/elevator";
 import { systemAt } from "../universe/generator";
 import { cargoVisitors, visitorInReach, purchaseVisitor, setSaleItem, respondRequest } from "../construction/planetCommerce";
@@ -108,7 +109,7 @@ export const useConstruction = defineStore("construction", () => {
   const selectedItem = computed(() => selectedMaterial.value ?? selected.value);
   const bucketEquipped = computed(() => holdingBucket.value && (g.state.backpack.bucket ?? 0) > 0 && !g.equippedSaber);
   const selectedCount = computed(() => g.state.backpack[selectedItem.value] ?? 0);
-  const canRotate = computed(() => !selectedMaterial.value && (flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs"));
+  const canRotate = computed(() => !selectedMaterial.value && (flight3D.surfaceView ? !isFacility(selected.value) && selected.value !== "woodBlock" && selected.value !== "workbench" && selected.value !== "infirmary" && (!isCabinet(selected.value) || cabinetWidths[selected.value] === 1) : selected.value === "woodStairs"));
   const activeQuickSlot = computed(() => {
     if (removing.value && enabled.value) return;
     const item = enabled.value ? selectedItem.value : bucketEquipped.value ? "bucket" : g.equippedSaber;
@@ -593,6 +594,29 @@ export const useConstruction = defineStore("construction", () => {
     void g.save();
     return true;
   }
+  const activeInfirmary = ref<{ planetId: string; key: string }>();
+  const infirmary = computed(() => {
+    const active = activeInfirmary.value;
+    if (g.panel !== "infirmary" || !active || active.planetId !== g.planet.id ||
+        !infirmaryInReach(settlement.value, g.state, active.key)) return;
+    const p = g.state.player;
+    const power = infirmaryPower(terrain.value, settlement.value, active.key, g.state.time);
+    const supplies = g.state.backpack.medicalSupplies ?? 0;
+    return { key: active.key, power, supplies, needsTreatment: p.health < 100 || (p.sickness ?? 0) > 0 };
+  });
+  function useInfirmary() {
+    const current = infirmary.value;
+    if (!current) return;
+    g.refreshHabitat();
+    const error = treatAtInfirmary(terrain.value, settlement.value, g.state, current.key);
+    if (error) {
+      g.notify(error);
+      return;
+    }
+    g.notify("Tratamento concluído na Câmara de Enfermaria.");
+    audio.play(520, .1);
+    void g.save();
+  }
   function interactAt(x: number, y: number, depth = 0) {
     const found = pieceAt(settlement.value, x, y, depth);
     if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
@@ -616,6 +640,16 @@ export const useConstruction = defineStore("construction", () => {
     }
     if (found.piece.kind === "workbench") {
       g.openWorkbench(found.key);
+      return true;
+    }
+    if (found.piece.kind === "infirmary") {
+      if (!infirmaryInReach(settlement.value, g.state, found.key)) {
+        g.notify("Aproxime-se da câmara para iniciar o tratamento.");
+        return true;
+      }
+      activeInfirmary.value = { planetId: g.planet.id, key: found.key };
+      releaseControls();
+      g.panel = "infirmary";
       return true;
     }
     if (found.piece.kind === "bed") {
@@ -826,6 +860,7 @@ export const useConstruction = defineStore("construction", () => {
           "stickLadder",
           "campfire",
           "bed",
+          "infirmary",
           "workbench",
           "floodlight",
           "emergencyLight",
@@ -848,6 +883,7 @@ export const useConstruction = defineStore("construction", () => {
       if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
         return { key: id, distance: d };
       if (piece.kind === "modularElevator" && !accessibleElevator(id)) continue;
+      if (piece.kind === "infirmary" && !infirmaryInReach(settlement.value, g.state, id)) continue;
       if (d < distance && (piece.kind !== "stickLadder" || d <= 28)) {
         distance = d;
         key = id;
@@ -979,6 +1015,8 @@ export const useConstruction = defineStore("construction", () => {
     interactAt,
     elevatorDestinations,
     elevatorPower,
+    infirmary,
+    useInfirmary,
     elevatorError,
     rideElevator,
     sleep,

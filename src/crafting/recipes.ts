@@ -121,6 +121,8 @@ export const recipes: Recipe[] = [
     station: "bench",
   },
   { id: "campfire", cost: { wood: 4, iron: 2 }, unlock: 0, station: "bench" },
+  { id: "medicalSupplies", cost: { fiber: 2, carbon: 1, silicon: 1 }, unlock: 0, station: "bench" },
+  { id: "infirmary", cost: { plate: 5, circuit: 2, silicon: 3 }, unlock: 0, station: "bench" },
   { id: "workbench", cost: { stone: 30, wood: 50, iron: 100 }, unlock: 0, station: "bench" },
   { id: "floodlight", cost: { plate: 2, copper: 2, circuit: 1, crystal: 1 }, unlock: 0, station: "bench" },
   { id: "emergencyLight", cost: { plate: 1, circuit: 1, cell: 1 }, unlock: 0, station: "bench" },

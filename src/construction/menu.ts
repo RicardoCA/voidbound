@@ -41,6 +41,7 @@ const categories: Record<BuildItem, Exclude<BuildCategory, "all">> = {
   floodlight: "lighting",
   emergencyLight: "lighting",
   workbench: "production",
+  infirmary: "production",
   campfire: "production",
   planetRefinery: "production",
   climateCollector: "production",
@@ -88,6 +89,7 @@ export const buildDescriptions: Record<BuildItem, string> = {
     "Ocupa 2 blocos de largura e guarda 32 slots. E ou toque abre.",
   cabinetTriple:
     "Ocupa 3 blocos de largura e guarda 48 slots. E ou toque abre.",
+  infirmary: "Instale sobre dois blocos de chão firme. Use E, Int. ou toque para tratar intoxicação e repor até 40 de vida. Cada sessão usa um suprimento médico e requer energia solar ou bateria a até 12 blocos.",
   workbench:
     "Ocupa 2 blocos de largura. Instale sobre chão firme e interaja para fabricar itens usando apenas os materiais da mochila. Não acessa a carga da nave nem os armários.",
   floodlight:

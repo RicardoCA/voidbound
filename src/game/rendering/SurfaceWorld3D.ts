@@ -20,6 +20,7 @@ const surfaceTileOffset = 16;
 
 const equipmentModels = {
   ...Object.fromEntries(Object.entries(facilityDefinitions).map(([id, spec]) => [id, { file: spec.file, width: 29, height: id === "observatory" ? 30 : id === "geoProbe" ? 24 : 23, depth: 14, center: -8 }])) as Record<FacilityKind, { file: string; width: number; height: number; depth: number; center: number }>,
+  infirmary: { file: "camara-enfermaria", width: 30, height: 15.5, depth: 13.5, center: -8 },
   workbench: { file: "bancada-planetaria", width: 30, height: 16, depth: 12, center: -8 },
   planetaryOxygenGenerator: { file: "gerador-oxigenio", width: 15, height: 23, depth: 12, center: -3 },
   campfire: { file: "fogueira", width: 12, height: 10, depth: 12, center: -3 },
@@ -508,6 +509,12 @@ export class SurfaceWorld3D {
     } else if (kind === "woodBlock") {
       block(wood, 0, 8, -8, 16, 16, 16);
       for (const y of [2, 7, 12]) block(trim, 0, y, 0, 15, 0.5, 0.32);
+    } else if (kind === "infirmary") {
+      block(metal, 0, 3, -8, 30, 6, 13);
+      block(0xb9dcdb, 0, 9, -8, 27, 8, 12);
+      block(light, 4, 13, -8, 15, 1, 8);
+      block(0xc95e6b, -8, 9, -1.9, 5, 1, .2);
+      block(0xc95e6b, -8, 9, -1.9, 1, 5, .2);
     } else if (kind === "workbench") {
       block(0x8f6445, 0, 11, -8, 30, 2, 12);
       for (const x of [-12, 12]) for (const z of [-12, -4]) block(metal, x, 5, z, 2, 10, 2);

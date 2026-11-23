@@ -43,6 +43,7 @@ export const buildItems: BuildItem[] = [
   "cabinetDouble",
   "cabinetTriple",
   "workbench",
+  "infirmary",
   "floodlight",
   "emergencyLight",
   "window",
@@ -140,7 +141,7 @@ export function placementError(
       return "Já existe uma peça nesta camada.";
   }
   if (
-    (isFacility(kind) || kind === "workbench" || kind === "woodBlock" || kind === "cropRoof" ||
+    (isFacility(kind) || kind === "workbench" || kind === "infirmary" || kind === "woodBlock" || kind === "cropRoof" ||
       kind === "woodFence" || kind === "window" || isOpening(kind) || (ctx.depth !== undefined && isWall(kind))) &&
     (ctx.depth === undefined || Math.abs(depth * 16 - (ctx.player.surfaceZ ?? 0)) < 12) &&
     overlapsActor(kind, x, y, ctx.player)
@@ -203,6 +204,7 @@ export function placementError(
     (isFacility(kind) || isCabinet(kind) ||
       [
         "workbench",
+        "infirmary",
         "floodlight",
         "campfire",
         "table",

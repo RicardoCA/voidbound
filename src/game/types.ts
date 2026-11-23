@@ -63,6 +63,7 @@ export type Item =
   | "plate"
   | "circuit"
   | "cell"
+  | "medicalSupplies"
   | "repair"
   | "oxygen"
   | "fuel"
@@ -91,6 +92,7 @@ export type Item =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "infirmary"
   | "workbench"
   | "floodlight"
   | "emergencyLight"
@@ -159,6 +161,7 @@ export type BuildItem =
   | "cabinet"
   | "cabinetDouble"
   | "cabinetTriple"
+  | "infirmary"
   | "workbench"
   | "floodlight"
   | "emergencyLight"
@@ -738,6 +741,8 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  medicalSupplies: { name: "Suprimentos médicos", color: "#e2a6ab", icon: "+", rarity: "Comum", stack: 30 },
+  infirmary: { name: "Câmara de Enfermaria", color: "#abe0da", icon: "✚", rarity: "Construção", stack: 10 },
   workbench: { name: "Bancada planetária", color: "#b2c3a4", icon: "⚒", rarity: "Construção", stack: 10 },
   floodlight: { name: "Holofote", color: "#f3e2af", icon: "☼", rarity: "Construção", stack: 99 },
   emergencyLight: { name: "Iluminação de emergência", color: "#87f4ae", icon: "↧", rarity: "Construção", stack: 99 },

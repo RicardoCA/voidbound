@@ -1,4 +1,4 @@
-import { BATTERY_CAP, daylight, POWER_RANGE, SOLAR_RATE, powerNetwork, sunlightBetween } from "./habitat";
+import { connectedPowerSources, daylight, SOLAR_RATE, spendBatteryCharge, sunlightBetween } from "./habitat";
 import { keyAt, pieceAt } from "./pieces";
 import { surfaceWallPenetration } from "../game/physics/surfaceDepth";
 import { TILE, type Terrain } from "../game/procedural/terrain";
@@ -45,19 +45,7 @@ export function elevatorStops(terrain: Terrain, data: Settlement, origin: Elevat
 }
 
 export function elevatorPowerSources(terrain: Terrain, data: Settlement, stops: readonly ElevatorStop[]) {
-  const network = powerNetwork(terrain, data);
-  const near = ({ x, y, depth }: Pick<ElevatorStop, "x" | "y" | "depth">) =>
-    stops.some(stop => Math.hypot(stop.x - x, stop.y - y, stop.depth - depth) <= POWER_RANGE);
-  const panels = network.elevatorPanels.filter(near).length;
-  const batteries = network.batteries.filter(near).map(({ key }) => ({
-    key, charge: Math.max(0, data.pieces[key]?.energy ?? 0),
-  }));
-  return {
-    panels,
-    batteries,
-    capacity: batteries.length * BATTERY_CAP,
-    charge: batteries.reduce((total, battery) => total + battery.charge, 0),
-  };
+  return connectedPowerSources(terrain, data, stops);
 }
 
 export function powerElevator(terrain: Terrain, data: Settlement, stops: readonly ElevatorStop[], time: number, distance: number) {
@@ -70,15 +58,7 @@ export function powerElevator(terrain: Terrain, data: Settlement, stops: readonl
   const demand = Math.max(0, Math.ceil(distance / TILE) - solar);
   if (!demand) return true;
 
-  if (charge < demand) return false;
-  let remaining = demand;
-  for (const battery of batteries) {
-    const used = Math.min(remaining, battery.charge);
-    data.pieces[battery.key]!.energy = battery.charge - used;
-    remaining -= used;
-    if (!remaining) break;
-  }
-  return true;
+  return spendBatteryCharge(data, { batteries, charge }, demand);
 }
 
 export function elevatorFloor(data: Settlement, x: number, z: number, previousFeet: number, feet: number) {

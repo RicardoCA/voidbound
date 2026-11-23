@@ -885,9 +885,39 @@ function minutes() {
             {{ Math.round(g.stationDistance) }} km
           </p>
         </section>
+        <section v-else-if="surface && g.panel === 'infirmary'" class="dialog narrow">
+          <h2>Câmara de Enfermaria</h2>
+          <template v-if="b.infirmary">
+            <p>Trata intoxicação e recupera até 40 de vida por suprimento.</p>
+            <dl class="construction-status" aria-label="Condições do tratamento">
+              <div>
+                <dt>Vida</dt>
+                <dd>{{ Math.ceil(g.state.player.health) }}/100 · {{ g.sicknessRemaining ? "Intoxicação ativa" : "Sem intoxicação" }}</dd>
+              </div>
+              <div>
+                <dt>Suprimentos médicos na mochila</dt>
+                <dd>{{ b.infirmary.supplies }}</dd>
+              </div>
+              <div>
+                <dt>Energia</dt>
+                <dd>{{ b.infirmary.power.solar ? "Placa solar ativa" : b.infirmary.power.available ? "Bateria carregada" : "Energia insuficiente" }}</dd>
+              </div>
+            </dl>
+            <div class="station-actions">
+              <button class="primary"
+                :disabled="!b.infirmary.needsTreatment || !b.infirmary.supplies || !b.infirmary.power.available"
+                @click="b.useInfirmary()">Iniciar tratamento</button>
+              <button class="secondary" @click="g.panel = ''">Fechar</button>
+            </div>
+          </template>
+          <template v-else>
+            <p>Aproxime-se da câmara para iniciar o tratamento.</p>
+            <button class="secondary" @click="g.panel = ''">Fechar</button>
+          </template>
+        </section>
         <section v-else-if="surface && g.panel === 'elevator'" class="dialog narrow">
           <h2>Elevador modular</h2>
-          <dl v-if="b.elevatorPower" class="elevator-power" aria-label="Conexões de energia">
+          <dl v-if="b.elevatorPower" class="construction-status" aria-label="Conexões de energia">
             <div>
               <dt>Placas solares</dt>
               <dd v-if="b.elevatorPower.panels">
