@@ -55,6 +55,7 @@ import {
   FAUNA_RETURN,
   type Fruit,
 } from "../../survival/wildlife";
+import { NightMonsters } from "../../survival/nightMonsters";
 import { drawAnimal, drawFruit } from "../rendering/wildlife";
 import { weatherCeiling } from "../procedural/weather";
 import { shipModels } from "../../fleet/models";
@@ -125,6 +126,7 @@ export class WorldScene extends Phaser.Scene {
   private building!: ReturnType<typeof useConstruction>;
   private treeHits = new Map<string, number>();
   private wildlife = new Wildlife();
+  private monsters = new NightMonsters();
   private fruit: Fruit[] = [];
   private surfaceMouse?: PointerEvent;
   private surfaceTap?: SurfaceTarget;
@@ -947,6 +949,7 @@ export class WorldScene extends Phaser.Scene {
       this.lastPlanet = g.planet.id;
       this.treeHits.clear();
       this.wildlife.animals.clear();
+      this.monsters.reset();
       this.fruit = [];
       s.changes[g.planet.id] ??= {};
       this.terrain = new Terrain(g.planet, s.changes[g.planet.id]!);
@@ -959,6 +962,7 @@ export class WorldScene extends Phaser.Scene {
       }
       this.jumpBuffer.clear();
       this.jumpHeld = false;
+      this.monsters.reset();
       if (s.mode === "surface") {
         this.wildlife.animals.clear();
         this.vy = 0;
@@ -1880,6 +1884,7 @@ export class WorldScene extends Phaser.Scene {
       g.state.time,
       dt,
     );
+    this.monsters.update(t, settlement, p, g.state.time, dt, spatial);
     this.miningBlock = undefined;
     this.choppingTree = undefined;
     const mineButton = takePulse("mine") || controls.mine;
@@ -1898,6 +1903,23 @@ export class WorldScene extends Phaser.Scene {
       this.resetBlockMining();
       if (tap && !this.building.waterPlant(tap.x, tap.y, tap.depth))
         g.collectSurfaceWater(t, tap.x, tap.y, tap.depth);
+      return;
+    }
+    const monsterId = tap && (tap.monsterId ?? (!spatial
+      ? [...this.monsters.actors.values()].find(
+        monster => Math.abs(monster.x - tap.wx) <= 8 && Math.abs(monster.y - tap.wy) <= 15,
+      )?.id : undefined));
+    if (tap && monsterId) {
+      this.resetBlockMining();
+      if (!g.equippedSaber) {
+        g.notify("A ferramenta de mineração não causa dano nos zumbis. Use um sabre fotônico.");
+      } else if (this.mineTime <= 0 && p.energy >= 1 &&
+          this.monsters.strike(monsterId, p, t, settlement, true)) {
+        this.mineTime = .45;
+        p.energy -= 1;
+        this.burst(tap.wx, tap.wy, Number.parseInt(items[g.equippedSaber].color.slice(1), 16));
+        audio.play(225);
+      }
       return;
     }
     if (
@@ -1933,6 +1955,7 @@ export class WorldScene extends Phaser.Scene {
       tap ??
       (!g.equippedSaber && (heldTarget?.terrain || heldTarget?.treeId) ? heldTarget : undefined) ??
       (mouse && mouse.buttons & 1 ? this.surfacePoint(mouse) : undefined);
+    if (aim?.monsterId) return;
     const mobileMine = !aim && mineButton;
     if (!aim?.terrain && !aim?.treeId && flight3D.surfaceView) this.heldMining.reset();
     if (!this.surfaceHold && !(mouse && (mouse.buttons & 1)) && !controls.mine) this.resetBlockMining();
@@ -2170,6 +2193,7 @@ export class WorldScene extends Phaser.Scene {
         facing: this.facing,
         stride: this.surfaceStride,
         animals: [...this.wildlife.animals.values()],
+        monsters: [...this.monsters.actors.values()],
         fruit: this.fruit,
         drops: g.surfaceBackpacks(),
         ruin: g.surfaceRuin,
@@ -3175,6 +3199,15 @@ export class WorldScene extends Phaser.Scene {
         )
       )
         drawFruit(f, fruit, x, y);
+    }
+    for (const monster of this.monsters.actors.values()) {
+      const x = Math.round(monster.x + offsetX);
+      const y = Math.round(monster.y + offsetY);
+      const suit = [0x9a4247, 0xbd8848, 0x774990, 0x496758, 0x6195b1][monster.variant]!;
+      f.fillStyle(0x39434a).fillRect(x - 5, y + 5, 4, 7).fillRect(x + 1, y + 5, 4, 7);
+      f.fillStyle(suit).fillRect(x - 6, y - 5, 12, 12);
+      f.fillStyle(0x859575).fillRect(x - 4, y - 14, 8, 9);
+      f.fillStyle(0xc7ffaf).fillRect(x - 3, y - 11, 2, 2).fillRect(x + 1, y - 11, 2, 2);
     }
     for (const animal of this.wildlife.animals.values()) {
       contactShadow(animal.x, animal.y + 12, animal.hostile ? 23 : 17);
