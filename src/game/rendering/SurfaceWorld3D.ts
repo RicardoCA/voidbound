@@ -11,6 +11,7 @@ import { cropReady, fruitKind } from "../../survival/seedCatalog";
 import { weatherCeiling, type Precipitation } from "../procedural/weather";
 import { biomes, type BuildItem, type Item, type Settlement } from "../types";
 import { behindSurfaceOccluder, type SurfaceOccluder } from "./surfaceOcclusion";
+import type { NightMonster } from "../../survival/nightMonsters";
 
 const terrainKits = [
   "rochoso", "desertico", "gelado", "florestal", "vulcanico", "oceanico",
@@ -46,6 +47,7 @@ export interface SurfaceTarget extends Point {
   terrain?: boolean;
   treeId?: string;
   fruitId?: string;
+  monsterId?: string;
   distance?: number;
 }
 export interface SurfaceFrame {
@@ -62,6 +64,7 @@ export interface SurfaceFrame {
   facing: number;
   stride: number;
   animals: readonly Animal[];
+  monsters?: readonly NightMonster[];
   fruit: readonly Fruit[];
   drops: readonly (Point & { z?: number })[];
   ruin?: Point;
@@ -923,6 +926,29 @@ export class SurfaceWorld3D {
         ? Math.abs(Math.sin(elapsed * 10 + animal.home))
         : 0;
     }
+    for (const monster of frame.monsters ?? []) {
+      if (Math.abs(monster.x - x) > 224 || Math.abs(monster.z - z) > 224) continue;
+      const group = put(`monster:${monster.id}:${monster.variant}`, monster.x,
+        monster.y + 12, monster.z - 8, () => {
+          const actor = new T.Group();
+          const suit = [0x9a4247, 0xbd8848, 0x774990, 0x496758, 0x6195b1][monster.variant]!;
+          this.part(actor, this.box, suit, 0, 15, 0, 8, 9, 5);
+          this.part(actor, this.box, 0x859575, 0, 23, -1, 6, 7, 5);
+          for (const side of [-1, 1]) {
+            this.part(actor, this.box, suit, side * 4.5, 14, -2, 3, 7, 3);
+            this.part(actor, this.box, 0x39434a, side * 2.3, 5, 0, 3, 10, 4);
+          }
+          actor.userData.monsterId = monster.id;
+          this.replaceSurfaceModel(actor, `monstros/zumbi-${monster.variant}`, model => {
+            model.scale.setScalar(13);
+            model.rotation.y = Math.PI;
+            return true;
+          });
+          return actor;
+        });
+      group.rotation.set(monster.chasing ? -.08 : 0, monster.yaw, Math.sin(monster.stride) * .06);
+      group.position.y += Math.abs(Math.sin(monster.stride)) * 1.1;
+    }
     frame.drops
       .filter(
         (drop) =>
@@ -1330,6 +1356,7 @@ export class SurfaceWorld3D {
           y: target?.cell?.y ?? Math.floor(-picked.point.y / TILE),
           depth: target?.cell?.depth ?? target?.dropDepth ?? 0,
           ...(target?.cell?.wall ? { wallFace: target.cell.rotation ?? 0 } : {}),
+          ...(target?.monsterId ? { monsterId: target.monsterId } : {}),
           ...(target?.flora?.falling ? {} : target?.flora),
         };
       }
