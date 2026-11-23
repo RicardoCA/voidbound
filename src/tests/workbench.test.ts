@@ -27,11 +27,17 @@ function fixture() {
   return { g, data, b: useConstruction() };
 }
 describe("bancada planetária", () => {
-  it("é fabricada nas construções com 30 pedras, 50 madeiras e 100 ferros", () => {
+  it("a primeira bancada pode ser fabricada na nave, mas o menu de construção não fabrica", () => {
     const { g } = fixture();
-    g.state.backpack = { stone: 30, wood: 50, iron: 100 };
+    const cost = { stone: 30, wood: 50, iron: 100 };
+    g.state.backpack = { ...cost };
+    g.panel = "build";
     g.make("workbench");
-    expect(g.state.backpack).toEqual({ workbench: 1 });
+    expect(g.state.backpack).toEqual(cost);
+    g.enter();
+    g.state.inventory = { ...cost };
+    g.make("workbench");
+    expect(g.state.inventory).toEqual({ workbench: 1 });
   });
   it("interagir abre a fabricação e consome apenas os recursos da mochila", () => {
     const { g, b } = fixture();
@@ -42,8 +48,10 @@ describe("bancada planetária", () => {
     expect(b.interactAt(6, 28, 3)).toBe(true);
     expect(g.panel).toBe("craft");
     expect(g.atWorkbench).toBe(true);
+    g.state.backpack.wood = 2;
+    g.make("woodBlock");
     g.make("plate");
-    expect(g.state.backpack).toEqual({ iron: 3, plate: 1 });
+    expect(g.state.backpack).toEqual({ iron: 3, plate: 1, woodBlock: 4 });
     expect(g.state.inventory).toEqual({ iron: 99 });
   });
   it("não retira materiais da nave ou do armário para completar a receita", () => {

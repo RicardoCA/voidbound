@@ -50,7 +50,7 @@ describe("instalações planetárias", () => {
     "%s tem receita, interação, colisão e suporte",
     (kind) => {
       const { g, data, terrain } = setup(kind);
-      expect(recipes.find((r) => r.id === kind)?.station).toBe("hand");
+      expect(recipes.find((r) => r.id === kind)?.station).toBe("bench");
       expect(pieceAt(data, 1, 27)?.key).toBe("0,28");
       expect(solidSurfaceVoxel(terrain, data, 1, 27, 0)).toBe(true);
       const b = useConstruction();

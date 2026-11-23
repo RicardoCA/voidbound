@@ -63,6 +63,17 @@ function setup() {
     },
   };
 }
+function atBench(g: ReturnType<typeof useGame>, work: () => void) {
+  const { x, y, surfaceZ = 0 } = g.state.player;
+  const key = [Math.floor(x / 16) - 3, Math.floor(y / 16), Math.round(surfaceZ / 16)].join(",");
+  const { pieces } = settlementFor(g.state, g.planet.id);
+  pieces[key] = { kind: "workbench", facing: 1 };
+  expect(g.openWorkbench(key)).toBe(true);
+  work();
+  g.panel = "";
+  delete pieces[key];
+}
+
 describe("Florestas alienígenas", () => {
   it("reproduz árvores em coordenadas positivas e negativas, variando entre biomas e planetas", () => {
     const p = systemAt("forest", 0, 0).planets[0]!,
@@ -135,9 +146,11 @@ describe("Construção e armazenamento transacionais", () => {
       terrain.setAt(x, 29, -1, 1);
     }
     g.state.backpack = { wood: 6, iron: 1, silicon: 1 };
-    g.make("woodFence");
-    g.make("fenceGate");
-    g.make("cropRoof");
+    atBench(g, () => {
+      g.make("woodFence");
+      g.make("fenceGate");
+      g.make("cropRoof");
+    });
     expect(g.state.backpack).toEqual({ woodFence: 4, fenceGate: 1, cropRoof: 4 });
     b.equip("woodFence");
     expect(b.apply(4, 28, -1)).toBe(true);
@@ -281,7 +294,9 @@ describe("Construção e armazenamento transacionais", () => {
     expect(g.mineTerrain(terrain, 2, 29)).toBe(true);
     expect(g.mineTerrain(terrain, 3, 29)).toBe(true);
     expect(g.mineTerrain(terrain, 4, 29)).toBe(true);
-    g.make("woodBlock");
+    atBench(g, () => {
+      g.make("woodBlock");
+    });
     expect(g.state.quickSlots).toEqual({ 2: "dirt", 3: "wood", 4: "iron", 5: "woodBlock" });
     expect(b.activeQuickSlot).toBe(1);
 
@@ -366,7 +381,9 @@ describe("Construção e armazenamento transacionais", () => {
     const other = new Terrain({ ...g.planet, kind: 1 }, {});
     expect(other.chunk(0).includes(STONE_TILE)).toBe(false);
     g.state.backpack.silicon = 3;
-    g.make("stoneWall");
+    atBench(g, () => {
+      g.make("stoneWall");
+    });
     expect(g.state.backpack).toEqual({ silicon: 3 });
     const deposits = [];
     for (let x = -8; x <= 8; x++)
@@ -377,7 +394,9 @@ describe("Construção e armazenamento transacionais", () => {
       expect(g.mineTerrain(terrain, x, y)).toBe(true);
       expect(g.mineTerrain(terrain, x, y)).toBe(false);
     }
-    g.make("stoneWall");
+    atBench(g, () => {
+      g.make("stoneWall");
+    });
     expect(g.state.backpack).toEqual({ silicon: 3, stoneWall: 4 });
     const restored = migrateSave(g.state);
     const terrainAfterSave = new Terrain(
@@ -387,10 +406,12 @@ describe("Construção e armazenamento transacionais", () => {
     for (const { x, y } of deposits.slice(0, 3))
       expect(terrainAfterSave.get(x, y)).toBe(0);
   });
-  it("fabrica lotes de peças à mão com custo exato", () => {
+  it("fabrica lotes de peças na bancada com custo exato", () => {
     const { g } = setup();
     g.state.backpack = { wood: 7, iron: 2 };
-    g.make("woodBlock");
+    atBench(g, () => {
+      g.make("woodBlock");
+    });
     expect(g.state.backpack).toEqual({ wood: 5, iron: 2, woodBlock: 4 });
     const inv = { wood: 1 };
     expect(
@@ -456,7 +477,7 @@ describe("Construção e armazenamento transacionais", () => {
       const { ctx, g, data } = setup();
       const b = useConstruction();
       Object.assign(g.state.backpack, { wood: width * 6, iron: width * 2 });
-      g.make(kind);
+      atBench(g, () => g.make(kind));
       expect(g.state.backpack).toEqual({ [kind]: 1 });
       expect(placePiece(ctx, kind, 4, 28)).toBeUndefined();
       const edge = 4 + width - 1;
@@ -498,9 +519,11 @@ describe("Construção e armazenamento transacionais", () => {
     g.state.player.x = 72;
     g.state.player.y = 452;
     Object.assign(g.state.backpack, { wood: 3, iron: 1, woodBlock: 1 });
-    g.make("stickLadder");
-    g.make("stickLadder");
-    g.make("woodHatch");
+    atBench(g, () => {
+      g.make("stickLadder");
+      g.make("stickLadder");
+      g.make("woodHatch");
+    });
     expect(placePiece(ctx, "stickLadder", 4, 28)).toBeUndefined();
     expect(placePiece(ctx, "stickLadder", 4, 27)).toBeUndefined();
     expect(placePiece(ctx, "woodHatch", 4, 26)).toBeUndefined();

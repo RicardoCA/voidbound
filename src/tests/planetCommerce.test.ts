@@ -290,20 +290,17 @@ describe("entreposto e comunicações", () => {
     );
     expect(error).toContain("cargueiro");
     expect(data.pieces["0,28"]).toBeDefined();
-    const { filterBuildRecipes } = await import("../construction/menu");
+    const { filterBuildItems } = await import("../construction/menu");
     expect(
-      filterBuildRecipes(
+      filterBuildItems(
         {},
         {
           search: "",
           category: "commerce",
           owned: false,
-          ready: false,
           sort: "name",
         },
-      )
-        .map((r) => r.id)
-        .sort(),
+      ).sort(),
     ).toEqual(["communicationsPost", "tradingPost"]);
   });
   it("save/load preserva seleção, depósito, visita e pedidos; save antigo inicia sem comércio", async () => {

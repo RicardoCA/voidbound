@@ -1,3 +1,4 @@
+import { elevatorDeck, elevatorPowerSources, elevatorStop, elevatorStops, powerElevator } from "../construction/elevator";
 import { systemAt } from "../universe/generator";
 import { cargoVisitors, visitorInReach, purchaseVisitor, setSaleItem, respondRequest } from "../construction/planetCommerce";
 import { isFacility } from "../construction/facilityTypes";
@@ -44,7 +45,7 @@ import {
 } from "../construction/building";
 import { releaseControls } from "../game/input";
 import { audio } from "../game/systems/audio";
-import { BATTERY_CAP, powerNetwork } from "../construction/habitat";
+import { BATTERY_CAP, daylight, powerNetwork } from "../construction/habitat";
 import {
   pieceAt,
   footprint,
@@ -531,9 +532,81 @@ export const useConstruction = defineStore("construction", () => {
     g.notify(deliver ? "Suprimentos entregues. Recompensa recebida." : "Pedido aceito. Traga os materiais na mochila.");
     void g.save(); return true;
   }
+  const activeElevator = ref<string>();
+  const elevatorError = ref("");
+  function accessibleElevator(key: string) {
+    const stop = elevatorStop(settlement.value, key);
+    if (!stop || g.state.mode !== "surface" || g.state.player.elevatorRide) return;
+    const p = g.state.player;
+    const distance = Math.hypot(stop.x * 16 + 8 - p.x,
+      elevatorDeck(stop.y) - 12 - p.y, stop.depth * 16 - (p.surfaceZ ?? 0));
+    if (distance <= 24) return stop;
+  }
+  const elevatorRoute = computed(() => {
+    const origin = activeElevator.value && accessibleElevator(activeElevator.value);
+    if (!origin) return;
+    return { origin, stops: elevatorStops(terrain.value, settlement.value, origin) };
+  });
+  const elevatorDestinations = computed(() => {
+    const route = elevatorRoute.value;
+    return route?.stops.map(stop => ({
+      key: stop.key,
+      blocks: route.origin.y - stop.y,
+    })) ?? [];
+  });
+  const elevatorPower = computed(() => {
+    const route = elevatorRoute.value;
+    if (!route) return;
+    const sources = elevatorPowerSources(terrain.value, settlement.value, [route.origin, ...route.stops]);
+    return {
+      panels: sources.panels,
+      sunlight: daylight(g.state.time) > 0,
+      batteries: sources.batteries.length,
+      capacity: sources.capacity,
+      charge: sources.charge,
+    };
+  });
+  function rideElevator(key: string) {
+    const route = elevatorRoute.value;
+    if (!route) return false;
+    const { origin, stops } = route;
+    const target = stops.find(stop => stop.key === key);
+    if (!target) {
+      elevatorError.value = "O caminho até esta parada está obstruído.";
+      return false;
+    }
+    g.refreshHabitat();
+    if (!powerElevator(terrain.value, settlement.value, [origin, ...stops], g.state.time,
+      Math.abs(origin.y - target.y) * 16)) {
+      elevatorError.value = "Elevador sem energia. Conecte uma placa solar exposta ou carregue a bateria.";
+      return false;
+    }
+    const p = g.state.player;
+    p.x = origin.x * 16 + 8;
+    p.y = elevatorDeck(origin.y) - 12;
+    p.surfaceZ = origin.depth * 16;
+    p.elevatorRide = { planetId: g.planet.id, origin: origin.key, destination: target.key };
+    climbingColumn.value = undefined;
+    activeElevator.value = undefined;
+    releaseControls();
+    g.panel = "";
+    void g.save();
+    return true;
+  }
   function interactAt(x: number, y: number, depth = 0) {
     const found = pieceAt(settlement.value, x, y, depth);
     if (!found || Math.abs(depth * 16 - (g.state.player.surfaceZ ?? 0)) > 24) return false;
+    if (found.piece.kind === "modularElevator") {
+      if (!accessibleElevator(found.key)) {
+        g.notify("Aproxime-se da plataforma para usar o elevador.");
+        return true;
+      }
+      activeElevator.value = found.key;
+      elevatorError.value = "";
+      releaseControls();
+      g.panel = "elevator";
+      return true;
+    }
     if (isFacility(found.piece.kind)) {
       if (g.state.mode !== "surface" || !facilityInReach(g.state, g.planet.id, found.key)) return false;
       activeFacility.value = { planetId: g.planet.id, key: found.key };
@@ -749,6 +822,7 @@ export const useConstruction = defineStore("construction", () => {
           "woodDoor",
           "woodHatch",
           "fenceGate",
+          "modularElevator",
           "stickLadder",
           "campfire",
           "bed",
@@ -773,6 +847,7 @@ export const useConstruction = defineStore("construction", () => {
         );
       if (piece.kind === "woodHatch" && climbingColumn.value === x && d < 32)
         return { key: id, distance: d };
+      if (piece.kind === "modularElevator" && !accessibleElevator(id)) continue;
       if (d < distance && (piece.kind !== "stickLadder" || d <= 28)) {
         distance = d;
         key = id;
@@ -902,6 +977,10 @@ export const useConstruction = defineStore("construction", () => {
     nearestInteraction,
     toggleDoor,
     interactAt,
+    elevatorDestinations,
+    elevatorPower,
+    elevatorError,
+    rideElevator,
     sleep,
     cookMeat,
     cookingElapsed,

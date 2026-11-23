@@ -58,6 +58,17 @@ function fixture() {
   data.cutTrees = ["tree:0"];
   return { g, data, terrain };
 }
+function atBench(g: ReturnType<typeof useGame>, work: () => void) {
+  const { x, y, surfaceZ = 0 } = g.state.player;
+  const key = [Math.floor(x / 16) - 3, Math.floor(y / 16), Math.round(surfaceZ / 16)].join(",");
+  const { pieces } = settlementFor(g.state, g.planet.id);
+  pieces[key] = { kind: "workbench", facing: 1 };
+  expect(g.openWorkbench(key)).toBe(true);
+  work();
+  g.panel = "";
+  delete pieces[key];
+}
+
 describe("Portas funcionais", () => {
   it("ocupa dois blocos, tem colisão fechada e permite passar aberta", () => {
     const { data, terrain } = fixture();
@@ -290,7 +301,7 @@ describe("Persistência das casas pressurizadas", () => {
     );
     await next.delete();
   });
-  it("as novas receitas consomem os materiais na oficina de campo", () => {
+  it("as novas receitas consomem os materiais na bancada planetária", () => {
     const { g } = fixture();
     g.state.backpack = {
       wood: 4,
@@ -301,9 +312,11 @@ describe("Persistência das casas pressurizadas", () => {
       circuit: 2,
       cell: 1,
     };
-    g.make("woodDoor");
-    g.make("solarPanel");
-    g.make("oxygenGenerator");
+    atBench(g, () => {
+      g.make("woodDoor");
+      g.make("solarPanel");
+      g.make("oxygenGenerator");
+    });
     expect(g.state.backpack).toEqual({
       woodDoor: 1,
       solarPanel: 1,
@@ -431,7 +444,9 @@ describe("Baterias solares persistentes", () => {
     const { g, data } = fixture(),
       b = useConstruction();
     g.state.backpack = { plate: 2, circuit: 1, cell: 2 };
-    g.make("battery");
+    atBench(g, () => {
+      g.make("battery");
+    });
     expect(g.state.backpack).toEqual({ battery: 1 });
     g.state.player.x = 88;
     b.equip("battery");

@@ -126,21 +126,33 @@ try {
     g.worldChanged();
   });
   await page.waitForTimeout(850);
-  await page.getByRole("button", { name: "Abrir construção" }).tap();
+  const temporaryBench = await page.evaluate(() => {
+    const g = window.__game;
+    const { x, y } = g.state.player;
+    const key = `${Math.floor(x / 16) - 3},${Math.floor(y / 16)}`;
+    const data = (g.state.settlements[g.planet.id] ??= {
+      pieces: {}, walls: {}, cabinets: {}, cutTrees: [],
+    });
+    data.pieces[key] = { kind: "workbench", facing: 1 };
+    if (!g.openWorkbench(key)) throw new Error("Bancada fora de alcance");
+    return key;
+  });
   for (const name of [
     "Porta de madeira",
     "Placa solar",
     "Bateria estacionária",
     "Gerador de oxigênio",
   ]) {
-    await page
-      .getByRole("button", { name: `Selecionar ${name}`, exact: true })
-      .tap();
-    await page
-      .locator(".build-detail")
-      .getByRole("button", { name: "Fabricar 1", exact: true })
-      .tap();
+    await page.getByLabel("Buscar receita").fill(name);
+    await page.locator(".crafting-dialog .backpack-item").getByText(name, { exact: true }).click();
+    await page.getByRole("button", { name: /^Fabricar ×/ }).click();
   }
+  await page.getByRole("button", { name: "Fechar fabricação" }).click();
+  await page.evaluate((key) => {
+    const g = window.__game;
+    delete g.state.settlements[g.planet.id].pieces[key];
+  }, temporaryBench);
+  await page.getByRole("button", { name: "Abrir construção" }).tap();
   await equip("Porta de madeira", true);
   await tapWorld(56, 456);
   await page.waitForFunction(

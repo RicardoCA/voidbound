@@ -1,3 +1,4 @@
+import { advanceElevatorRide, elevatorFloor } from "../../construction/elevator";
 import { cargoVisitors } from "../../construction/planetCommerce";
 import { HeldMining } from "../physics/heldMining";
 import { fallbackLandedHull, landedHullOverlap } from "../physics/landedShip";
@@ -1062,6 +1063,7 @@ export class WorldScene extends Phaser.Scene {
           } else if (!this.recoverWreck() && !g.dock())
             g.interactFlightTarget();
         } else if (s.mode === "surface") {
+          if (s.player.elevatorRide) return;
           if (!this.building.enabled && this.building.openCargoVisitor()) return;
           const cabinet = this.building.nearestInteraction();
           if (g.recoverBackpack()) return;
@@ -1770,6 +1772,17 @@ export class WorldScene extends Phaser.Scene {
       p.y = Math.min(p.y, t.height(Math.floor(p.x / 16)) * 16 - 12);
       this.vy = 0;
     }
+    if (advanceElevatorRide(p, t, this.building.settlement, dt, flight3D.surfaceView)) {
+      this.vy = 0;
+      this.grounded = true;
+      this.surfaceStride = 0;
+      this.jumpBuffer.clear();
+      this.resetBlockMining();
+      this.surfaceTap = undefined;
+      this.monsters.update(t, this.building.settlement, p, g.state.time, dt, flight3D.surfaceView);
+      if (!p.elevatorRide) void g.save();
+      return;
+    }
     const direction =
       (this.down("D") || this.down("RIGHT") || controls.right ? 1 : 0) -
       (this.down("A") || this.down("LEFT") || controls.left ? 1 : 0);
@@ -1852,6 +1865,16 @@ export class WorldScene extends Phaser.Scene {
       stepSurface(actor, direction * walkingPace, jump, g.planet.gravity, dt, t, this.building.settlement);
     const depthTravel = spatialMove ? spatialMove.z - (p.surfaceZ ?? 0) : 0;
     if (spatialMove) p.surfaceZ = spatialMove.z;
+    if (!climb && movement.y >= p.y) {
+      const previousFeet = p.y + 12 - (this.grounded ? 2.1 : 0);
+      const floor = elevatorFloor(settlement, movement.x, p.surfaceZ ?? 0, previousFeet, movement.y + 12);
+      if (floor !== undefined) {
+        movement.y = floor - 12;
+        movement.fallDamage = Math.max(movement.fallDamage, (movement.vy - 320) * .08);
+        movement.vy = 0;
+        movement.grounded = true;
+      }
+    }
     const travel = climb
       ? Math.abs(movement.y - p.y)
       : Math.hypot(movement.x - p.x, depthTravel);
@@ -2194,6 +2217,7 @@ export class WorldScene extends Phaser.Scene {
         stride: this.surfaceStride,
         animals: [...this.wildlife.animals.values()],
         monsters: [...this.monsters.actors.values()],
+        elevator: s.player.elevatorRide ? { x: s.player.x, y: s.player.y + 14, z: s.player.surfaceZ ?? 0 } : undefined,
         fruit: this.fruit,
         drops: g.surfaceBackpacks(),
         ruin: g.surfaceRuin,
@@ -3167,6 +3191,12 @@ export class WorldScene extends Phaser.Scene {
       material,
       (kind, x, y, state) => this.surfaceArt.prop(this, kind, x, y, 1, state),
     );
+    if (p.elevatorRide) {
+      const x = Math.round(p.x + offsetX);
+      const y = Math.round(p.y + 12 + offsetY);
+      f.fillStyle(0x405666).fillRect(x - 8, y, 16, 3);
+      f.fillStyle(0x79d3cb).fillRect(x - 8, y, 16, 1);
+    }
     for (const drop of g.surfaceBackpacks()) {
       const x = Math.round(drop.x + offsetX);
       const y = Math.round(drop.y + offsetY);

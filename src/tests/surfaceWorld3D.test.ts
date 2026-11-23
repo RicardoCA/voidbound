@@ -1,7 +1,7 @@
 import { fallbackLandedHull, landedHullOverlap, landingSideExit } from "../game/physics/landedShip";
 import { advancePowerNetwork, powerNetwork } from "../construction/habitat";
 import { treeAt } from "../game/procedural/trees";
-import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader, Vector3 } from "three";
+import { Box3, BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Texture, TextureLoader, Vector3 } from "three";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildItems, emptySettlement, placementError, placePiece, removePiece } from "../construction/building";
 import { LAVA_TILE, Terrain, WATER_TILE } from "../game/procedural/terrain";
@@ -20,6 +20,40 @@ import { systemAt } from "../universe/generator";
 afterEach(() => vi.restoreAllMocks());
 
 const planet = systemAt("VOIDBOUND", 0, 0).planets[0]!;
+
+it("carrega a mesma plataforma 3D na parada e durante a viagem", async () => {
+  vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());
+  const asset = new Group();
+  asset.name = "Plataforma modular";
+  asset.add(new Mesh(new BoxGeometry(1, 0.125, 1)));
+  const load = vi.fn(async (key: string) =>
+    key === "equipamentos-base/elevador-modular" ? asset : new Group(),
+  );
+  const world = new SurfaceWorld3D(load);
+  const settlement = emptySettlement();
+  settlement.pieces["0,9,-1"] = { kind: "modularElevator", facing: 1, rotation: 1 };
+  try {
+    world.update({
+      terrain: new Terrain(planet, {}), settlement,
+      elevator: { x: 8, y: 135, z: -16 },
+      camera: { x: 8, y: 143, z: 0, yaw: 0, pitch: 0 },
+      revision: 0, light: 1, elapsed: 0, sunPhase: 0, facing: 1, stride: 0,
+      animals: [], fruit: [], drops: [],
+    }, 960, 540);
+    await Promise.resolve();
+    expect(load.mock.calls.filter(([key]) => key === "equipamentos-base/elevador-modular")).toHaveLength(2);
+    world.scene.updateMatrixWorld(true);
+    const decks: Box3[] = [];
+    world.scene.traverse(node => {
+      if (node.name === asset.name) decks.push(new Box3().setFromObject(node));
+    });
+    expect(decks.map(deck => deck.max.y).sort((a, b) => a - b)).toEqual([-158, -133]);
+    expect(decks.every(deck => deck.getCenter(new Vector3()).z === -16)).toBe(true);
+  } finally {
+    world.dispose();
+    asset.traverse(node => { if (node instanceof Mesh) node.geometry.dispose(); });
+  }
+});
 
 it("mira na cerca para instalar um teto com espaço livre abaixo", () => {
   vi.spyOn(TextureLoader.prototype, "load").mockReturnValue(new Texture());

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
-import { inventoryEntries } from "../inventory/inventory";
+import { buildItems } from "../construction/building";
 import ItemIcon from "./ItemIcon.vue";
-import { BACKPACK_SLOTS, useGame } from "../stores/game";
+import { useGame } from "../stores/game";
 import { useConstruction } from "../stores/construction";
 import HabitatStatus from "./HabitatStatus.vue";
 import { items, type BuildItem } from "../game/types";
@@ -10,9 +10,7 @@ import {
   buildCategories,
   buildCategory,
   buildDescriptions,
-  constructionRecipes,
-  canBuild,
-  filterBuildRecipes,
+  filterBuildItems,
   type BuildFilters,
 } from "../construction/menu";
 import { pieceWidth, isDoor } from "../construction/pieces";
@@ -22,54 +20,24 @@ const g = useGame(),
 const filters = reactive<BuildFilters>({
   search: "",
   category: "all",
-  ready: false,
   owned: false,
   sort: "name",
 });
 const selected = ref<BuildItem>("woodBlock");
-const visible = computed(() =>
-  filterBuildRecipes(
-    g.state.backpack,
-    filters,
-    g.state.mission,
-    BACKPACK_SLOTS,
-  ),
-);
-const active = computed(
-  () => visible.value.find((r) => r.id === selected.value) ?? visible.value[0],
-);
-const readyCount = computed(
-  () =>
-    constructionRecipes.filter((r) =>
-      canBuild(r, g.state.backpack, g.state.mission, BACKPACK_SLOTS),
-    ).length,
-);
-const ownedCount = computed(() =>
-  constructionRecipes.reduce((n, r) => n + (g.state.backpack[r.id] ?? 0), 0),
-);
-const status = ref("");
+const visible = computed(() => filterBuildItems(g.state.backpack, filters));
+const active = computed(() => visible.value.includes(selected.value) ? selected.value : visible.value[0]);
+const ownedCount = computed(() => buildItems.reduce((total, id) => total + (g.state.backpack[id] ?? 0), 0));
 function resetFilters() {
   filters.search = "";
   filters.category = "all";
-  filters.ready = false;
   filters.owned = false;
-}
-function make() {
-  const recipe = active.value;
-  if (!recipe) return;
-  const before = g.state.backpack[recipe.id] ?? 0;
-  g.make(recipe.id);
-  status.value =
-    (g.state.backpack[recipe.id] ?? 0) > before
-      ? `${items[recipe.id].name}: ${recipe.amount ?? 1} fabricado(s). Já pode equipar.`
-      : g.notice;
 }
 </script>
 <template>
   <section class="dialog build-panel build-catalog">
     <div class="dialog-heading">
       <div>
-        <div class="eyebrow">OFICINA DE CAMPO / {{ g.planet.name }}</div>
+        <div class="eyebrow">INSTALAÇÃO / {{ g.planet.name }}</div>
         <h2>Construção de bases</h2>
       </div>
       <button
@@ -81,30 +49,18 @@ function make() {
       </button>
     </div>
     <div class="build-overview">
-      <span>{{ constructionRecipes.length }} projetos</span
-      ><span>{{ readyCount }} fabricáveis</span
-      ><span>{{ ownedCount }} peças na mochila</span>
-      <button type="button" class="secondary" @click="g.panel = 'craft'">
-        Receitas de fabricação
-      </button>
-    </div>
-    <div class="build-materials">
-      <span v-for="id in ['wood', 'stone', 'iron'] as const" :key="id"
-        ><ItemIcon :item="id" />{{ items[id].name }}
-        <b>{{ g.state.backpack[id] ?? 0 }}</b></span
-      >
+      <span>{{ ownedCount }} peças na mochila</span>
     </div>
     <div class="build-filters">
       <label
         >Buscar construção<input
           v-model="filters.search"
           type="search"
-          placeholder="Nome, função ou material"
+          placeholder="Nome ou função"
       /></label>
       <label
         >Ordenar<select v-model="filters.sort">
           <option value="name">Nome</option>
-          <option value="ready">Fabricáveis primeiro</option>
           <option value="owned">Quantidade na mochila</option>
         </select></label
       >
@@ -122,48 +78,18 @@ function make() {
     </div>
     <div class="build-toggles">
       <label
-        ><input v-model="filters.ready" type="checkbox" /> Só fabricáveis</label
-      ><label
         ><input v-model="filters.owned" type="checkbox" /> Só na mochila</label
       ><span>{{ visible.length }} resultados</span>
     </div>
     <div class="build-catalog-content">
       <div class="build-picker" aria-label="Projetos de construção">
-        <button
-          v-for="recipe in visible"
-          :key="recipe.id"
-          class="build-pick"
-          :class="{ selected: active?.id === recipe.id }"
-          :aria-pressed="active?.id === recipe.id"
-          :aria-label="`Selecionar ${items[recipe.id].name}`"
-          @click="selected = recipe.id"
-        >
-          <ItemIcon :item="recipe.id" /><b>{{
-            g.state.backpack[recipe.id] ?? 0
-          }}</b
-          ><strong>{{ items[recipe.id].name }}</strong
-          ><small>{{ buildCategories[buildCategory(recipe.id)] }}</small>
-          <span
-            class="build-availability"
-            :class="{
-              ready: canBuild(
-                recipe,
-                g.state.backpack,
-                g.state.mission,
-                BACKPACK_SLOTS,
-              ),
-            }"
-            >{{
-              canBuild(
-                recipe,
-                g.state.backpack,
-                g.state.mission,
-                BACKPACK_SLOTS,
-              )
-                ? "Fabricável"
-                : "Ver requisitos"
-            }}</span
-          >
+        <button v-for="id in visible" :key="id" class="build-pick"
+          :class="{ selected: active === id }" :aria-pressed="active === id"
+          :aria-label="`Selecionar ${items[id].name}`" @click="selected = id">
+          <ItemIcon :item="id" />
+          <b>{{ g.state.backpack[id] ?? 0 }}</b>
+          <strong>{{ items[id].name }}</strong>
+          <small>{{ buildCategories[buildCategory(id)] }}</small>
         </button>
         <div v-if="!visible.length" class="build-empty">
           <p>Nenhuma construção corresponde aos filtros.</p>
@@ -174,80 +100,28 @@ function make() {
       </div>
       <aside class="build-detail" aria-label="Detalhes da construção">
         <template v-if="active">
-          <ItemIcon :item="active.id" />
-          <h3>{{ items[active.id].name }}</h3>
+          <ItemIcon :item="active" />
+          <h3>{{ items[active].name }}</h3>
           <small
-            >{{ buildCategories[buildCategory(active.id)] }} ·
-            {{ pieceWidth(active.id) }} ×
+            >{{ buildCategories[buildCategory(active)] }} ·
+            {{ pieceWidth(active) }} ×
             {{
-              isDoor(active.id) || isFacility(active.id) ? 2 : 1
+              isDoor(active) || isFacility(active) ? 2 : 1
             }}
             células</small
           >
-          <p>{{ buildDescriptions[active.id] }}</p>
-          <strong
-            >{{ g.state.backpack[active.id] ?? 0 }} na mochila · Produz
-            {{ active.amount ?? 1 }} por fabricação</strong
-          >
-          <h4>Materiais da mochila</h4>
-          <div class="build-requirements">
-            <div
-              v-for="[id, n] in inventoryEntries(active.cost)"
-              :key="id"
-              :class="{ missing: (g.state.backpack[id] ?? 0) < n }"
-            >
-              <ItemIcon :item="id" /><span
-                >{{ items[id].name
-                }}<small v-if="(g.state.backpack[id] ?? 0) < n"
-                  >Faltam {{ n - (g.state.backpack[id] ?? 0) }}</small
-                ></span
-              ><b>{{ g.state.backpack[id] ?? 0 }} / {{ n }}</b>
-            </div>
-          </div>
-          <p
-            v-if="
-              !canBuild(
-                active,
-                g.state.backpack,
-                g.state.mission,
-                BACKPACK_SLOTS,
-              )
-            "
-            class="build-missing"
-          >
-            Confira os materiais e o espaço na mochila para receber as peças.
-          </p>
-          <div class="build-detail-actions">
-            <button
-              class="secondary"
-              :disabled="
-                !canBuild(
-                  active,
-                  g.state.backpack,
-                  g.state.mission,
-                  BACKPACK_SLOTS,
-                )
-              "
-              @click="make"
-            >
-              Fabricar {{ active.amount ?? 1 }}</button
-            ><button
-              class="primary"
-              :disabled="!(g.state.backpack[active.id] ?? 0)"
-              @click="b.equip(active.id)"
-            >
-              Equipar
-            </button>
-          </div>
-          <p class="build-safe-help">
-            Selecionar apenas mostra os detalhes. Fabrique para produzir peças;
-            equipe para colocá-las no mundo.
+          <p>{{ buildDescriptions[active] }}</p>
+          <strong>{{ g.state.backpack[active] ?? 0 }} na mochila</strong>
+          <button class="primary build-equip" :disabled="!(g.state.backpack[active] ?? 0)" @click="b.equip(active)">
+            Equipar
+          </button>
+          <p v-if="!g.state.backpack[active]">
+            Fabrique esta peça na bancada planetária ou na bancada da nave.
           </p>
         </template>
         <p v-else>Limpe os filtros para consultar os projetos de construção.</p>
       </aside>
     </div>
-    <p class="build-feedback" role="status" aria-live="polite">{{ status }}</p>
     <details class="build-guide">
       <summary>Ajuda de construção e suporte de vida</summary>
       <HabitatStatus always />
@@ -264,8 +138,7 @@ function make() {
         mesmo piso e separadas por 1 a 5 blocos.
       </p>
       <p>
-        Esta oficina usa exclusivamente os materiais da mochila. Construções e
-        reservatórios são salvos por planeta.
+        Construções e reservatórios são salvos por planeta.
       </p>
     </details>
   </section>
@@ -398,14 +271,6 @@ function make() {
   font-size: 10px;
   color: #9bb5c0;
 }
-.build-availability {
-  font-size: 10px;
-  color: #d8b286;
-  margin-top: auto;
-}
-.build-availability.ready {
-  color: #a3e5bc;
-}
 .build-detail {
   display: grid;
   gap: 12px;
@@ -422,10 +287,6 @@ function make() {
   margin: 0;
   font-size: 20px;
 }
-.build-detail h4 {
-  margin: 0;
-  font-size: 13px;
-}
 .build-detail > small,
 .build-detail > strong {
   font-size: 12px;
@@ -436,52 +297,9 @@ function make() {
   font-size: 12px;
   line-height: 1.6;
 }
-.build-requirements {
-  display: grid;
-  gap: 8px;
-}
-.build-requirements > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #253c48;
-}
-.build-requirements .item-art {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-}
-.build-requirements span {
-  display: grid;
-  flex: 1;
-  gap: 4px;
-}
-.build-requirements small {
-  font-size: 10px;
-}
-.build-requirements b {
-  font-size: 12px;
-  white-space: nowrap;
-}
-.build-requirements .missing,
-.build-missing {
-  color: #e8b18a;
-}
-.build-detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.build-detail-actions button {
-  flex: 1;
+.build-equip {
   min-height: 46px;
   padding: 10px;
-}
-.build-detail .build-safe-help {
-  font-size: 11px;
-  color: #91aebc;
 }
 .build-empty {
   grid-column: 1/-1;
@@ -489,10 +307,6 @@ function make() {
 .build-empty button {
   min-height: 44px;
   padding: 10px;
-}
-.build-feedback {
-  color: #a3ddca;
-  font-size: 12px !important;
 }
 .build-guide {
   margin-top: 14px;

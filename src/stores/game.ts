@@ -1867,6 +1867,7 @@ export const useGame = defineStore("game", () => {
   function resolvePlayerDeath() {
     const s = state.value;
     if (s.player.health > 0) return false;
+    delete s.player.elevatorRide;
     const deathPosition = {
       x: s.player.x,
       y: s.player.y,

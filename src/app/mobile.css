@@ -440,10 +440,6 @@
     width: 44px;
     flex-shrink: 0;
   }
-  .is-playing .dialog .recipe-list {
-    max-height: none;
-    overflow: visible;
-  }
   .is-playing .map-toolbar {
     flex-wrap: wrap;
     gap: 6px 10px;

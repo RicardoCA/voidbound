@@ -37,26 +37,21 @@ export function itemCategory(id: Item): Exclude<ItemCategory, "all"> {
     return "equipment";
   return "materials";
 }
+export function normalizeItemSearch(text: string) {
+  return text.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 export function filterInventory(
   inventory: Inventory,
   query: string,
   category: string,
   sort: string,
 ) {
-  const search = query
-    .trim()
-    .toLocaleLowerCase("pt-BR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const search = normalizeItemSearch(query);
   return inventoryEntries(inventory)
     .filter(
       ([id, count]) =>
         count > 0 &&
-        items[id].name
-          .toLocaleLowerCase("pt-BR")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .includes(search) &&
+        normalizeItemSearch(items[id].name).includes(search) &&
         (category === "all" || itemCategory(id) === category),
     )
     .sort(

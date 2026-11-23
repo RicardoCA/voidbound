@@ -1,8 +1,7 @@
 import { items, type BuildItem, type Inventory } from "../game/types";
-import { recipes, craft, type Recipe } from "../crafting/recipes";
 import { buildItems } from "./building";
 import { facilityDefinitions, type FacilityKind } from "./facilityTypes";
-import { inventoryEntries } from "../inventory/inventory";
+import { normalizeItemSearch } from "../inventory/presentation";
 export const buildCategories = {
   all: "Todos",
   structure: "Estrutura",
@@ -18,6 +17,7 @@ export const buildCategories = {
 export type BuildCategory = keyof typeof buildCategories;
 const categories: Record<BuildItem, Exclude<BuildCategory, "all">> = {
   woodBlock: "structure",
+  modularElevator: "structure",
   cropRoof: "structure",
   woodFence: "structure",
   fenceGate: "openings",
@@ -72,6 +72,7 @@ export const buildDescriptions: Record<BuildItem, string> = {
   table: "Mesa decorativa. Instale sobre chão firme.",
   bed: "Use E ou toque para dormir e avançar 8 horas locais.",
   woodBlock: "Piso, fundação, pilares e telhado. Bloco sólido.",
+  modularElevator: "Alinhe os módulos na mesma coluna, com ao menos dois blocos entre paradas. Deixe o poço livre e conecte uma placa solar exposta a até 12 blocos de uma parada. À noite, use uma bateria carregada. Interaja com a plataforma para escolher a parada.",
   cropRoof: "Cobertura translúcida que bloqueia chuva comum e ácida. Instale acima do cultivo, apoiada em cerca, pilar ou outra peça de telhado.",
   woodFence: "Delimita a plantação sem bloquear a chuva. Instale sobre chão firme e gire para alinhar.",
   fenceGate: "Entrada do cercado. Instale sobre chão firme e use E, Int. ou toque para abrir e fechar.",
@@ -111,60 +112,22 @@ export const buildDescriptions: Record<BuildItem, string> = {
     "Produz e armazena O₂ usando bateria ou energia solar direta. Recarrega o traje em um cômodo vedado, com paredes de fundo.",
 };
 
-export type ConstructionRecipe = Recipe & { id: BuildItem };
-export const constructionRecipes = buildItems.map(
-  (id) => recipes.find((r) => r.id === id) as ConstructionRecipe,
-);
-export function canBuild(
-  recipe: Recipe,
-  inventory: Inventory,
-  mission: number,
-  capacity: number,
-) {
-  return craft({ ...inventory }, recipe, capacity, mission);
-}
-const normalize = (text: string) =>
-  text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR");
 export interface BuildFilters {
   search: string;
   category: BuildCategory;
-  ready: boolean;
   owned: boolean;
-  sort: "name" | "ready" | "owned";
+  sort: "name" | "owned";
 }
-export function filterBuildRecipes(
-  inventory: Inventory,
-  filters: BuildFilters,
-  mission = 0,
-  capacity = 24,
-) {
-  const query = normalize(filters.search.trim());
-  return constructionRecipes
-    .filter(
-      (recipe) =>
-        (filters.category === "all" ||
-          buildCategory(recipe.id) === filters.category) &&
-        (!filters.owned || (inventory[recipe.id] ?? 0) > 0) &&
-        (!filters.ready || canBuild(recipe, inventory, mission, capacity)) &&
-        (!query ||
-          normalize(
-            `${buildCategories[buildCategory(recipe.id)]} ${items[recipe.id].name} ${buildDescriptions[recipe.id]} ${inventoryEntries(
-              recipe.cost,
-            )
-              .map(([id]) => items[id].name)
-              .join(" ")}`,
-          ).includes(query)),
+export function filterBuildItems(inventory: Inventory, filters: BuildFilters) {
+  const query = normalizeItemSearch(filters.search);
+  return buildItems
+    .filter(id =>
+      (filters.category === "all" || buildCategory(id) === filters.category) &&
+      (!filters.owned || (inventory[id] ?? 0) > 0) &&
+      normalizeItemSearch(`${buildCategories[buildCategory(id)]} ${items[id].name} ${buildDescriptions[id]}`).includes(query),
     )
-    .sort(
-      (a, b) =>
-        (filters.sort === "ready"
-          ? Number(canBuild(b, inventory, mission, capacity)) -
-            Number(canBuild(a, inventory, mission, capacity))
-          : filters.sort === "owned"
-            ? (inventory[b.id] ?? 0) - (inventory[a.id] ?? 0)
-            : 0) || items[a.id].name.localeCompare(items[b.id].name, "pt-BR"),
+    .sort((a, b) =>
+      (filters.sort === "owned" ? (inventory[b] ?? 0) - (inventory[a] ?? 0) : 0) ||
+      items[a].name.localeCompare(items[b].name, "pt-BR"),
     );
 }

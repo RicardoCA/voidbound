@@ -26,6 +26,7 @@ export const buildItems: BuildItem[] = [
   ...Object.keys(facilityDefinitions) as FacilityKind[],
   "woodBlock",
   "cropRoof",
+  "modularElevator",
   "woodFence",
   "fenceGate",
   "woodWall",
@@ -175,6 +176,9 @@ export function placementError(
       !!pieceAt(settlement, nx!, ny!, depth) ||
       !!walls?.[keyAt(nx!, ny!, depth)],
   );
+  if (kind === "modularElevator" && (y < 2 || terrain.getAt(x, y - 1, depth) !== 0 ||
+      settlement.depthBlocks?.[keyAt(x, y - 1, depth)] || pieceAt(settlement, x, y - 1, depth)))
+    return "Deixe um bloco de altura livre acima da plataforma.";
   const depthSupport = ctx.depth !== undefined && [-1, 1].some((offset) => {
     const neighbor = depth + offset;
     const key = keyAt(x, y, neighbor);
@@ -193,7 +197,7 @@ export function placementError(
   const roofSupport = post === "woodFence" || post === "fenceGate" || post === "woodBlock";
   if (kind === "picture" && !wallBacking)
     return "Instale o quadro sobre uma parede de fundo.";
-  if (!(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking && !roofSupport)
+  if (kind !== "modularElevator" && !(isWall(kind) && ctx.rotation !== undefined && walls?.[keyAt(x, y, depth)]) && !supported && !depthSupport && !stairSupport && !ladderBacking && !wallBacking && !roofSupport)
     return "Conecte a peça ao terreno ou a uma construção existente.";
   if (
     (isFacility(kind) || isCabinet(kind) ||

@@ -356,6 +356,13 @@ export const itemArt: Record<Item, ItemArt> = {
     detail: "M6 11h1v6H6zM9 12h1v6H9z",
     accent: "#8d5d41",
   },
+  modularElevator: {
+    body: "M2 15l10-4 10 4v4l-10 4-10-4z",
+    shade: "M2 16l10 4 10-4v3l-10 4-10-4z",
+    light: "M3 15l9-4 9 4-9 3z",
+    detail: "M11 4H8l4-4 4 4h-3v4h3l-4 4-4-4h3z",
+    accent: "#e3b35d",
+  },
   cropRoof: {
     body: "M2 9l10-5 10 5v4l-10 5-10-5z",
     shade: "M2 10l10 5 10-5v3l-10 5-10-5z",

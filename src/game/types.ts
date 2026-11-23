@@ -74,6 +74,7 @@ export type Item =
   | "jump"
   | "drill"
   | "woodBlock"
+  | "modularElevator"
   | "cropRoof"
   | "woodFence"
   | "fenceGate"
@@ -141,6 +142,7 @@ export interface StarSystem {
 export type BuildItem =
   | FacilityKind
   | "woodBlock"
+  | "modularElevator"
   | "cropRoof"
   | "woodFence"
   | "fenceGate"
@@ -262,6 +264,7 @@ export interface Save {
   ship: ShipState;
   minedCyberCrystals?: Record<string, number>;
   player: {
+    elevatorRide?: { planetId: string; origin: string; destination: string };
     autoFeeder?: { food: Inventory };
     autoOxygen?: { cartridges: Inventory };
     surfaceZ?: number;
@@ -633,6 +636,7 @@ export const items: Record<Item, ItemDetails> = {
     rarity: "Construção",
     stack: 99,
   },
+  modularElevator: { name: "Elevador modular", color: "#79d3cb", icon: "↕", rarity: "Construção", stack: 99 },
   cropRoof: { name: "Teto para cultivo", color: "#86c1b3", icon: "▔", rarity: "Construção", stack: 99 },
   woodFence: { name: "Cerca de madeira", color: "#b18657", icon: "╫", rarity: "Construção", stack: 99 },
   fenceGate: { name: "Portão de cerca", color: "#d0aa72", icon: "⊞", rarity: "Construção", stack: 99 },

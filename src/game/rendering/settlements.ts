@@ -153,6 +153,13 @@ export function drawPiece(
     g.fillRect(x, y + 14, 16, 2);
     return;
   }
+  if (kind === "modularElevator") {
+    g.fillStyle(0x405666, alpha).fillRect(x, y + 14, 16, 2);
+    g.fillStyle(0x79d3cb, alpha).fillRect(x, y + 14, 16, 1);
+    for (const stripe of [3, 7, 11])
+      g.fillStyle(0xd9ab56, alpha).fillRect(x + stripe, y + 15, 2, 1);
+    return;
+  }
   if (kind === "cropRoof") {
     g.fillStyle(0x82bdb2, alpha * .65).fillRect(x, y, 16, 4);
     g.fillStyle(material.timber, alpha).fillRect(x, y, 2, 4).fillRect(x + 14, y, 2, 4);

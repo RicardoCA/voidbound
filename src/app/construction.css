@@ -2,29 +2,6 @@
   color: var(--mint);
   font-weight: 500;
 }
-.build-materials {
-  display: flex;
-  gap: 24px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  color: #a3b9c3;
-  letter-spacing: 0.6px;
-}
-.build-materials > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.build-materials .item-art {
-  width: 20px;
-  height: 20px;
-}
-.build-materials b {
-  color: var(--gold);
-  font-size: 15px;
-  margin-left: 8px;
-}
 .build-recipes {
   display: grid;
   grid-template-columns: 1fr 1fr;

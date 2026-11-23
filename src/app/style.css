@@ -708,6 +708,23 @@ kbd {
 .narrow {
   width: 460px;
 }
+.elevator-power {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  margin: 0 0 16px;
+  border: 1px solid #344752;
+  background: #0c1925;
+  font-size: 12px;
+}
+.elevator-power dt {
+  color: var(--mint);
+  font-weight: 600;
+}
+.elevator-power dd {
+  margin: 4px 0 0;
+  color: #a8bdc7;
+}
 .narrow > button {
   width: 100%;
   display: block;
@@ -839,50 +856,6 @@ kbd {
 .tabs .active {
   color: var(--mint);
   border-color: var(--mint);
-}
-.recipe-list {
-  max-height: 400px;
-  overflow: auto;
-}
-.recipe {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 16px 5px;
-  border-bottom: 1px solid #253441;
-}
-.recipe .recipe-icon {
-  width: 34px;
-  height: 34px;
-}
-.recipe h3 {
-  margin: 0 0 7px;
-}
-.recipe > div {
-  flex: 1;
-}
-.ingredients {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 9px;
-  color: var(--mint);
-}
-.ingredients > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.ingredients .item-art {
-  width: 16px;
-  height: 16px;
-}
-.ingredients .missing {
-  color: #b88e88;
-}
-.recipe .secondary {
-  font-size: 8px;
-  padding: 10px;
 }
 .warning {
   color: #d8af7c !important;
@@ -1348,24 +1321,6 @@ kbd {
   .tabs button {
     padding: 10px 8px;
     font-size: 9px;
-  }
-  .recipe {
-    gap: 9px;
-    padding: 12px 0;
-  }
-  .recipe h3 {
-    font-size: 11px;
-  }
-  .ingredients {
-    font-size: 8px;
-  }
-  .recipe .recipe-icon {
-    width: 26px;
-    height: 26px;
-  }
-  .recipe .secondary {
-    padding: 9px 7px;
-    font-size: 7px;
   }
   .planet-facts b {
     font-size: 12px;

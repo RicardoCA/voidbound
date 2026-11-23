@@ -65,6 +65,7 @@ export interface SurfaceFrame {
   stride: number;
   animals: readonly Animal[];
   monsters?: readonly NightMonster[];
+  elevator?: { x: number; y: number; z: number };
   fruit: readonly Fruit[];
   drops: readonly (Point & { z?: number })[];
   ruin?: Point;
@@ -477,6 +478,11 @@ export class SurfaceWorld3D {
             : metal;
       block(color, 0, 8, surfaceWallZ - 8, 16, 16, surfaceWallThickness);
       for (const y of [4, 9, 14]) block(0x343741, 0, y, -12.4, 16, 0.42, 0.2);
+    } else if (kind === "modularElevator") {
+      block(metal, 0, .75, -8, 15.8, 1.5, 15.8);
+      block(0x25353d, 0, 1.75, -8, 13.8, .5, 12);
+      for (const z of [-15, -1]) block(light, 0, 1.6, z, 14.8, .75, 1.1);
+      for (const x of [-5, 0, 5]) block(0xd9ab56, x, 2.02, -8, 2.2, .06, 8);
     } else if (kind === "cropRoof") {
       block(wood, 0, 14, -15.2, 16, 3, 1.6);
       block(wood, 0, 14, -.8, 16, 3, 1.6);
@@ -750,6 +756,10 @@ export class SurfaceWorld3D {
       );
       group.userData.cell = { x, y, depth, kind: piece.kind };
       if (piece.kind === "woodBlock") this.markOpaqueBlock(group, x, y, depth);
+    }
+    if (frame.elevator) {
+      const { x, y, z } = frame.elevator;
+      put("elevator:ride", x, y, z, () => this.orientedPiece("modularElevator", false, 1, true));
     }
     const trees = [
       ...(Math.abs(z) < 230 ? treesInRange(planet, terrain, left, right, settlement.cutTrees) : []),
@@ -1160,6 +1170,10 @@ export class SurfaceWorld3D {
 
   private orientedPiece(kind: BuildItem, open: boolean, facing: 1 | -1, powered: boolean, rotation?: number, emergencyActive = false) {
     const piece = this.piece(kind, open, facing, powered, emergencyActive);
+    if (kind === "modularElevator") {
+      this.attachSurfaceModel(piece, "equipamentos-base/elevador-modular", 15.8, 2, 15.8, -8);
+      return piece;
+    }
     if (kind === "cropRoof") {
       this.replaceSurfaceModel(piece, "equipamentos-base/teto-cultivo", (model) => {
         model.scale.set(TILE / 1.06, TILE, TILE / 1.06);

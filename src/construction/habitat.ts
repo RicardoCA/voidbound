@@ -9,8 +9,8 @@ export const OXYGEN_CAP = 100,
   SOLAR_RATE = 8,
   GENERATOR_RATE = 6,
   REFILL_RATE = 8,
-  POWER_RANGE = 12,
   FRIDGE_RATE = 1;
+export const POWER_RANGE = 12;
 const SOLAR_TIME_SCALE = 150;
 export const PLANET_DAY = 2 * Math.PI * SOLAR_TIME_SCALE;
 export const solarPhase = (time: number) => time / SOLAR_TIME_SCALE;
@@ -153,6 +153,7 @@ export function hasPlanetaryOxygenGenerator(data?: Settlement) {
 }
 
 export interface PowerNetwork {
+  elevatorPanels: { x: number; y: number; depth: number }[];
   facilities: { key: string; exposed: boolean; batteries: string[]; panels: string[] }[];
   facilityPlanet?: import("../game/types").Planet;
   planetary: { key: string; battery?: string; panels: number }[];
@@ -287,7 +288,7 @@ export function powerNetwork(terrain: Terrain, data: Settlement): PowerNetwork {
       };
     });
   return {
-    facilities, facilityPlanet: terrain.planet,
+    elevatorPanels: exposed, facilities, facilityPlanet: terrain.planet,
     planetary,
     generators,
     batteries,

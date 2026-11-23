@@ -148,12 +148,10 @@ try {
   await walkToEquipment("w", "craft");
   await page.getByRole("button", { name: "Abrir fabricação" }).click();
   const make = async (name, n = 1) => {
+    await page.getByLabel("Buscar receita").fill(name);
+    await page.locator(".crafting-dialog .backpack-item").getByText(name, { exact: true }).click();
     for (let i = 0; i < n; i++)
-      await page
-        .locator(".recipe")
-        .filter({ has: page.getByRole("heading", { name, exact: true }) })
-        .getByRole("button")
-        .click();
+      await page.getByRole("button", { name: /^Fabricar ×/ }).click();
   };
   await make("Placa metálica", 2);
   await make("Circuito básico", 2);

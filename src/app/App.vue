@@ -885,6 +885,40 @@ function minutes() {
             {{ Math.round(g.stationDistance) }} km
           </p>
         </section>
+        <section v-else-if="surface && g.panel === 'elevator'" class="dialog narrow">
+          <h2>Elevador modular</h2>
+          <dl v-if="b.elevatorPower" class="elevator-power" aria-label="Conexões de energia">
+            <div>
+              <dt>Placas solares</dt>
+              <dd v-if="b.elevatorPower.panels">
+                {{ b.elevatorPower.panels }} {{ b.elevatorPower.panels === 1 ? "conectada" : "conectadas" }}
+                · {{ b.elevatorPower.sunlight ? "Gerando energia" : "Sem sol" }}
+              </dd>
+              <dd v-else>Nenhuma placa exposta conectada</dd>
+            </div>
+            <div>
+              <dt>Baterias</dt>
+              <dd v-if="b.elevatorPower.batteries">
+                {{ b.elevatorPower.batteries }} {{ b.elevatorPower.batteries === 1 ? "conectada" : "conectadas" }}
+                · {{ b.elevatorPower.charge > 0
+                  ? `${Math.floor(b.elevatorPower.charge)}/${b.elevatorPower.capacity} de carga`
+                  : "Sem carga" }}
+              </dd>
+              <dd v-else>Nenhuma bateria conectada</dd>
+            </div>
+          </dl>
+          <p v-if="b.elevatorError" role="status">{{ b.elevatorError }}</p>
+          <p v-if="!b.elevatorDestinations.length">
+            Instale outro módulo na mesma coluna, com pelo menos dois blocos entre as paradas e o poço livre.
+          </p>
+          <div class="station-actions">
+            <button v-for="stop in b.elevatorDestinations" :key="stop.key" class="primary"
+              @click="b.rideElevator(stop.key)">
+              {{ stop.blocks > 0 ? "Subir" : "Descer" }} {{ Math.abs(stop.blocks) }} blocos
+            </button>
+            <button class="secondary" @click="g.panel = ''">Fechar</button>
+          </div>
+        </section>
         <section v-else-if="g.panel === 'sleep'" class="dialog">
           <h2>Dormir na cama</h2>
           <p>Avance 8 horas no relógio do planeta.</p>
