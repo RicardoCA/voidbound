@@ -11,9 +11,10 @@ const b = useConstruction();
 const g = useGame();
 const slots = computed(() => quickSlotNumbers.map((number) => {
   const stored = number === 1 ? undefined : g.state.quickSlots?.[number];
-  const item = stored && canAssignQuickSlot(stored) ? stored : undefined;
+  const count = stored ? (g.state.backpack[stored] ?? 0) : 0;
+  const item = stored && count > 0 && canAssignQuickSlot(stored) ? stored : undefined;
   const name = number === 1 ? "Pistola de mineração" : item ? items[item].name : "Vazio";
-  return { number, item, name, count: item ? (g.state.backpack[item] ?? 0) : undefined };
+  return { number, item, name, count: item ? count : undefined };
 }));
 const groups = computed(() => [slots.value.slice(0, 1), slots.value.slice(1)]);
 

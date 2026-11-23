@@ -210,10 +210,14 @@ describe("Construção e armazenamento transacionais", () => {
     expect(b.collectFruit(fruit)).toBe(false);
     const seed = `fruitSeed-${fruit.item}` as const;
     expect(g.state.backpack[seed]).toBe(1);
+    expect(g.state.quickSlots?.[2]).toBe(seed);
     terrain.setAt(4, 28, 0, 0);
     terrain.setAt(4, 29, 0, 1);
-    b.equip(seed);
+    b.activateQuickSlot(2);
+    expect(b.activeQuickSlot).toBe(2);
     expect(b.apply(4, 28)).toBe(true);
+    expect(g.state.quickSlots?.[2]).toBeUndefined();
+    expect(b.activeQuickSlot).toBe(1);
     terrain.setAt(4, 26, 0, 1);
     advanceCrops(terrain, data, { kind: "rain", intensity: 1 });
     expect(data.crops?.["4,28"]?.moisture).toBe(0);

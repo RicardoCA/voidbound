@@ -116,10 +116,11 @@ export const useConstruction = defineStore("construction", () => {
   function assignQuickSlot(slot: number, item: Item) {
     if (!canAssignQuickSlot(item) || !g.state.backpack[item] ||
         (slot !== 0 && (!Number.isInteger(slot) || slot < 2 || slot > 9))) return;
-    const slots = (g.state.quickSlots ??= {});
+    const slots = { ...g.state.quickSlots };
     for (const number of assignableQuickSlots)
       if (slots[number] === item) delete slots[number];
     if (slot) slots[slot] = item;
+    g.state.quickSlots = slots;
     void g.save();
   }
   function activateQuickSlot(slot: number) {

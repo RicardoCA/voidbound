@@ -16,5 +16,5 @@ export function fillQuickSlot(state: Save, item: Item) {
   const slots = state.quickSlots;
   if (assignableQuickSlots.some((number) => slots?.[number] === item)) return;
   const free = assignableQuickSlots.find((number) => !slots?.[number]);
-  if (free !== undefined) (state.quickSlots ??= {})[free] = item;
+  if (free !== undefined) state.quickSlots = { ...slots, [free]: item };
 }
